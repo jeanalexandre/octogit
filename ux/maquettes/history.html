@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Octogit — History (low-fi)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; font: 13px/1.4 -apple-system, system-ui, sans-serif; color: #222; background: #f2f2f2; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 32px 0 8px; color: #555; text-transform: uppercase; letter-spacing: .05em; }
+  .note { color: #666; margin: 0 0 16px; }
+  .frame { background: #fff; border: 2px solid #999; width: 1500px; max-width: 100%; overflow: hidden; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .state { display: flex; flex-direction: column; gap: 6px; }
+  .state > .label { font-weight: 600; color: #555; }
+  .toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #bbb; background: #e6e6e6; flex-wrap: wrap; }
+  .btn { border: 1px solid #999; background: #fafafa; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
+  .btn.primary { background: #555; color: #fff; border-color: #555; }
+  .btn.disabled { color: #aaa; border-color: #ccc; background: #f4f4f4; }
+  .btn.split::after { content: " ▾"; color: #666; }
+  .sep { width: 1px; height: 22px; background: #bbb; margin: 0 4px; }
+  .grow { flex: 1; }
+  .search { border: 1px solid #999; background: #fff; padding: 4px 8px; border-radius: 4px; width: 220px; color: #888; }
+  .badge { border: 2px solid #555; border-radius: 999px; padding: 3px 10px; font-weight: 600; }
+  .badge.alert { border-style: dashed; background: #ddd; }
+  .muted { color: #777; }
+  .small { font-size: 11px; }
+  .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .body { display: grid; grid-template-columns: 230px 1fr 380px; min-height: 560px; }
+  .side { border-right: 1px solid #bbb; padding: 10px; background: #f7f7f7; }
+  .side .sec { font-weight: 600; color: #555; margin: 10px 0 4px; font-size: 11px; text-transform: uppercase; }
+  .side div.item { padding: 3px 6px; }
+  .side div.item.current { background: #ddd; font-weight: 600; }
+  .graph { border-right: 1px solid #bbb; }
+  .commit { display: grid; grid-template-columns: 120px 1fr 110px 90px 70px; align-items: center; height: 32px; padding: 0 10px; border-bottom: 1px solid #eee; gap: 8px; }
+  .commit.sel { background: #ddd; outline: 2px solid #555; outline-offset: -2px; }
+  .commit.hit { background: #eee; }
+  .lanes { display: flex; align-items: center; gap: 10px; }
+  .node { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #555; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; background: #fff; }
+  .node.l2 { margin-left: 32px; }
+  .node.l3 { margin-left: 64px; }
+  .node.wip { border-style: dashed; }
+  .ref { border: 1px solid #777; border-radius: 3px; padding: 0 5px; font-size: 11px; margin-right: 4px; background: #f4f4f4; }
+  .panel { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .panel h3 { margin: 0; font-size: 13px; }
+  .file { display: flex; gap: 8px; align-items: center; padding: 3px 4px; }
+  .st { width: 16px; height: 16px; border: 1px solid #777; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+  .input { border: 1px solid #999; padding: 6px 8px; border-radius: 4px; background: #fff; }
+  .textarea { height: 70px; color: #888; }
+  .check { display: flex; gap: 6px; align-items: center; }
+  .ok { border: 1px solid #999; padding: 6px 8px; background: #f4f4f4; }
+  .warn { border: 2px solid #333; padding: 8px; background: #e0e0e0; }
+  .banner { padding: 8px 10px; border-bottom: 2px solid #333; background: #d6d6d6; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .card { background: #fff; border: 2px solid #999; width: 380px; }
+  .wide { width: 1100px; max-width: 100%; }
+</style>
+</head>
+<body>
+<h1>History — main screen</h1>
+<p class="note">Low fidelity: layout and content only. Width ≈ 1 500 px (laptop full screen). WIP selected by default on repo open.</p>
+
+<h2>1 · Default: WIP selected, identity matches profile</h2>
+<div class="frame">
+  <div class="toolbar">
+    <span class="btn">client-git ▾</span>
+    <span class="btn">feature/profiles ▾</span>
+    <span class="sep"></span>
+    <span class="btn split">⇣ Fetch All</span>
+    <span class="btn">⇡ Push 2</span>
+    <span class="btn">Branch</span>
+    <span class="btn">Stash</span>
+    <span class="btn">Pop</span>
+    <span class="grow"></span>
+    <span class="search">Search message, author, SHA  ⌘F</span>
+    <span class="muted small">fetched 2 min ago</span>
+    <span class="badge">● Work · @jag-work</span>
+  </div>
+  <div class="body">
+    <div class="side">
+      <div class="mono small muted">~/Dev/Work/client-git</div>
+      <div class="sec">Local · 3</div>
+      <div class="item">main</div>
+      <div class="item">develop</div>
+      <div class="item current">feature/profiles  ↑2</div>
+      <div class="sec">origin · 5</div>
+      <div class="item">main</div>
+      <div class="item">develop</div>
+      <div class="item">feature/profiles</div>
+      <div class="item">feature/graph</div>
+      <div class="item">spike/gix-vs-libgit2</div>
+      <div class="sec">Tags · 2</div>
+      <div class="item">v0.1.0</div>
+      <div class="item">v0.0.9</div>
+      <div class="sec">Stashes · 1</div>
+      <div class="item">WIP on develop: try notify debounce</div>
+    </div>
+    <div class="graph">
+      <div class="commit sel"><span class="lanes"><span class="node wip">+3</span></span><span>// WIP — 3 changed files</span><span></span><span></span><span></span></div>
+      <div class="commit"><span class="lanes"><span class="node">JG</span></span><span><span class="ref">⌂ feature/profiles</span>feat(profiles): inject core.sshCommand per profile</span><span class="muted">J. Gautreau</span><span class="muted">12 min ago</span><span class="mono muted">a3f9c21</span></div>
+      <div class="commit"><span class="lanes"><span class="node">JG</span></span><span><span class="ref">☁ origin/feature/profiles</span>feat(profiles): Profile model + SQLite storage</span><span class="muted">J. Gautreau</span><span class="muted">yesterday</span><span class="mono muted">c41d8e0</span></div>
+      <div class="commit"><span class="lanes"><span class="node l2">ML</span></span><span><span class="ref">☁ origin/feature/graph</span>feat(graph): virtualised canvas for lanes</span><span class="muted">M. Leroy</span><span class="muted">2 h ago</span><span class="mono muted">7be04d1</span></div>
+      <div class="commit"><span class="lanes"><span class="node l3">JG</span></span><span><span class="ref">⌂ develop</span><span class="ref">☁ origin/develop</span>Merge branch 'hotfix/push-progress' into develop</span><span class="muted">J. Gautreau</span><span class="muted">yesterday</span><span class="mono muted">e92a6b3</span></div>
+      <div class="commit"><span class="lanes"><span class="node l3">ML</span></span><span>fix(push): read progress from stderr</span><span class="muted">M. Leroy</span><span class="muted">2 days ago</span><span class="mono muted">5d17f4a</span></div>
+      <div class="commit"><span class="lanes"><span class="node l3">JG</span></span><span>feat(status): watch .git with notify</span><span class="muted">J. Gautreau</span><span class="muted">2 weeks ago</span><span class="mono muted">4f5e6d7</span></div>
+      <div class="commit"><span class="lanes"><span class="node">JG</span></span><span><span class="ref">⌂ main</span><span class="ref">☁ origin/main</span><span class="ref">◆ v0.1.0</span>release: v0.1.0</span><span class="muted">J. Gautreau</span><span class="muted">1 week ago</span><span class="mono muted">1a2b3c4</span></div>
+      <div class="commit"><span class="lanes"><span class="node">JG</span></span><span>chore: init Tauri 2 + Svelte + gix</span><span class="muted">J. Gautreau</span><span class="muted">3 weeks ago</span><span class="mono muted">2c3d4e5</span></div>
+      <div class="commit"><span class="lanes"><span class="node">JG</span></span><span>Initial commit</span><span class="muted">J. Gautreau</span><span class="muted">3 weeks ago</span><span class="mono muted">0a1b2c3</span></div>
+    </div>
+    <div class="panel">
+      <h3>Working changes · 3 files</h3>
+      <div class="muted small">Unstaged · 2 <span class="btn" style="float:right;padding:0 6px">Stage all</span></div>
+      <div class="file"><span class="st">M</span><span class="mono">src-tauri/src/profile/inject.rs</span></div>
+      <div class="file"><span class="st">A</span><span class="mono">src/lib/ProfileBadge.svelte</span></div>
+      <div class="muted small">Staged · 1 <span class="btn" style="float:right;padding:0 6px">Unstage all</span></div>
+      <div class="file"><span class="st">M</span><span class="mono">src-tauri/src/git/command.rs</span></div>
+      <div class="muted small">Click a file to stage hunks or lines.</div>
+      <div class="input">feat(profiles): show active profile in toolbar</div>
+      <div class="input textarea">Description</div>
+      <label class="check"><input type="checkbox"> Amend last commit</label>
+      <div class="ok small">✓ Identity matches profile Work · jag@work-company.fr</div>
+      <span class="btn primary" style="text-align:center">Commit to feature/profiles  ⌘↵</span>
+    </div>
+  </div>
+</div>
+
+<h2>2 · Right panel variants (side by side)</h2>
+<div class="row">
+  <div class="state">
+    <div class="label">Identity mismatch → blocked</div>
+    <div class="card panel">
+      <h3>Working changes · 3 files</h3>
+      <div class="input">feat(profiles): show active profile in toolbar</div>
+      <div class="warn">
+        <strong>Identity does not match profile Work.</strong><br>
+        Expected: jag@work-company.fr<br>
+        Found in .git/config: jag@personal.dev
+        <div style="margin-top:8px"><span class="btn">Fix repository identity</span></div>
+      </div>
+      <span class="btn disabled" style="text-align:center">Commit to feature/profiles</span>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Commit selected → CommitDetail</div>
+    <div class="card panel">
+      <div><span class="mono">a3f9c21</span> <span class="btn" style="padding:0 6px">Copy SHA</span> <span class="muted">✓ Signed</span></div>
+      <h3>feat(profiles): inject core.sshCommand per profile</h3>
+      <div class="muted">Every git command gets -c core.sshCommand with the profile key and IdentitiesOnly=yes.</div>
+      <div class="small">Author: J. Gautreau · jag@work-company.fr<br>Date: 22 Oct 2026 · 10:12<br>Parent: <span class="mono">c41d8e0</span></div>
+      <div><span class="btn">Checkout</span> <span class="btn">Cherry-pick</span> <span class="btn">Revert</span> <span class="btn">Branch here</span></div>
+      <div class="muted small">4 files changed · +141 −23</div>
+      <div class="file"><span class="st">M</span><span class="mono">profile/inject.rs</span><span class="muted small">+88 −12</span></div>
+      <div class="file"><span class="st">A</span><span class="mono">profile/ssh.rs</span><span class="muted small">+41</span></div>
+      <div class="file"><span class="st">M</span><span class="mono">git/command.rs</span><span class="muted small">+10 −9</span></div>
+      <div class="file"><span class="st">M</span><span class="mono">Cargo.toml</span><span class="muted small">+2 −2</span></div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">No changes</div>
+    <div class="card panel">
+      <h3>Working changes</h3>
+      <div class="muted">Working tree clean.</div>
+      <span class="btn disabled" style="text-align:center">Commit to feature/profiles</span>
+    </div>
+  </div>
+</div>
+
+<h2>3 · Toolbar and banner variants</h2>
+<div class="row">
+  <div class="state">
+    <div class="label">Fetch / Pull split menu</div>
+    <div class="card panel">
+      <div class="muted small">Default action for this button</div>
+      <label class="check"><input type="radio" checked> Fetch All</label>
+      <label class="check"><input type="radio"> Pull (fast-forward only)</label>
+      <label class="check"><input type="radio"> Pull (rebase)</label>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Right-click on origin/feature/profiles → Reset</div>
+    <div class="card panel">
+      <div class="muted small">Reset feature/profiles to here ›</div>
+      <div class="btn">Soft — keep changes staged</div>
+      <div class="btn">Mixed — keep changes unstaged</div>
+      <div class="btn">Hard — discard everything…</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">ResetHardDialog</div>
+    <div class="card panel">
+      <h3>Hard reset feature/profiles to c41d8e0?</h3>
+      <div class="warn small">2 commits and 3 modified files will be lost.<br>
+        <span class="mono">a3f9c21 feat(profiles): inject core.sshCommand…</span><br>
+        <span class="mono">b72e110 wip ssh</span><br>
+        <span class="mono">M profile/inject.rs · A lib/ProfileBadge.svelte · M git/command.rs</span></div>
+      <div style="text-align:right"><span class="btn">Cancel</span> <span class="btn primary">Hard reset</span></div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Pull refused (diverged)</div>
+    <div class="card panel">
+      <div class="warn">Branch has diverged: 2 local, 3 on origin. Pull (fast-forward only) not possible.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Push after rewrite → Force push</div>
+    <div class="card panel">
+      <span class="btn" style="border-width:2px;border-style:dashed">⇡ Force push</span>
+      <div class="muted small">Opens ForcePushDialog: lists the 2 remote commits that will be overwritten. Always --force-with-lease.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Offline / error</div>
+    <div class="card panel">
+      <div><span class="muted">○ offline — auto-fetch paused</span></div>
+      <div class="warn small">Fetch failed: Permission denied (publickey). <u>Details</u></div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Search active</div>
+    <div class="card panel">
+      <div><span class="search" style="color:#222">notify</span> <span class="muted">2 / 5</span> ↑ ↓</div>
+      <label class="check"><input type="checkbox"> Show matches only</label>
+      <div class="muted small">Matching rows highlighted in the full graph.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Operation in progress (all screens)</div>
+    <div class="frame wide">
+      <div class="banner"><strong>Rebase in progress</strong> · step 2 / 5 · 1 conflict <span class="grow"></span><span class="btn">Resume</span><span class="btn">Continue</span><span class="btn">Abort</span></div>
+      <div class="toolbar"><span class="btn">client-git ▾</span><span class="btn disabled">feature/profiles ▾</span><span class="btn disabled">⇣ Fetch All</span><span class="btn disabled">⇡ Push</span><span class="grow"></span><span class="badge">● Work · @jag-work</span></div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">No profile matched</div>
+    <div class="frame wide">
+      <div class="toolbar"><span class="btn">side-project ▾</span><span class="grow"></span><span class="badge alert">⚠ No profile — choose one</span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

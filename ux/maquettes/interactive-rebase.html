@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Octogit — InteractiveRebase (low-fi)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; font: 13px/1.4 -apple-system, system-ui, sans-serif; color: #222; background: #f2f2f2; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 32px 0 8px; color: #555; text-transform: uppercase; letter-spacing: .05em; }
+  .note { color: #666; margin: 0 0 16px; }
+  .frame { background: #fff; border: 2px solid #999; width: 1500px; max-width: 100%; overflow: hidden; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .state { display: flex; flex-direction: column; gap: 6px; }
+  .state > .label { font-weight: 600; color: #555; }
+  .titlebar { padding: 8px 12px; border-bottom: 1px solid #bbb; background: #e6e6e6; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .btn { border: 1px solid #999; background: #fafafa; padding: 4px 10px; border-radius: 4px; white-space: nowrap; display: inline-block; }
+  .btn.primary { background: #555; color: #fff; border-color: #555; }
+  .btn.sm { padding: 0 6px; }
+  .grow { flex: 1; }
+  .muted { color: #777; }
+  .small { font-size: 11px; }
+  .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .badge { border: 2px solid #555; border-radius: 999px; padding: 3px 10px; font-weight: 600; }
+  .body { display: grid; grid-template-columns: 1fr 380px; min-height: 520px; }
+  .main { padding: 14px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid #bbb; }
+  .item { display: grid; grid-template-columns: 50px 110px 1fr 80px; gap: 10px; align-items: center; border: 1px solid #bbb; padding: 6px 8px; }
+  .item.sel { border: 2px solid #555; background: #eee; }
+  .item.drop { color: #999; text-decoration: line-through; }
+  .item.into { margin-left: 40px; border-style: dashed; }
+  .select { border: 1px solid #777; padding: 2px 6px; background: #fff; }
+  .edit { grid-column: 3 / 5; }
+  .input { border: 1px solid #999; padding: 6px 8px; border-radius: 4px; background: #fff; }
+  .side { padding: 14px; display: flex; flex-direction: column; gap: 12px; background: #f7f7f7; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .col { border: 1px solid #bbb; background: #fff; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+  .c { border: 1px solid #ccc; padding: 2px 6px; font-size: 11px; }
+  .warn { border: 2px solid #333; padding: 8px; background: #e0e0e0; }
+  .foot { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid #bbb; justify-content: flex-end; }
+  .card { background: #fff; border: 2px solid #999; width: 460px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .banner { padding: 8px 10px; border-bottom: 2px solid #333; background: #d6d6d6; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: -12px -12px 0; }
+</style>
+</head>
+<body>
+<h1>InteractiveRebase</h1>
+<p class="note">Low fidelity. Opened by right-click on a commit › “Interactive rebase from here”. Git's own rebase engine runs underneath.</p>
+
+<h2>1 · Composing the rebase</h2>
+<div class="frame">
+  <div class="titlebar"><strong>Interactive rebase</strong> <span class="muted">of</span> feature/profiles <span class="muted">onto</span> develop · <span class="mono">e92a6b3</span><span class="grow"></span><span class="badge">● Work · @jag-work</span></div>
+  <div class="body">
+    <div class="main">
+      <div class="muted small">Oldest at the top. Move the selected commit with ↑ ↓ or ⌥↑ ⌥↓. Action shortcuts: p r s f d.</div>
+      <div class="item"><span><span class="btn sm">↑</span><span class="btn sm">↓</span></span><span class="select">pick ▾</span><span>feat(profiles): Profile model + SQLite storage</span><span class="mono muted">c41d8e0</span></div>
+      <div class="item sel"><span><span class="btn sm">↑</span><span class="btn sm">↓</span></span><span class="select">reword ▾</span><span>wip ssh</span><span class="mono muted">b72e110</span>
+        <span></span><span></span><div class="edit"><div class="muted small">New message</div><div class="input">feat(profiles): inject core.sshCommand per profile</div></div></div>
+      <div class="item into"><span><span class="btn sm">↑</span><span class="btn sm">↓</span></span><span class="select">fixup ▾</span><span>fix typo in ssh_cmd</span><span class="mono muted">d03f9a2</span></div>
+      <div class="item drop"><span><span class="btn sm">↑</span><span class="btn sm">↓</span></span><span class="select">drop ▾</span><span>debug: print args</span><span class="mono muted">91aa4c7</span></div>
+      <div class="item"><span><span class="btn sm">↑</span><span class="btn sm">↓</span></span><span class="select">squash ▾</span><span>feat(profiles): signing with gpg.format=ssh</span><span class="mono muted">a3f9c21</span></div>
+      <div class="muted small">squash: messages are combined — edit the result below.</div>
+      <div class="input" style="height:60px">feat(profiles): Profile model + SQLite storage<br>feat(profiles): signing with gpg.format=ssh</div>
+    </div>
+    <div class="side">
+      <strong>Result</strong>
+      <div class="cols">
+        <div class="col"><span class="muted small">Before · 5 commits</span><span class="c">c41d8e0 Profile model…</span><span class="c">b72e110 wip ssh</span><span class="c">d03f9a2 fix typo…</span><span class="c">91aa4c7 debug: print…</span><span class="c">a3f9c21 signing…</span></div>
+        <div class="col"><span class="muted small">After · 2 commits</span><span class="c">Profile model + signing</span><span class="c">inject core.sshCommand…</span></div>
+      </div>
+      <div class="warn">2 commits already pushed to origin/feature/profiles: a force push will be needed.</div>
+    </div>
+  </div>
+  <div class="foot"><span class="btn">Reset</span><span class="btn">Cancel</span><span class="btn primary">Start rebase</span></div>
+</div>
+
+<h2>2 · Other states (side by side)</h2>
+<div class="row">
+  <div class="state">
+    <div class="label">Running</div>
+    <div class="card">
+      <div class="banner"><strong>Rebase in progress</strong> · step 2 / 2<span class="grow"></span><span class="btn">Abort</span></div>
+      <div class="muted">Applying “inject core.sshCommand per profile”…</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Conflict → ConflictResolver</div>
+    <div class="card">
+      <div class="banner"><strong>Rebase in progress</strong> · 1 / 2 · 1 conflict<span class="grow"></span><span class="btn">Resume</span><span class="btn">Abort</span></div>
+      <div class="muted small">ConflictResolver opens automatically.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Done</div>
+    <div class="card">
+      <div>✓ Rebase complete · 5 → 2 commits. Graph updated.</div>
+      <div><span class="btn">⇡ Force push</span></div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Nothing to rebase</div>
+    <div class="card">
+      <div class="muted">No commits between develop and feature/profiles.</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

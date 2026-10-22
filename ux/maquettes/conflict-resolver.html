@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Octogit — ConflictResolver (low-fi)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; font: 13px/1.4 -apple-system, system-ui, sans-serif; color: #222; background: #f2f2f2; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 32px 0 8px; color: #555; text-transform: uppercase; letter-spacing: .05em; }
+  .note { color: #666; margin: 0 0 16px; }
+  .frame { background: #fff; border: 2px solid #999; width: 1500px; max-width: 100%; overflow: hidden; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .state { display: flex; flex-direction: column; gap: 6px; }
+  .state > .label { font-weight: 600; color: #555; }
+  .banner { padding: 8px 10px; border-bottom: 2px solid #333; background: #d6d6d6; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .btn { border: 1px solid #999; background: #fafafa; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
+  .btn.primary { background: #555; color: #fff; border-color: #555; }
+  .btn.disabled { color: #aaa; border-color: #ccc; background: #f4f4f4; }
+  .grow { flex: 1; }
+  .muted { color: #777; }
+  .small { font-size: 11px; }
+  .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .body { display: grid; grid-template-columns: 260px 1fr; min-height: 560px; }
+  .side { border-right: 1px solid #bbb; padding: 10px; background: #f7f7f7; }
+  .side .sec { font-weight: 600; color: #555; margin: 12px 0 4px; font-size: 11px; text-transform: uppercase; }
+  .side .item { padding: 4px 6px; display: flex; gap: 6px; }
+  .side .item.current { background: #ddd; font-weight: 600; }
+  .main { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .panes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pane { border: 1px solid #999; }
+  .pane.result { border: 2px solid #555; }
+  .phead { padding: 6px 10px; border-bottom: 1px solid #bbb; background: #eee; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; padding: 4px 0; }
+  .ln { display: flex; white-space: pre; line-height: 20px; }
+  .ln .n { width: 36px; text-align: right; padding-right: 10px; color: #999; }
+  .ln.hl { background: #e2e2e2; border-left: 3px solid #555; }
+  .ln.conf { background: #cfcfcf; border-left: 3px dashed #222; font-weight: 600; }
+  .pfoot { padding: 6px 10px; border-top: 1px solid #bbb; display: flex; gap: 8px; justify-content: flex-end; }
+  .mark { font-weight: 700; width: 14px; text-align: center; }
+  .card { background: #fff; border: 2px solid #999; width: 460px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .warn { border: 2px solid #333; padding: 8px; background: #e0e0e0; }
+</style>
+</head>
+<body>
+<h1>ConflictResolver</h1>
+<p class="note">Low fidelity. Opened by a merge, rebase, cherry-pick or pull in conflict. The banner stays on every screen until Continue or Abort.</p>
+
+<h2>1 · Conflicts remaining</h2>
+<div class="frame">
+  <div class="banner"><strong>Merge in progress</strong> · develop → feature/profiles · 1 file left <span class="grow"></span><span class="btn">Back to graph  Esc</span><span class="btn">Abort merge</span><span class="btn disabled">Continue merge</span></div>
+  <div class="body">
+    <div class="side">
+      <div class="sec">Conflicted · 1</div>
+      <div class="item current"><span class="mark">!</span><span class="mono">profile/inject.rs</span><span class="grow"></span><span class="muted small">2 blocks</span></div>
+      <div class="sec">Resolved · 1</div>
+      <div class="item"><span class="mark">✓</span><span class="mono">git/command.rs</span></div>
+      <div class="sec">Auto-merged · 3</div>
+      <div class="item"><span class="mark">·</span><span class="mono">Cargo.toml</span></div>
+      <div class="item"><span class="mark">·</span><span class="mono">src/lib/Graph.svelte</span></div>
+      <div class="item"><span class="mark">·</span><span class="mono">README.md</span></div>
+    </div>
+    <div class="main">
+      <div class="bar">
+        <span class="mono" style="font-weight:600">src-tauri/src/profile/inject.rs</span>
+        <span class="grow"></span>
+        <span class="btn">‹</span><span class="muted">Conflict 1 / 2</span><span class="btn">›</span>
+        <span class="btn">Take all ours</span><span class="btn">Take all theirs</span>
+      </div>
+      <div class="panes">
+        <div class="pane">
+          <div class="phead"><strong>Ours</strong><span class="muted">feature/profiles · a3f9c21</span><span class="grow"></span><label><input type="checkbox"> Take this block</label></div>
+          <div class="code">
+            <div class="ln"><span class="n">12</span>pub fn git_args(p: &amp;Profile) -&gt; Vec&lt;String&gt; {</div>
+            <div class="ln"><span class="n">13</span>    let mut args = vec![];</div>
+            <div class="ln hl"><span class="n">14</span>    args.push(format!("user.email={}", p.email));</div>
+            <div class="ln hl"><span class="n">15</span>    args.push(format!("core.sshCommand={}", ssh_cmd(p)));</div>
+            <div class="ln"><span class="n">16</span>    args</div>
+            <div class="ln"><span class="n">17</span>}</div>
+          </div>
+        </div>
+        <div class="pane">
+          <div class="phead"><strong>Theirs</strong><span class="muted">develop · e92a6b3</span><span class="grow"></span><label><input type="checkbox" checked> Take this block</label></div>
+          <div class="code">
+            <div class="ln"><span class="n">12</span>pub fn git_args(p: &amp;Profile) -&gt; Vec&lt;String&gt; {</div>
+            <div class="ln"><span class="n">13</span>    let mut args = vec![];</div>
+            <div class="ln hl"><span class="n">14</span>    for (k, v) in p.config_pairs() {</div>
+            <div class="ln hl"><span class="n">15</span>        args.extend(["-c".into(), format!("{k}={v}")]);</div>
+            <div class="ln hl"><span class="n">16</span>    }</div>
+            <div class="ln"><span class="n">17</span>    args</div>
+            <div class="ln"><span class="n">18</span>}</div>
+          </div>
+        </div>
+      </div>
+      <div class="pane result">
+        <div class="phead"><strong>Result</strong><span class="muted">editable · written to the file and staged on “Mark as resolved”</span><span class="grow"></span><span>Block 1 resolved · Block 2 to do</span></div>
+        <div class="code">
+          <div class="ln"><span class="n">12</span>pub fn git_args(p: &amp;Profile) -&gt; Vec&lt;String&gt; {</div>
+          <div class="ln"><span class="n">13</span>    let mut args = vec![];</div>
+          <div class="ln hl"><span class="n">14</span>    for (k, v) in p.config_pairs() {</div>
+          <div class="ln hl"><span class="n">15</span>        args.extend(["-c".into(), format!("{k}={v}")]);</div>
+          <div class="ln hl"><span class="n">16</span>    }</div>
+          <div class="ln"><span class="n">17</span>    args</div>
+          <div class="ln"><span class="n">18</span>}</div>
+          <div class="ln"><span class="n">19</span></div>
+          <div class="ln conf"><span class="n">20</span>&lt;&lt;&lt;&lt;&lt;&lt;&lt; block 2 · fn ssh_cmd — choose ours or theirs</div>
+        </div>
+        <div class="pfoot"><span class="btn">Open in external editor</span><span class="btn disabled">Mark as resolved</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>2 · Other states (side by side)</h2>
+<div class="row">
+  <div class="state">
+    <div class="label">All resolved</div>
+    <div class="card">
+      <div class="banner" style="margin:-12px -12px 0"><strong>Merge in progress</strong> · 0 files left<span class="grow"></span><span class="btn">Abort merge</span><span class="btn primary">Continue merge</span></div>
+      <div>✓ 2 resolved · 3 auto-merged</div>
+      <div class="muted small">Continue creates the merge commit with profile Work identity.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Git refuses (raw message)</div>
+    <div class="card">
+      <div class="warn"><strong>Continue failed.</strong><br><span class="mono">error: Committing is not possible because you have unmerged files.</span></div>
+      <div class="muted small">Repository left as is. Resolve, then Continue again.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Back on the graph during the operation</div>
+    <div class="card">
+      <div class="banner" style="margin:-12px -12px 0"><strong>Rebase in progress</strong> · 2 / 5 · 1 conflict<span class="grow"></span><span class="btn">Resume</span><span class="btn">Abort</span></div>
+      <div class="muted small">Checkout, merge, rebase and pull disabled until the operation ends.</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

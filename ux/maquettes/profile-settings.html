@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Octogit — ProfileSettings (low-fi)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; font: 13px/1.4 -apple-system, system-ui, sans-serif; color: #222; background: #f2f2f2; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 32px 0 8px; color: #555; text-transform: uppercase; letter-spacing: .05em; }
+  .note { color: #666; margin: 0 0 16px; }
+  .frame { background: #fff; border: 2px solid #999; width: 1500px; max-width: 100%; overflow: hidden; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .state { display: flex; flex-direction: column; gap: 6px; }
+  .state > .label { font-weight: 600; color: #555; }
+  .titlebar { padding: 8px 12px; border-bottom: 1px solid #bbb; background: #e6e6e6; font-weight: 600; }
+  .btn { border: 1px solid #999; background: #fafafa; padding: 4px 10px; border-radius: 4px; white-space: nowrap; display: inline-block; }
+  .btn.primary { background: #555; color: #fff; border-color: #555; }
+  .btn.link { border: 0; background: none; text-decoration: underline; padding: 4px 0; }
+  .grow { flex: 1; }
+  .muted { color: #777; }
+  .small { font-size: 11px; }
+  .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .body { display: grid; grid-template-columns: 250px 1fr; min-height: 600px; }
+  .side { border-right: 1px solid #bbb; padding: 10px; background: #f7f7f7; display: flex; flex-direction: column; gap: 4px; }
+  .prof { padding: 8px; display: flex; gap: 8px; align-items: center; }
+  .prof.current { background: #ddd; font-weight: 600; }
+  .sw { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #555; display: inline-block; }
+  .sw.f1 { background: #333; } .sw.f2 { background: #888; } .sw.f3 { background: #fff; }
+  .main { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; max-width: 980px; }
+  .head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .card { border: 1px solid #999; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: #fff; }
+  .card h3 { margin: 0; font-size: 13px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .f { display: flex; flex-direction: column; gap: 4px; }
+  .f label { font-size: 12px; color: #555; }
+  .input { border: 1px solid #999; padding: 6px 8px; border-radius: 4px; background: #fff; }
+  .input.empty { color: #aaa; }
+  .rule { display: flex; gap: 10px; align-items: center; border: 1px solid #bbb; padding: 6px 8px; }
+  .kind { border: 1px solid #777; padding: 0 6px; font-size: 11px; }
+  .ok { border: 1px solid #999; padding: 6px 8px; background: #f4f4f4; }
+  .warn { border: 2px solid #333; padding: 8px; background: #e0e0e0; }
+  .dialog { background: #fff; border: 2px solid #555; width: 520px; padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 0 #999; }
+  .dialog h3 { margin: 0; }
+  table { border-collapse: collapse; }
+  td, th { border: 1px solid #bbb; padding: 4px 8px; text-align: left; }
+  .choices { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+</style>
+</head>
+<body>
+<h1>ProfileSettings</h1>
+<p class="note">Low fidelity. Settings › Profiles (⌘,) or click on the profile badge. Nothing is ever written to ~/.gitconfig.</p>
+
+<h2>1 · Complete profile, connection tested</h2>
+<div class="frame">
+  <div class="titlebar">Settings / Profiles</div>
+  <div class="body">
+    <div class="side">
+      <div class="prof current"><span class="sw f1"></span><div>Work<div class="muted small" style="font-weight:400">@jag-work · 14 repos</div></div></div>
+      <div class="prof"><span class="sw f2"></span><div>Personal<div class="muted small">@jag · 9 repos</div></div></div>
+      <div class="prof"><span class="sw f3"></span><div>Client X<div class="muted small">@jag-clientx · 2 repos</div></div></div>
+      <span class="btn link">+ New profile</span>
+    </div>
+    <div class="main">
+      <div class="head">
+        <span class="sw f1"></span><strong style="font-size:18px">Work</strong>
+        <span class="muted small">Color:</span><span class="sw f1"></span><span class="sw f2"></span><span class="sw f3"></span>
+        <span class="grow"></span>
+        <span class="btn">Delete profile</span><span class="btn primary">Save</span>
+      </div>
+      <div class="card">
+        <h3>Git identity</h3>
+        <div class="grid2">
+          <div class="f"><label>user.name</label><div class="input">Jean-Alexandre Gautreau</div></div>
+          <div class="f"><label>user.email</label><div class="input">jag@work-company.fr</div></div>
+        </div>
+        <label><input type="checkbox" checked> Sign commits with the profile SSH key</label>
+      </div>
+      <div class="card">
+        <h3>SSH key</h3>
+        <div class="f"><label>Private key</label><div style="display:flex;gap:8px"><div class="input mono grow">~/.ssh/id_ed25519_work</div><span class="btn">Choose…</span><span class="btn">Generate ed25519…</span></div></div>
+        <div class="mono small muted">SHA256:[key fingerprint]</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <span class="btn">Copy public key</span><span class="muted small">to paste in GitHub › Settings › SSH keys</span>
+          <span class="grow"></span>
+          <span class="btn">Test connection</span>
+        </div>
+        <div class="ok">✓ github.com: authenticated as @jag-work</div>
+      </div>
+      <div class="card">
+        <h3>Matching rules <span class="muted small" style="font-weight:400">— a repository uses the first profile with a matching rule</span></h3>
+        <div class="rule"><span class="kind">Path</span><span class="mono">~/Dev/Work/**</span><span class="grow"></span><span class="muted small">11 repos</span><span class="btn">✕</span></div>
+        <div class="rule"><span class="kind">Remote owner</span><span class="mono">github.com/work-company/*</span><span class="grow"></span><span class="muted small">3 repos</span><span class="btn">✕</span></div>
+        <div><span class="btn">+ Path rule</span> <span class="btn">+ Remote owner rule</span></div>
+        <div class="muted small">Matched repositories get this identity, key and signing written in their local .git/config.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>2 · Other states (side by side)</h2>
+<div class="row">
+  <div class="state">
+    <div class="label">Empty: first profile</div>
+    <div class="dialog" style="box-shadow:none;border-color:#999">
+      <h3>Create a first profile</h3>
+      <div class="muted small">A profile = a Git identity + an SSH key. Repositories are attached to it by rules.</div>
+      <div class="f"><label>Name</label><div class="input empty">e.g. Work</div></div>
+      <div class="f"><label>user.email</label><div class="input empty">name@company.com</div></div>
+      <div class="f"><label>SSH key</label><div style="display:flex;gap:8px"><span class="btn">Choose in ~/.ssh…</span><span class="btn">Generate ed25519…</span></div></div>
+      <div class="choices"><span class="btn primary">Create profile</span></div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Error: connection refused</div>
+    <div class="dialog" style="box-shadow:none;border-color:#999">
+      <div class="warn">Test failed: <span class="mono">git@github.com: Permission denied (publickey).</span><br><span class="small">Public key not added on GitHub yet?</span></div>
+      <div><span class="btn">Copy public key</span> <span class="btn">Test again</span></div>
+    </div>
+  </div>
+</div>
+
+<h2>3 · IdentityMismatch dialog (on repo open or clone)</h2>
+<div class="row">
+  <div class="dialog">
+    <h3>Local Git config differs from profile Work</h3>
+    <div class="muted small">~/Dev/Work/client-git · matched by rule <span class="mono">~/Dev/Work/**</span>. Nothing has been written.</div>
+    <table>
+      <tr><th></th><th>Profile Work</th><th>Local .git/config</th></tr>
+      <tr><td>user.email</td><td>jag@work-company.fr</td><td><strong>jag@personal.dev</strong></td></tr>
+      <tr><td>user.name</td><td>Jean-Alexandre Gautreau</td><td>Jean-Alexandre Gautreau</td></tr>
+      <tr><td>core.sshCommand</td><td class="mono">-i ~/.ssh/id_ed25519_work</td><td class="muted">not set</td></tr>
+    </table>
+    <div class="muted small">Until a choice is made, Commit and Push stay blocked.</div>
+    <div class="choices">
+      <span class="btn">Cancel</span>
+      <span class="btn">Import local config into Octogit…</span>
+      <span class="btn primary">Overwrite with profile Work</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

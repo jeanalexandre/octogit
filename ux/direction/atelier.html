@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Octogit — direction Atelier</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px; background: #8a8a8a; color: #111; font: 14px/1.45 -apple-system, system-ui, sans-serif; }
+.doc { background: #fff; padding: 20px 24px; max-width: 1500px; margin-bottom: 20px; border-radius: 6px; }
+.doc h1 { margin: 0 0 6px; font-size: 22px; }
+.doc h2 { margin: 18px 0 8px; font-size: 15px; }
+.doc p { margin: 4px 0; }
+.doc table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.doc td, .doc th { border-bottom: 1px solid #ddd; padding: 5px 8px; text-align: left; vertical-align: middle; }
+.doc code { font: 12px ui-monospace, Menlo, monospace; }
+.sw { display: inline-block; width: 22px; height: 16px; border: 1px solid #0003; border-radius: 3px; vertical-align: middle; margin-right: 6px; }
+.label { color: #fff; font-weight: 600; margin: 24px 0 8px; font-size: 15px; }
+.app, .states { font: 13px/1.4 -apple-system, "SF Pro Rounded", "SF Pro Text", system-ui, sans-serif; color: var(--ink); }
+.theme-dark { --surface:#1c1917;--surface-raised:#25211e;--surface-sunken:#2e2925;--border:#87796c;--ink:#f2ebe3;--muted:#b3a89c;--brand:#f5a524;--on-brand:#1c1305;--selection:#3d3127;--focus:#f5a524;--success:#8fce7a;--warning:#f2c14e;--danger:#f28b82;--lane-1:#f6b26b;--lane-2:#8fc1bf;--lane-3:#d3a6d3;--lane-4:#e6d36f;--lane-5:#a3cf74;--lane-6:#9db8e8;--on-lane:#1c1917 }
+.theme-light { --surface:#faf6f0;--surface-raised:#fffdf9;--surface-sunken:#f1ebe2;--border:#8a7d6e;--ink:#2a241f;--muted:#675c52;--brand:#b45309;--on-brand:#ffffff;--selection:#f6e3c8;--focus:#b45309;--success:#336a19;--warning:#8a5a00;--danger:#b3261e;--lane-1:#a8560f;--lane-2:#2a7470;--lane-3:#8e4f8e;--lane-4:#7d6400;--lane-5:#4a7a1c;--lane-6:#3d68a8;--on-lane:#ffffff }
+.app { width: 1500px; background: var(--surface); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 14px rgba(60,40,20,.18); }
+.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.grow { flex: 1; }
+.toolbar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--surface-sunken); border-bottom: 1px solid var(--border); }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface-raised); color: var(--ink); padding: 4px 10px; border-radius: 10px; white-space: nowrap; }
+.btn.focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); font-weight: 600; justify-content: center; }
+.btn.danger { border-color: var(--danger); color: var(--danger); font-weight: 600; }
+.btn.disabled { color: var(--muted); border-style: dashed; }
+.btn.xs { padding: 0 6px; font-size: 12px; margin-left: auto; }
+.count { color: var(--muted); font-weight: 600; }
+.kbd { font-size: 12px; opacity: .8; }
+.sep { width: 1px; height: 22px; background: var(--border); }
+.search { border: 1px solid var(--border); background: var(--surface); color: var(--muted); padding: 4px 10px; border-radius: 10px; width: 260px; display: flex; justify-content: space-between; }
+.badge { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface-raised); padding: 3px 10px; border-radius: 999px; font-weight: 600; }
+.badge.bad { border: 2px solid var(--danger); color: var(--danger); }
+.badge.none { border: 2px dashed var(--warning); color: var(--warning); }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.body { display: grid; grid-template-columns: 230px 1fr 380px; }
+.side { background: var(--surface-raised); border-right: 1px solid var(--border); padding: 16px; }
+.sec { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 4px; }
+.item { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 10px; }
+.item.current { background: var(--selection); font-weight: 600; }
+.sq { width: 8px; height: 8px; border-radius: 2px; border: 1px solid var(--border); flex: none; }
+.graph { position: relative; border-right: 1px solid var(--border); }
+.lanes { position: absolute; left: 0; top: 0; }
+.commit { display: grid; grid-template-columns: var(--lw) 1fr 100px 90px 70px; align-items: center; gap: 8px; height: 38px; padding-right: 16px; }
+.commit.sel { background: var(--selection); }
+.commit .msg { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ref { display: inline-block; border: 1px solid var(--c); border-left-width: 4px; border-radius: 8px; padding: 0 6px; margin-right: 6px; font-size: 12px; background: var(--surface-raised); }
+.ref-local { font-weight: 700; }
+.panel { background: var(--surface-raised); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.panel h3, .card h3 { margin: 0; font-size: 14px; }
+.sub { display: flex; align-items: center; color: var(--muted); font-size: 12px; }
+.file { display: flex; gap: 8px; align-items: center; }
+.st { width: 18px; height: 18px; border: 1px solid currentColor; border-radius: 3px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.st-m { color: var(--warning); } .st-a { color: var(--success); }
+.input { background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 10px; padding: 6px 8px; }
+.input.area { height: 64px; }
+.check { display: flex; gap: 8px; align-items: center; }
+.box { width: 14px; height: 14px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); }
+.ok { color: var(--success); background: var(--surface-sunken); border-radius: 10px; padding: 6px 8px; font-size: 12px; }
+.states { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 16px; width: 1500px; margin-top: 16px; }
+.card { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.card.dialog { box-shadow: 0 4px 14px rgba(60,40,20,.18); }
+.card.banner { flex-direction: row; align-items: center; white-space: nowrap; border-left: 4px solid var(--warning); background: var(--surface-sunken); align-self: start; }
+.alert { border: 1px solid var(--danger); border-left-width: 4px; border-radius: 10px; padding: 8px; background: var(--surface-sunken); }
+.alert b { color: var(--danger); }
+.err { color: var(--danger); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row.end { justify-content: flex-end; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <p>Directions : <a href="kraken.html">Kraken</a> · <a href="graphite.html">Graphite</a> · <b>Atelier</b></p>
+  <h1>Direction « Atelier » — History</h1>
+  <p>Chaud et aéré : tons papier et terre, ambre pour l&#x27;action, lanes pastel, coins arrondis. On y passe la journée sans fatigue ; un peu moins de commits à l&#x27;écran.</p>
+  <p><b>Police</b> : SF Pro 13 px (système, aucune ressource externe), SHA et chemins en SF Mono 12 px. <b>Rayons</b> : 10 px (badges en pilule). <b>Ombres</b> : <code>0 4px 14px rgba(60,40,20,.18)</code> sur dialogues et fenêtre seulement. <b>Densité</b> : lignes du graphe 38 px, 12 px entre les blocs du panneau, 16 px de marge intérieure.</p>
+  <p class="small">Le bouton « Fetch All » montre l'anneau de focus clavier. La couleur du badge de profil est celle choisie dans ProfileSettings (ici <code>lane-1</code>).</p>
+</div>
+<div class="label">Thème sombre</div>
+
+<div class="app theme-dark">
+  <div class="toolbar">
+    <span class="btn">client-git ▾</span>
+    <span class="btn">⌂ feature/profiles ▾</span>
+    <span class="sep"></span>
+    <span class="btn focus">⇣ Fetch All ▾</span>
+    <span class="btn">⇡ Push <b class="count">2</b></span>
+    <span class="btn">Branch</span>
+    <span class="btn">Stash</span>
+    <span class="btn">Pop</span>
+    <span class="grow"></span>
+    <span class="search">Search message, author, SHA <span class="kbd">⌘F</span></span>
+    <span class="muted small">fetched 2 min ago</span>
+    <span class="badge"><i class="dot" style="background:var(--lane-1)"></i>Work · @jag-work</span>
+  </div>
+  <div class="body">
+    <div class="side">
+      <div class="mono small muted">~/Dev/Work/client-git</div>
+      <div class="sec">Local · 3</div>
+      <div class="item"><i class="sq" style="background:var(--lane-1)"></i>main</div>
+      <div class="item"><i class="sq" style="background:var(--lane-2)"></i>develop</div>
+      <div class="item current"><i class="sq" style="background:var(--lane-1)"></i>feature/profiles <span class="count">↑2</span></div>
+      <div class="sec">origin · 5</div>
+      <div class="item"><i class="sq" style="background:var(--lane-1)"></i>main</div>
+      <div class="item"><i class="sq" style="background:var(--lane-2)"></i>develop</div>
+      <div class="item"><i class="sq" style="background:var(--lane-1)"></i>feature/profiles</div>
+      <div class="item"><i class="sq" style="background:var(--lane-3)"></i>feature/graph</div>
+      <div class="item"><i class="sq"></i>spike/gix-vs-libgit2</div>
+      <div class="sec">Tags · 2</div>
+      <div class="item">◆ v0.1.0</div>
+      <div class="item">◆ v0.0.9</div>
+      <div class="sec">Stashes · 1</div>
+      <div class="item">WIP on develop: try notify debounce</div>
+    </div>
+    <div class="graph" style="--lw:112px">
+      <svg class="lanes" width="112" height="380" viewBox="0 0 112 380" aria-hidden="true"><path d="M22.0 19.0 V57.0" fill="none" stroke="var(--lane-1)" stroke-width="2.5" stroke-dasharray="4 3"/><path d="M22.0 57.0 V95.0" fill="none" stroke="var(--lane-1)" stroke-width="2.5"/><path d="M22.0 95.0 V163.0 Q22.0 171.0 30.0 171.0 H56.0" fill="none" stroke="var(--lane-2)" stroke-width="2.5"/><path d="M90.0 133.0 V201.0 Q90.0 209.0 82.0 209.0 H56.0" fill="none" stroke="var(--lane-3)" stroke-width="2.5"/><path d="M56.0 171.0 V209.0" fill="none" stroke="var(--lane-2)" stroke-width="2.5"/><path d="M56.0 209.0 V247.0" fill="none" stroke="var(--lane-2)" stroke-width="2.5"/><path d="M56.0 247.0 V277.0 Q56.0 285.0 48.0 285.0 H22.0" fill="none" stroke="var(--lane-2)" stroke-width="2.5"/><path d="M22.0 285.0 V323.0" fill="none" stroke="var(--lane-1)" stroke-width="2.5"/><path d="M22.0 323.0 V361.0" fill="none" stroke="var(--lane-1)" stroke-width="2.5"/><circle cx="22.0" cy="19.0" r="13.0" fill="var(--surface)" stroke="var(--lane-1)" stroke-width="2" stroke-dasharray="4 3"/><text x="22.0" y="23.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">+3</text><circle cx="22.0" cy="57.0" r="14.0" fill="var(--lane-1)"/><text x="22.0" y="61.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text><circle cx="22.0" cy="95.0" r="14.0" fill="var(--lane-1)"/><text x="22.0" y="99.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text><circle cx="90.0" cy="133.0" r="14.0" fill="var(--lane-3)"/><text x="90.0" y="137.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">ML</text><circle cx="56.0" cy="171.0" r="14.0" fill="var(--lane-2)"/><text x="56.0" y="175.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text><circle cx="56.0" cy="209.0" r="14.0" fill="var(--lane-2)"/><text x="56.0" y="213.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">ML</text><circle cx="56.0" cy="247.0" r="14.0" fill="var(--lane-2)"/><text x="56.0" y="251.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text><circle cx="22.0" cy="285.0" r="14.0" fill="var(--lane-1)"/><text x="22.0" y="289.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text><circle cx="22.0" cy="323.0" r="14.0" fill="var(--lane-1)"/><text x="22.0" y="327.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text><circle cx="22.0" cy="361.0" r="14.0" fill="var(--lane-1)"/><text x="22.0" y="365.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text></svg>
+      <div class="commit sel"><span></span><span class="msg">// WIP — 3 changed files</span><span class="muted"></span><span class="muted"></span><span class="mono muted"></span></div><div class="commit"><span></span><span class="msg"><span class="ref ref-local" style="--c:var(--lane-1)">⌂ feature/profiles</span>feat(profiles): inject core.sshCommand per profile</span><span class="muted">J. Gautreau</span><span class="muted">12 min ago</span><span class="mono muted">a3f9c21</span></div><div class="commit"><span></span><span class="msg"><span class="ref ref-origin" style="--c:var(--lane-1)">☁ origin/feature/profiles</span>feat(profiles): Profile model + SQLite storage</span><span class="muted">J. Gautreau</span><span class="muted">yesterday</span><span class="mono muted">c41d8e0</span></div><div class="commit"><span></span><span class="msg"><span class="ref ref-origin" style="--c:var(--lane-3)">☁ origin/feature/graph</span>feat(graph): virtualised canvas for lanes</span><span class="muted">M. Leroy</span><span class="muted">2 h ago</span><span class="mono muted">7be04d1</span></div><div class="commit"><span></span><span class="msg"><span class="ref ref-local" style="--c:var(--lane-2)">⌂ develop</span><span class="ref ref-origin" style="--c:var(--lane-2)">☁ origin/develop</span>feat(sync): pull fast-forward only, report divergence</span><span class="muted">J. Gautreau</span><span class="muted">yesterday</span><span class="mono muted">e92a6b3</span></div><div class="commit"><span></span><span class="msg">fix(push): read progress from stderr</span><span class="muted">M. Leroy</span><span class="muted">2 days ago</span><span class="mono muted">5d17f4a</span></div><div class="commit"><span></span><span class="msg">feat(status): watch .git with notify</span><span class="muted">J. Gautreau</span><span class="muted">5 days ago</span><span class="mono muted">4f5e6d7</span></div><div class="commit"><span></span><span class="msg"><span class="ref ref-local" style="--c:var(--lane-1)">⌂ main</span><span class="ref ref-origin" style="--c:var(--lane-1)">☁ origin/main</span><span class="ref ref-tag" style="--c:var(--lane-1)">◆ v0.1.0</span>release: v0.1.0</span><span class="muted">J. Gautreau</span><span class="muted">1 week ago</span><span class="mono muted">1a2b3c4</span></div><div class="commit"><span></span><span class="msg">chore: init Tauri 2 + Svelte + gix</span><span class="muted">J. Gautreau</span><span class="muted">3 weeks ago</span><span class="mono muted">2c3d4e5</span></div><div class="commit"><span></span><span class="msg">Initial commit</span><span class="muted">J. Gautreau</span><span class="muted">3 weeks ago</span><span class="mono muted">0a1b2c3</span></div>
+    </div>
+    <div class="panel">
+      <h3>Working changes · 3 files</h3>
+      <div class="sub">Unstaged · 2 <span class="btn xs">Stage all</span></div>
+      <div class="file"><span class="st st-m">M</span><span class="mono">src-tauri/src/profile/inject.rs</span></div>
+      <div class="file"><span class="st st-a">A</span><span class="mono">src/lib/ProfileBadge.svelte</span></div>
+      <div class="sub">Staged · 1 <span class="btn xs">Unstage all</span></div>
+      <div class="file"><span class="st st-m">M</span><span class="mono">src-tauri/src/git/command.rs</span></div>
+      <div class="input">feat(profiles): show active profile in toolbar</div>
+      <div class="input area muted">Description</div>
+      <label class="check"><span class="box"></span> Amend last commit</label>
+      <div class="ok">✓ Identity matches profile Work · jag@work-company.fr</div>
+      <span class="btn primary">Commit to feature/profiles <span class="kbd">⌘↵</span></span>
+    </div>
+  </div>
+</div>
+<div class="states theme-dark">
+  <div class="card banner"><b>Rebase in progress</b> · step 2 / 5 · 1 conflict <span class="grow"></span><span class="btn">Resolve</span><span class="btn">Abort</span></div>
+  <div class="card">
+    <div class="alert"><b>Identity does not match profile Work.</b><br>Expected: jag@work-company.fr<br>Found in .git/config: jag@personal.dev</div>
+    <div class="row"><span class="btn primary">Fix repository identity</span><span class="btn disabled">Commit to feature/profiles</span></div>
+  </div>
+  <div class="card dialog">
+    <h3>Hard reset feature/profiles to c41d8e0?</h3>
+    <div class="alert">2 commits and 3 modified files will be lost.</div>
+    <div class="mono small muted">a3f9c21 feat(profiles): inject core.sshCommand…<br>b72e110 wip ssh</div>
+    <div class="row end"><span class="btn">Cancel</span><span class="btn danger">Hard reset</span></div>
+  </div>
+  <div class="card">
+    <div class="row"><span class="badge"><i class="dot" style="background:var(--lane-1)"></i>Work · @jag-work</span><span class="badge bad">⚠ Identity mismatch</span><span class="badge none">⚠ No profile — choose one</span></div>
+    <div class="err">Fetch failed: Permission denied (publickey). <u>Details</u></div>
+    <div class="muted small">○ offline — auto-fetch paused</div>
+  </div>
+</div>
+<div class="label">Thème clair</div>
+
+<div class="app theme-light">
+  <div class="toolbar">
+    <span class="btn">client-git ▾</span>
+    <span class="btn">⌂ feature/profiles ▾</span>
+    <span class="sep"></span>
+    <span class="btn focus">⇣ Fetch All ▾</span>
+    <span class="btn">⇡ Push <b class="count">2</b></span>
+    <span class="btn">Branch</span>
+    <span class="btn">Stash</span>
+    <span class="btn">Pop</span>
+    <span class="grow"></span>
+    <span class="search">Search message, author, SHA <span class="kbd">⌘F</span></span>
+    <span class="muted small">fetched 2 min ago</span>
+    <span class="badge"><i class="dot" style="background:var(--lane-1)"></i>Work · @jag-work</span>
+  </div>
+  <div class="body">
+    <div class="side">
+      <div class="mono small muted">~/Dev/Work/client-git</div>
+      <div class="sec">Local · 3</div>
+      <div class="item"><i class="sq" style="background:var(--lane-1)"></i>main</div>
+      <div class="item"><i class="sq" style="background:var(--lane-2)"></i>develop</div>
+      <div class="item current"><i class="sq" style="background:var(--lane-1)"></i>feature/profiles <span class="count">↑2</span></div>
+      <div class="sec">origin · 5</div>
+      <div class="item"><i class="sq" style="background:var(--lane-1)"></i>main</div>
+      <div class="item"><i class="sq" style="background:var(--lane-2)"></i>develop</div>
+      <div class="item"><i class="sq" style="background:var(--lane-1)"></i>feature/profiles</div>
+      <div class="item"><i class="sq" style="background:var(--lane-3)"></i>feature/graph</div>
+      <div class="item"><i class="sq"></i>spike/gix-vs-libgit2</div>
+      <div class="sec">Tags · 2</div>
+      <div class="item">◆ v0.1.0</div>
+      <div class="item">◆ v0.0.9</div>
+      <div class="sec">Stashes · 1</div>
+      <div class="item">WIP on develop: try notify debounce</div>
+    </div>
+    <div class="graph" style="--lw:112px">
+      <svg class="lanes" width="112" height="380" viewBox="0 0 112 380" aria-hidden="true"><path d="M22.0 19.0 V57.0" fill="none" stroke="var(--lane-1)" stroke-width="2.5" stroke-dasharray="4 3"/><path d="M22.0 57.0 V95.0" fill="none" stroke="var(--lane-1)" stroke-width="2.5"/><path d="M22.0 95.0 V163.0 Q22.0 171.0 30.0 171.0 H56.0" fill="none" stroke="var(--lane-2)" stroke-width="2.5"/><path d="M90.0 133.0 V201.0 Q90.0 209.0 82.0 209.0 H56.0" fill="none" stroke="var(--lane-3)" stroke-width="2.5"/><path d="M56.0 171.0 V209.0" fill="none" stroke="var(--lane-2)" stroke-width="2.5"/><path d="M56.0 209.0 V247.0" fill="none" stroke="var(--lane-2)" stroke-width="2.5"/><path d="M56.0 247.0 V277.0 Q56.0 285.0 48.0 285.0 H22.0" fill="none" stroke="var(--lane-2)" stroke-width="2.5"/><path d="M22.0 285.0 V323.0" fill="none" stroke="var(--lane-1)" stroke-width="2.5"/><path d="M22.0 323.0 V361.0" fill="none" stroke="var(--lane-1)" stroke-width="2.5"/><circle cx="22.0" cy="19.0" r="13.0" fill="var(--surface)" stroke="var(--lane-1)" stroke-width="2" stroke-dasharray="4 3"/><text x="22.0" y="23.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">+3</text><circle cx="22.0" cy="57.0" r="14.0" fill="var(--lane-1)"/><text x="22.0" y="61.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text><circle cx="22.0" cy="95.0" r="14.0" fill="var(--lane-1)"/><text x="22.0" y="99.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text><circle cx="90.0" cy="133.0" r="14.0" fill="var(--lane-3)"/><text x="90.0" y="137.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">ML</text><circle cx="56.0" cy="171.0" r="14.0" fill="var(--lane-2)"/><text x="56.0" y="175.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text><circle cx="56.0" cy="209.0" r="14.0" fill="var(--lane-2)"/><text x="56.0" y="213.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">ML</text><circle cx="56.0" cy="247.0" r="14.0" fill="var(--lane-2)"/><text x="56.0" y="251.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text><circle cx="22.0" cy="285.0" r="14.0" fill="var(--lane-1)"/><text x="22.0" y="289.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text><circle cx="22.0" cy="323.0" r="14.0" fill="var(--lane-1)"/><text x="22.0" y="327.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text><circle cx="22.0" cy="361.0" r="14.0" fill="var(--lane-1)"/><text x="22.0" y="365.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--on-lane)">JG</text></svg>
+      <div class="commit sel"><span></span><span class="msg">// WIP — 3 changed files</span><span class="muted"></span><span class="muted"></span><span class="mono muted"></span></div><div class="commit"><span></span><span class="msg"><span class="ref ref-local" style="--c:var(--lane-1)">⌂ feature/profiles</span>feat(profiles): inject core.sshCommand per profile</span><span class="muted">J. Gautreau</span><span class="muted">12 min ago</span><span class="mono muted">a3f9c21</span></div><div class="commit"><span></span><span class="msg"><span class="ref ref-origin" style="--c:var(--lane-1)">☁ origin/feature/profiles</span>feat(profiles): Profile model + SQLite storage</span><span class="muted">J. Gautreau</span><span class="muted">yesterday</span><span class="mono muted">c41d8e0</span></div><div class="commit"><span></span><span class="msg"><span class="ref ref-origin" style="--c:var(--lane-3)">☁ origin/feature/graph</span>feat(graph): virtualised canvas for lanes</span><span class="muted">M. Leroy</span><span class="muted">2 h ago</span><span class="mono muted">7be04d1</span></div><div class="commit"><span></span><span class="msg"><span class="ref ref-local" style="--c:var(--lane-2)">⌂ develop</span><span class="ref ref-origin" style="--c:var(--lane-2)">☁ origin/develop</span>feat(sync): pull fast-forward only, report divergence</span><span class="muted">J. Gautreau</span><span class="muted">yesterday</span><span class="mono muted">e92a6b3</span></div><div class="commit"><span></span><span class="msg">fix(push): read progress from stderr</span><span class="muted">M. Leroy</span><span class="muted">2 days ago</span><span class="mono muted">5d17f4a</span></div><div class="commit"><span></span><span class="msg">feat(status): watch .git with notify</span><span class="muted">J. Gautreau</span><span class="muted">5 days ago</span><span class="mono muted">4f5e6d7</span></div><div class="commit"><span></span><span class="msg"><span class="ref ref-local" style="--c:var(--lane-1)">⌂ main</span><span class="ref ref-origin" style="--c:var(--lane-1)">☁ origin/main</span><span class="ref ref-tag" style="--c:var(--lane-1)">◆ v0.1.0</span>release: v0.1.0</span><span class="muted">J. Gautreau</span><span class="muted">1 week ago</span><span class="mono muted">1a2b3c4</span></div><div class="commit"><span></span><span class="msg">chore: init Tauri 2 + Svelte + gix</span><span class="muted">J. Gautreau</span><span class="muted">3 weeks ago</span><span class="mono muted">2c3d4e5</span></div><div class="commit"><span></span><span class="msg">Initial commit</span><span class="muted">J. Gautreau</span><span class="muted">3 weeks ago</span><span class="mono muted">0a1b2c3</span></div>
+    </div>
+    <div class="panel">
+      <h3>Working changes · 3 files</h3>
+      <div class="sub">Unstaged · 2 <span class="btn xs">Stage all</span></div>
+      <div class="file"><span class="st st-m">M</span><span class="mono">src-tauri/src/profile/inject.rs</span></div>
+      <div class="file"><span class="st st-a">A</span><span class="mono">src/lib/ProfileBadge.svelte</span></div>
+      <div class="sub">Staged · 1 <span class="btn xs">Unstage all</span></div>
+      <div class="file"><span class="st st-m">M</span><span class="mono">src-tauri/src/git/command.rs</span></div>
+      <div class="input">feat(profiles): show active profile in toolbar</div>
+      <div class="input area muted">Description</div>
+      <label class="check"><span class="box"></span> Amend last commit</label>
+      <div class="ok">✓ Identity matches profile Work · jag@work-company.fr</div>
+      <span class="btn primary">Commit to feature/profiles <span class="kbd">⌘↵</span></span>
+    </div>
+  </div>
+</div>
+<div class="states theme-light">
+  <div class="card banner"><b>Rebase in progress</b> · step 2 / 5 · 1 conflict <span class="grow"></span><span class="btn">Resolve</span><span class="btn">Abort</span></div>
+  <div class="card">
+    <div class="alert"><b>Identity does not match profile Work.</b><br>Expected: jag@work-company.fr<br>Found in .git/config: jag@personal.dev</div>
+    <div class="row"><span class="btn primary">Fix repository identity</span><span class="btn disabled">Commit to feature/profiles</span></div>
+  </div>
+  <div class="card dialog">
+    <h3>Hard reset feature/profiles to c41d8e0?</h3>
+    <div class="alert">2 commits and 3 modified files will be lost.</div>
+    <div class="mono small muted">a3f9c21 feat(profiles): inject core.sshCommand…<br>b72e110 wip ssh</div>
+    <div class="row end"><span class="btn">Cancel</span><span class="btn danger">Hard reset</span></div>
+  </div>
+  <div class="card">
+    <div class="row"><span class="badge"><i class="dot" style="background:var(--lane-1)"></i>Work · @jag-work</span><span class="badge bad">⚠ Identity mismatch</span><span class="badge none">⚠ No profile — choose one</span></div>
+    <div class="err">Fetch failed: Permission denied (publickey). <u>Details</u></div>
+    <div class="muted small">○ offline — auto-fetch paused</div>
+  </div>
+</div>
+<div class="doc" style="margin-top:24px">
+  <h2>Tokens</h2>
+  <table><tr><th>Token</th><th>Sombre</th><th>Clair</th><th>Rôle</th></tr><tr><td><code>surface</code></td><td><span class="sw" style="background:#1c1917"></span><code>#1c1917</code></td><td><span class="sw" style="background:#faf6f0"></span><code>#faf6f0</code></td><td>fond principal (graphe)</td></tr><tr><td><code>surface-raised</code></td><td><span class="sw" style="background:#25211e"></span><code>#25211e</code></td><td><span class="sw" style="background:#fffdf9"></span><code>#fffdf9</code></td><td>panneaux, barre latérale, cartes, dialogues</td></tr><tr><td><code>surface-sunken</code></td><td><span class="sw" style="background:#2e2925"></span><code>#2e2925</code></td><td><span class="sw" style="background:#f1ebe2"></span><code>#f1ebe2</code></td><td>barre d&#x27;outils, champs de saisie</td></tr><tr><td><code>border</code></td><td><span class="sw" style="background:#87796c"></span><code>#87796c</code></td><td><span class="sw" style="background:#8a7d6e"></span><code>#8a7d6e</code></td><td>séparateurs, bordures de contrôle</td></tr><tr><td><code>ink</code></td><td><span class="sw" style="background:#f2ebe3"></span><code>#f2ebe3</code></td><td><span class="sw" style="background:#2a241f"></span><code>#2a241f</code></td><td>texte principal</td></tr><tr><td><code>muted</code></td><td><span class="sw" style="background:#b3a89c"></span><code>#b3a89c</code></td><td><span class="sw" style="background:#675c52"></span><code>#675c52</code></td><td>texte secondaire (auteur, date, SHA, compteurs)</td></tr><tr><td><code>brand</code></td><td><span class="sw" style="background:#f5a524"></span><code>#f5a524</code></td><td><span class="sw" style="background:#b45309"></span><code>#b45309</code></td><td>action principale (Commit, Hard reset), liens</td></tr><tr><td><code>on-brand</code></td><td><span class="sw" style="background:#1c1305"></span><code>#1c1305</code></td><td><span class="sw" style="background:#ffffff"></span><code>#ffffff</code></td><td>texte sur brand</td></tr><tr><td><code>selection</code></td><td><span class="sw" style="background:#3d3127"></span><code>#3d3127</code></td><td><span class="sw" style="background:#f6e3c8"></span><code>#f6e3c8</code></td><td>ligne sélectionnée, résultat de recherche</td></tr><tr><td><code>focus</code></td><td><span class="sw" style="background:#f5a524"></span><code>#f5a524</code></td><td><span class="sw" style="background:#b45309"></span><code>#b45309</code></td><td>anneau de focus clavier</td></tr><tr><td><code>success</code></td><td><span class="sw" style="background:#8fce7a"></span><code>#8fce7a</code></td><td><span class="sw" style="background:#336a19"></span><code>#336a19</code></td><td>identité conforme, statut A, test OK</td></tr><tr><td><code>warning</code></td><td><span class="sw" style="background:#f2c14e"></span><code>#f2c14e</code></td><td><span class="sw" style="background:#8a5a00"></span><code>#8a5a00</code></td><td>statut M, opération en cours, force push</td></tr><tr><td><code>danger</code></td><td><span class="sw" style="background:#f28b82"></span><code>#f28b82</code></td><td><span class="sw" style="background:#b3261e"></span><code>#b3261e</code></td><td>identité non conforme, perte de données, statut D, erreur</td></tr><tr><td><code>lane-1</code></td><td><span class="sw" style="background:#f6b26b"></span><code>#f6b26b</code></td><td><span class="sw" style="background:#a8560f"></span><code>#a8560f</code></td><td>lane de graphe n° 1 (puis 2, 3… cycliques)</td></tr><tr><td><code>lane-2</code></td><td><span class="sw" style="background:#8fc1bf"></span><code>#8fc1bf</code></td><td><span class="sw" style="background:#2a7470"></span><code>#2a7470</code></td><td>lane n° 2</td></tr><tr><td><code>lane-3</code></td><td><span class="sw" style="background:#d3a6d3"></span><code>#d3a6d3</code></td><td><span class="sw" style="background:#8e4f8e"></span><code>#8e4f8e</code></td><td>lane n° 3</td></tr><tr><td><code>lane-4</code></td><td><span class="sw" style="background:#e6d36f"></span><code>#e6d36f</code></td><td><span class="sw" style="background:#7d6400"></span><code>#7d6400</code></td><td>lane n° 4</td></tr><tr><td><code>lane-5</code></td><td><span class="sw" style="background:#a3cf74"></span><code>#a3cf74</code></td><td><span class="sw" style="background:#4a7a1c"></span><code>#4a7a1c</code></td><td>lane n° 5</td></tr><tr><td><code>lane-6</code></td><td><span class="sw" style="background:#9db8e8"></span><code>#9db8e8</code></td><td><span class="sw" style="background:#3d68a8"></span><code>#3d68a8</code></td><td>lane n° 6</td></tr><tr><td><code>on-lane</code></td><td><span class="sw" style="background:#1c1917"></span><code>#1c1917</code></td><td><span class="sw" style="background:#ffffff"></span><code>#ffffff</code></td><td>initiales dans un nœud</td></tr></table>
+  <h2>Contraste (WCAG AA, toutes les paires vérifiées)</h2>
+  <p><b>Sombre</b> — paires les plus faibles : <code>border</code> sur <code>surface-sunken</code> 3.4:1 (min 3), <code>border</code> sur <code>surface-raised</code> 3.8:1 (min 3), <code>border</code> sur <code>surface</code> 4.1:1 (min 3), <code>danger</code> sur <code>selection</code> 5.3:1 (min 4.5).</p>
+  <p><b>Clair</b> — paires les plus faibles : <code>border</code> sur <code>surface-sunken</code> 3.4:1 (min 3), <code>border</code> sur <code>surface</code> 3.7:1 (min 3), <code>border</code> sur <code>surface-raised</code> 3.9:1 (min 3), <code>focus</code> sur <code>surface-sunken</code> 4.2:1 (min 3).</p>
+</div>
+</body>
+</html>

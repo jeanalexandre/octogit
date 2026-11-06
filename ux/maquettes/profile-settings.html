@@ -8,90 +8,119 @@
   body { margin: 0; padding: 24px; font: 13px/1.4 -apple-system, system-ui, sans-serif; color: #222; background: #f2f2f2; }
   h1 { font-size: 18px; margin: 0 0 4px; }
   h2 { font-size: 14px; margin: 32px 0 8px; color: #555; text-transform: uppercase; letter-spacing: .05em; }
+  h3 { margin: 0; font-size: 13px; }
   .note { color: #666; margin: 0 0 16px; }
   .frame { background: #fff; border: 2px solid #999; width: 1500px; max-width: 100%; overflow: hidden; }
   .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
   .state { display: flex; flex-direction: column; gap: 6px; }
   .state > .label { font-weight: 600; color: #555; }
-  .titlebar { padding: 8px 12px; border-bottom: 1px solid #bbb; background: #e6e6e6; font-weight: 600; }
-  .btn { border: 1px solid #999; background: #fafafa; padding: 4px 10px; border-radius: 4px; white-space: nowrap; display: inline-block; }
-  .btn.primary { background: #555; color: #fff; border-color: #555; }
-  .btn.link { border: 0; background: none; text-decoration: underline; padding: 4px 0; }
-  .grow { flex: 1; }
-  .muted { color: #777; }
-  .small { font-size: 11px; }
+  .card { background: #fff; border: 2px solid #999; width: 380px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .card.wide { width: 560px; }
+  .card:has(.banner) { width: 560px; } .banner { white-space: nowrap; }
+  .toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #bbb; background: #e6e6e6; }
+  .toolbar > * { white-space: nowrap; flex: none; }
+  .btn { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #999; background: #fafafa; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
+  .btn.primary { background: #555; color: #fff; border-color: #555; justify-content: center; }
+  .btn.danger { border: 2px solid #333; font-weight: 600; }
+  .btn.disabled { color: #aaa; border-color: #ccc; background: #f4f4f4; }
+  .btn.sm { padding: 0 5px; }
+  .ai { width: 15px; height: 15px; flex: none; }
+  .sep { width: 1px; height: 22px; background: #bbb; margin: 0 4px; }
+  .grow { flex: 1 !important; }
+  .search { border: 1px solid #999; background: #fff; padding: 4px 8px; border-radius: 4px; width: 200px; color: #888; }
+  .seg { display: inline-flex; border: 1px solid #999; border-radius: 4px; overflow: hidden; }
+  .seg span { padding: 3px 7px; display: inline-flex; } .seg .on { background: #555; color: #fff; }
+  .badge { border: 2px solid #555; border-radius: 999px; padding: 3px 10px; font-weight: 600; }
+  .muted { color: #777; } .small { font-size: 11px; }
   .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
-  .body { display: grid; grid-template-columns: 250px 1fr; min-height: 600px; }
-  .side { border-right: 1px solid #bbb; padding: 10px; background: #f7f7f7; display: flex; flex-direction: column; gap: 4px; }
-  .prof { padding: 8px; display: flex; gap: 8px; align-items: center; }
-  .prof.current { background: #ddd; font-weight: 600; }
-  .sw { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #555; display: inline-block; }
-  .sw.f1 { background: #333; } .sw.f2 { background: #888; } .sw.f3 { background: #fff; }
-  .main { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; max-width: 980px; }
-  .head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .card { border: 1px solid #999; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: #fff; }
-  .card h3 { margin: 0; font-size: 13px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .f { display: flex; flex-direction: column; gap: 4px; }
-  .f label { font-size: 12px; color: #555; }
+  .banner { padding: 8px 10px; border-bottom: 2px solid #333; background: #d6d6d6; display: flex; gap: 8px; align-items: center; }
+  .side { border-right: 1px solid #bbb; padding: 10px; background: #f7f7f7; }
+  .sec { font-weight: 600; color: #555; margin: 10px 0 4px; font-size: 11px; text-transform: uppercase; }
+  .item { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 4px; }
+  .item.current { background: #ddd; font-weight: 600; }
+  .band { display: flex; gap: 8px; align-items: center; background: #f2f2f2; border-left: 3px solid #555; padding: 5px 10px; margin: 2px 0; }
+  .band.l2 { border-left-color: #888; } .band.l3 { border-left-color: #333; border-left-style: dashed; }
+  .band.sel { background: #ddd; outline: 2px solid #555; outline-offset: -2px; }
   .input { border: 1px solid #999; padding: 6px 8px; border-radius: 4px; background: #fff; }
-  .input.empty { color: #aaa; }
-  .rule { display: flex; gap: 10px; align-items: center; border: 1px solid #bbb; padding: 6px 8px; }
-  .kind { border: 1px solid #777; padding: 0 6px; font-size: 11px; }
+  .input.empty { color: #999; }
+  .check { display: flex; gap: 6px; align-items: center; }
   .ok { border: 1px solid #999; padding: 6px 8px; background: #f4f4f4; }
   .warn { border: 2px solid #333; padding: 8px; background: #e0e0e0; }
-  .dialog { background: #fff; border: 2px solid #555; width: 520px; padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 0 #999; }
-  .dialog h3 { margin: 0; }
-  table { border-collapse: collapse; }
-  td, th { border: 1px solid #bbb; padding: 4px 8px; text-align: left; }
-  .choices { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .st { width: 16px; height: 16px; border: 1px solid #777; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .node { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #555; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; background: #fff; flex: none; }
+  .code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .ln { display: flex; white-space: pre; padding: 0 8px; min-height: 18px; }
+  .ln .n { width: 34px; color: #999; text-align: right; padding-right: 10px; flex: none; }
+  .ln.add { background: #e4e4e4; } .ln.add::before { content: "+"; width: 12px; }
+  .ln.del { background: #d0d0d0; text-decoration: line-through; text-decoration-color: #999; } .ln.del::before { content: "−"; width: 12px; }
+  .ln.ctx::before { content: " "; width: 12px; }
+  .ln.hl { background: #e2e2e2; } .ln.conf { background: #ccc; font-weight: 600; }
+  .ln.pick { outline: 2px solid #555; outline-offset: -2px; }
+  .hunk { background: #eee; color: #666; padding: 3px 8px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; display: flex; gap: 8px; align-items: center; }
+  .dialog { background: #fff; border: 2px solid #555; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 16px; display: flex; flex-direction: column; gap: 10px; width: 560px; }
+  .choices { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .f label { display: block; color: #555; font-size: 11px; margin-bottom: 3px; }
+  table { border-collapse: collapse; } td, th { border-bottom: 1px solid #ddd; padding: 4px 8px; text-align: left; }
+
+  .titlebar { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #bbb; background: #e6e6e6; }
+  .pbody { display: grid; grid-template-columns: 240px 1fr; min-height: 560px; }
+  .pbody .side { display: flex; flex-direction: column; gap: 6px; }
+  .prof { display: flex; gap: 10px; align-items: center; padding: 8px; border-radius: 4px; font-weight: 600; }
+  .prof .muted { font-weight: 400; } .prof.current { background: #ddd; }
+  .sw { width: 14px; height: 14px; border-radius: 50%; background: #333; flex: none; }
+  .sw.s2 { background: #777; } .sw.s3 { background: #aaa; } .sw.s4 { background: #fff; border: 1px solid #777; } .sw.s5 { background: #555; } .sw.s6 { background: #ccc; }
+  .pmain { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .head { display: flex; gap: 8px; align-items: center; }
+  .pcard { border: 1px solid #bbb; border-radius: 4px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .pcard h3 { display: flex; gap: 6px; align-items: center; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .kind { border: 1px solid #999; border-radius: 4px; padding: 0 6px; font-size: 11px; background: #fff; }
 </style>
 </head>
 <body>
 <h1>ProfileSettings</h1>
-<p class="note">Low fidelity. Settings › Profiles (⌘,) or click on the profile badge. Nothing is ever written to ~/.gitconfig.</p>
+<p class="note">Low fidelity (colours: <code>ux/direction/neon.html</code>). Settings › Profiles (⌘,) or “Edit profiles…” in the profile badge menu. The profile colour, one of the 6 lane colours of the active palette, is the one shown in ProfileBadge. Nothing is ever written to ~/.gitconfig.</p>
 
 <h2>1 · Complete profile, connection tested</h2>
 <div class="frame">
-  <div class="titlebar">Settings / Profiles</div>
-  <div class="body">
+  <div class="titlebar"><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>History  Esc</span><strong>Settings / Profiles</strong><span class="grow"></span><span class="seg"><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z"/></svg></span><span class="on"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></svg></span><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg></span><span>▾</span></span><span class="badge">● Pro · @compte-pro</span></div>
+  <div class="pbody">
     <div class="side">
-      <div class="prof current"><span class="sw f1"></span><div>Work<div class="muted small" style="font-weight:400">@jag-work · 14 repos</div></div></div>
-      <div class="prof"><span class="sw f2"></span><div>Personal<div class="muted small">@jag · 9 repos</div></div></div>
-      <div class="prof"><span class="sw f3"></span><div>Client X<div class="muted small">@jag-clientx · 2 repos</div></div></div>
-      <span class="btn link">+ New profile</span>
+      <div class="prof current"><span class="sw"></span><div>Pro<div class="muted small">@compte-pro</div></div></div>
+      <div class="prof"><span class="sw s2"></span><div>Perso<div class="muted small">@jag</div></div></div>
+      <div class="prof"><span class="sw s3"></span><div>Client X<div class="muted small">@jag-clientx</div></div></div>
+      <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>New profile</span>
     </div>
-    <div class="main">
+    <div class="pmain">
       <div class="head">
-        <span class="sw f1"></span><strong style="font-size:18px">Work</strong>
-        <span class="muted small">Color:</span><span class="sw f1"></span><span class="sw f2"></span><span class="sw f3"></span>
+        <span class="sw"></span><strong style="font-size:18px">Pro</strong>
+        <span class="muted small">Color:</span><span class="sw"></span><span class="sw s2"></span><span class="sw s3"></span><span class="sw s4"></span><span class="sw s5"></span><span class="sw s6"></span>
         <span class="grow"></span>
-        <span class="btn">Delete profile</span><span class="btn primary">Save</span>
+        <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>Delete profile</span><span class="btn primary"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/></svg>Save</span>
       </div>
-      <div class="card">
-        <h3>Git identity</h3>
+      <div class="pcard">
+        <h3><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> Git identity</h3>
         <div class="grid2">
           <div class="f"><label>user.name</label><div class="input">Jean-Alexandre Gautreau</div></div>
-          <div class="f"><label>user.email</label><div class="input">jag@work-company.fr</div></div>
+          <div class="f"><label>user.email</label><div class="input">jag@pro-company.fr</div></div>
         </div>
-        <label><input type="checkbox" checked> Sign commits with the profile SSH key</label>
+        <label class="check"><input type="checkbox" checked> Sign commits with the profile SSH key</label>
       </div>
-      <div class="card">
-        <h3>SSH key</h3>
-        <div class="f"><label>Private key</label><div style="display:flex;gap:8px"><div class="input mono grow">~/.ssh/id_ed25519_work</div><span class="btn">Choose…</span><span class="btn">Generate ed25519…</span></div></div>
+      <div class="pcard">
+        <h3><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/></svg> SSH key</h3>
+        <div class="f"><label>Private key</label><div style="display:flex;gap:8px"><div class="input mono grow">~/.ssh/id_ed25519_pro</div><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg>Choose…</span><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Generate ed25519…</span></div></div>
         <div class="mono small muted">SHA256:[key fingerprint]</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <span class="btn">Copy public key</span><span class="muted small">to paste in GitHub › Settings › SSH keys</span>
-          <span class="grow"></span>
-          <span class="btn">Test connection</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V4H4v12h4"/></svg>Copy public key</span><span class="muted small">to paste in GitHub › Settings › SSH keys</span>
+          <span class="grow"></span><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0zM12 18v3"/></svg>Test connection</span>
         </div>
-        <div class="ok">✓ github.com: authenticated as @jag-work</div>
+        <div class="ok">✓ github.com: authenticated as @compte-pro</div>
       </div>
-      <div class="card">
+      <div class="pcard">
         <h3>Matching rules <span class="muted small" style="font-weight:400">— a repository uses the first profile with a matching rule</span></h3>
-        <div class="rule"><span class="kind">Path</span><span class="mono">~/Dev/Work/**</span><span class="grow"></span><span class="muted small">11 repos</span><span class="btn">✕</span></div>
-        <div class="rule"><span class="kind">Remote owner</span><span class="mono">github.com/work-company/*</span><span class="grow"></span><span class="muted small">3 repos</span><span class="btn">✕</span></div>
-        <div><span class="btn">+ Path rule</span> <span class="btn">+ Remote owner rule</span></div>
+        <div class="band"><span class="kind">Path</span><span class="mono grow">~/Dev/Pro/**</span><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span></div>
+        <div class="band"><span class="kind">Remote owner</span><span class="mono grow">github.com/pro-company/*</span><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span></div>
+        <div><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Path rule</span> <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Remote owner rule</span></div>
         <div class="muted small">Matched repositories get this identity, key and signing written in their local .git/config.</div>
       </div>
     </div>
@@ -100,44 +129,43 @@
 
 <h2>2 · Other states (side by side)</h2>
 <div class="row">
-  <div class="state">
-    <div class="label">Empty: first profile</div>
-    <div class="dialog" style="box-shadow:none;border-color:#999">
+  <div class="state"><div class="label">Empty: first profile</div>
+    <div class="dialog" style="box-shadow:none">
       <h3>Create a first profile</h3>
       <div class="muted small">A profile = a Git identity + an SSH key. Repositories are attached to it by rules.</div>
-      <div class="f"><label>Name</label><div class="input empty">e.g. Work</div></div>
+      <div class="f"><label>Name</label><div class="input empty">e.g. Pro</div></div>
+      <div class="f"><label>user.name</label><div class="input empty">First Last</div></div>
       <div class="f"><label>user.email</label><div class="input empty">name@company.com</div></div>
-      <div class="f"><label>SSH key</label><div style="display:flex;gap:8px"><span class="btn">Choose in ~/.ssh…</span><span class="btn">Generate ed25519…</span></div></div>
-      <div class="choices"><span class="btn primary">Create profile</span></div>
-    </div>
-  </div>
-  <div class="state">
-    <div class="label">Error: connection refused</div>
-    <div class="dialog" style="box-shadow:none;border-color:#999">
+      <div class="f"><label>SSH key</label><div style="display:flex;gap:8px"><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg>Choose in ~/.ssh…</span><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Generate ed25519…</span></div></div>
+      <div class="choices"><span class="btn primary"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Create profile</span></div>
+    </div></div>
+  <div class="state"><div class="label">Error: connection refused</div>
+    <div class="dialog" style="box-shadow:none;width:420px">
       <div class="warn">Test failed: <span class="mono">git@github.com: Permission denied (publickey).</span><br><span class="small">Public key not added on GitHub yet?</span></div>
-      <div><span class="btn">Copy public key</span> <span class="btn">Test again</span></div>
-    </div>
-  </div>
+      <div><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V4H4v12h4"/></svg>Copy public key</span> <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0zM12 18v3"/></svg>Test again</span></div>
+    </div></div>
 </div>
 
 <h2>3 · IdentityMismatch dialog (on repo open or clone)</h2>
 <div class="row">
   <div class="dialog">
-    <h3>Local Git config differs from profile Work</h3>
-    <div class="muted small">~/Dev/Work/client-git · matched by rule <span class="mono">~/Dev/Work/**</span>. Nothing has been written.</div>
+    <h3>Local Git config differs from profile Pro</h3>
+    <div class="muted small">~/Dev/Pro/client-git · matched by rule <span class="mono">~/Dev/Pro/**</span>. Nothing has been written.</div>
     <table>
-      <tr><th></th><th>Profile Work</th><th>Local .git/config</th></tr>
-      <tr><td>user.email</td><td>jag@work-company.fr</td><td><strong>jag@personal.dev</strong></td></tr>
+      <tr><th></th><th>Profile Pro</th><th>Local .git/config</th></tr>
+      <tr><td>user.email</td><td>jag@pro-company.fr</td><td><strong>jag@perso.dev</strong></td></tr>
       <tr><td>user.name</td><td>Jean-Alexandre Gautreau</td><td>Jean-Alexandre Gautreau</td></tr>
-      <tr><td>core.sshCommand</td><td class="mono">-i ~/.ssh/id_ed25519_work</td><td class="muted">not set</td></tr>
+      <tr><td>core.sshCommand</td><td class="mono">-i ~/.ssh/id_ed25519_pro</td><td class="muted">not set</td></tr>
+      <tr><td>signing</td><td>on (profile SSH key)</td><td class="muted">not set</td></tr>
     </table>
     <div class="muted small">Until a choice is made, Commit and Push stay blocked.</div>
     <div class="choices">
-      <span class="btn">Cancel</span>
-      <span class="btn">Import local config into Octogit…</span>
-      <span class="btn primary">Overwrite with profile Work</span>
+      <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>Cancel</span>
+      <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>Import local config into Octogit…</span>
+      <span class="btn primary"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>Overwrite with profile Pro</span>
     </div>
   </div>
 </div>
+
 </body>
 </html>

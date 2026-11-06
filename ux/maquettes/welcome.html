@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Octogit — Welcome (low-fi)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; font: 13px/1.4 -apple-system, system-ui, sans-serif; color: #222; background: #f2f2f2; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 32px 0 8px; color: #555; text-transform: uppercase; letter-spacing: .05em; }
+  h3 { margin: 0; font-size: 13px; }
+  .note { color: #666; margin: 0 0 16px; }
+  .frame { background: #fff; border: 2px solid #999; width: 1500px; max-width: 100%; overflow: hidden; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .state { display: flex; flex-direction: column; gap: 6px; }
+  .state > .label { font-weight: 600; color: #555; }
+  .card { background: #fff; border: 2px solid #999; width: 380px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .card.wide { width: 560px; }
+  .card:has(.banner) { width: 560px; } .banner { white-space: nowrap; }
+  .toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #bbb; background: #e6e6e6; }
+  .toolbar > * { white-space: nowrap; flex: none; }
+  .btn { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #999; background: #fafafa; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
+  .btn.primary { background: #555; color: #fff; border-color: #555; justify-content: center; }
+  .btn.danger { border: 2px solid #333; font-weight: 600; }
+  .btn.disabled { color: #aaa; border-color: #ccc; background: #f4f4f4; }
+  .btn.sm { padding: 0 5px; }
+  .ai { width: 15px; height: 15px; flex: none; }
+  .sep { width: 1px; height: 22px; background: #bbb; margin: 0 4px; }
+  .grow { flex: 1 !important; }
+  .search { border: 1px solid #999; background: #fff; padding: 4px 8px; border-radius: 4px; width: 200px; color: #888; }
+  .seg { display: inline-flex; border: 1px solid #999; border-radius: 4px; overflow: hidden; }
+  .seg span { padding: 3px 7px; display: inline-flex; } .seg .on { background: #555; color: #fff; }
+  .badge { border: 2px solid #555; border-radius: 999px; padding: 3px 10px; font-weight: 600; }
+  .muted { color: #777; } .small { font-size: 11px; }
+  .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .banner { padding: 8px 10px; border-bottom: 2px solid #333; background: #d6d6d6; display: flex; gap: 8px; align-items: center; }
+  .side { border-right: 1px solid #bbb; padding: 10px; background: #f7f7f7; }
+  .sec { font-weight: 600; color: #555; margin: 10px 0 4px; font-size: 11px; text-transform: uppercase; }
+  .item { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 4px; }
+  .item.current { background: #ddd; font-weight: 600; }
+  .band { display: flex; gap: 8px; align-items: center; background: #f2f2f2; border-left: 3px solid #555; padding: 5px 10px; margin: 2px 0; }
+  .band.l2 { border-left-color: #888; } .band.l3 { border-left-color: #333; border-left-style: dashed; }
+  .band.sel { background: #ddd; outline: 2px solid #555; outline-offset: -2px; }
+  .input { border: 1px solid #999; padding: 6px 8px; border-radius: 4px; background: #fff; }
+  .input.empty { color: #999; }
+  .check { display: flex; gap: 6px; align-items: center; }
+  .ok { border: 1px solid #999; padding: 6px 8px; background: #f4f4f4; }
+  .warn { border: 2px solid #333; padding: 8px; background: #e0e0e0; }
+  .st { width: 16px; height: 16px; border: 1px solid #777; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .node { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #555; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; background: #fff; flex: none; }
+  .code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .ln { display: flex; white-space: pre; padding: 0 8px; min-height: 18px; }
+  .ln .n { width: 34px; color: #999; text-align: right; padding-right: 10px; flex: none; }
+  .ln.add { background: #e4e4e4; } .ln.add::before { content: "+"; width: 12px; }
+  .ln.del { background: #d0d0d0; text-decoration: line-through; text-decoration-color: #999; } .ln.del::before { content: "−"; width: 12px; }
+  .ln.ctx::before { content: " "; width: 12px; }
+  .ln.hl { background: #e2e2e2; } .ln.conf { background: #ccc; font-weight: 600; }
+  .ln.pick { outline: 2px solid #555; outline-offset: -2px; }
+  .hunk { background: #eee; color: #666; padding: 3px 8px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; display: flex; gap: 8px; align-items: center; }
+  .dialog { background: #fff; border: 2px solid #555; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 16px; display: flex; flex-direction: column; gap: 10px; width: 560px; }
+  .choices { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .f label { display: block; color: #555; font-size: 11px; margin-bottom: 3px; }
+  table { border-collapse: collapse; } td, th { border-bottom: 1px solid #ddd; padding: 4px 8px; text-align: left; }
+
+  .titlebar { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #bbb; background: #e6e6e6; }
+  .wbody { display: grid; grid-template-columns: 1fr 300px; min-height: 380px; }
+  .wcol { padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+  .wcol .band { padding: 8px 10px; }
+  .badge.none { border-style: dashed; }
+  .wact { border-left: 1px solid #bbb; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: #f7f7f7; }
+  .btn.big { padding: 10px; justify-content: flex-start; }
+  .progress { height: 8px; border: 1px solid #999; border-radius: 4px; } .progress span { display: block; height: 100%; background: #555; }
+</style>
+</head>
+<body>
+<h1>Welcome</h1>
+<p class="note">Low fidelity (colours: <code>ux/direction/neon.html</code>). Shown on first launch, or when the last repository has disappeared. Otherwise Octogit reopens the last repository in History.</p>
+
+<h2>1 · Recent repositories</h2>
+<div class="frame">
+  <div class="titlebar"><strong>Octogit</strong><span class="grow"></span><span class="seg"><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z"/></svg></span><span class="on"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></svg></span><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg></span><span>▾</span></span></div>
+  <div class="wbody">
+    <div class="wcol">
+      <h3>Recent</h3>
+      <div class="band "><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg></span><div class="grow"><strong>client-git</strong><div class="mono small muted">~/Dev/Pro/client-git</div></div><span class="badge">● Pro</span><span class="muted small" style="width:80px;text-align:right">2 h ago</span></div><div class="band l2"><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg></span><div class="grow"><strong>octogit</strong><div class="mono small muted">~/Dev/Perso/octogit</div></div><span class="badge">● Perso</span><span class="muted small" style="width:80px;text-align:right">yesterday</span></div><div class="band l3"><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg></span><div class="grow"><strong>api-facturation</strong><div class="mono small muted">~/Dev/ClientX/api-facturation</div></div><span class="badge">● Client X</span><span class="muted small" style="width:80px;text-align:right">4 days ago</span></div><div class="band l3"><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg></span><div class="grow"><strong>side-project</strong><div class="mono small muted">~/Dev/side-project</div></div><span class="badge none">⚠ No profile</span><span class="muted small" style="width:80px;text-align:right">2 weeks ago</span></div>
+      <div class="muted small">Click to open in History. The badge shows the profile the repository is attached to, manual choice included.</div>
+    </div>
+    <div class="wact">
+      <span class="btn primary big"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg>Open folder…  ⌘O</span>
+      <span class="btn big"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V4H4v12h4"/></svg>Clone…  ⌘⇧C</span>
+      <span class="btn big"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Profiles  ⌘,</span>
+    </div>
+  </div>
+</div>
+
+<h2>2 · Other states (side by side)</h2>
+<div class="row">
+  <div class="state"><div class="label">Empty: first launch, no profile</div><div class="card wide">
+    <h3>Welcome to Octogit</h3>
+    <div class="muted">No profile yet. A profile is a Git identity and an SSH key; repositories are attached to it by rules.</div>
+    <div><span class="btn primary"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Create a first profile</span></div>
+    <div class="muted small">Open folder stays available; the repository opens “No profile”, and Commit and Push are blocked until one is chosen. No clone without a profile: CloneDialog shows “No profile yet”.</div></div></div>
+  <div class="state"><div class="label">Last repository moved or deleted</div><div class="card wide">
+    <div class="warn">Repository not found: <span class="mono">~/Dev/Pro/old-client</span></div>
+    <div><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg>Locate…</span> <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>Remove from recent</span></div></div></div>
+</div>
+
+<h2>3 · CloneDialog (from Welcome or RepoPicker)</h2>
+<div class="row">
+  <div class="dialog">
+    <h3>Clone a repository</h3>
+    <div class="f"><label>Profile (required, no default)</label><div style="display:flex;gap:6px"><span class="btn primary">● Pro</span><span class="btn">● Perso</span><span class="btn">● Client X</span></div></div>
+    <div class="f"><label>URL</label><div class="input mono">git@github.com:pro-company/client-git.git</div></div>
+    <div class="f"><label>Folder</label><div style="display:flex;gap:8px"><div class="input mono grow">~/Dev/Pro/client-git</div><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg>Choose…</span></div></div>
+    <div class="muted small">.git/config will get the Pro identity, SSH key and signing.</div>
+    <div class="choices"><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>Cancel</span><span class="btn primary"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V4H4v12h4"/></svg>Clone</span></div>
+  </div>
+  <div class="state"><div class="label">No profile yet</div><div class="card">
+    <h3>Clone a repository</h3>
+    <div class="muted">No profile yet</div>
+    <div><span class="btn primary">Create profile…</span></div>
+    <div class="muted small">After Save, back here with the new profile selected; URL and folder kept.</div>
+    <div><span class="btn disabled">Clone</span></div></div></div>
+  <div class="state"><div class="label">In progress</div><div class="card">
+    <div>Cloning client-git with profile Pro…</div>
+    <div class="progress"><span style="width:62%"></span></div>
+    <div class="muted small">Receiving objects 62 % (1 240 / 2 000)</div>
+    <div><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>Cancel</span></div></div></div>
+  <div class="state"><div class="label">Error</div><div class="card">
+    <div class="warn">Clone failed: <span class="mono">Permission denied (publickey).</span></div>
+    <div class="muted small">Is the Pro public key added on GitHub?</div>
+    <div><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V4H4v12h4"/></svg>Copy public key</span> <span class="btn">Try again</span></div></div></div>
+</div>
+
+</body>
+</html>

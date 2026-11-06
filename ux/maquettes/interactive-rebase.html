@@ -8,99 +8,129 @@
   body { margin: 0; padding: 24px; font: 13px/1.4 -apple-system, system-ui, sans-serif; color: #222; background: #f2f2f2; }
   h1 { font-size: 18px; margin: 0 0 4px; }
   h2 { font-size: 14px; margin: 32px 0 8px; color: #555; text-transform: uppercase; letter-spacing: .05em; }
+  h3 { margin: 0; font-size: 13px; }
   .note { color: #666; margin: 0 0 16px; }
   .frame { background: #fff; border: 2px solid #999; width: 1500px; max-width: 100%; overflow: hidden; }
   .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
   .state { display: flex; flex-direction: column; gap: 6px; }
   .state > .label { font-weight: 600; color: #555; }
-  .titlebar { padding: 8px 12px; border-bottom: 1px solid #bbb; background: #e6e6e6; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .btn { border: 1px solid #999; background: #fafafa; padding: 4px 10px; border-radius: 4px; white-space: nowrap; display: inline-block; }
-  .btn.primary { background: #555; color: #fff; border-color: #555; }
-  .btn.sm { padding: 0 6px; }
-  .grow { flex: 1; }
-  .muted { color: #777; }
-  .small { font-size: 11px; }
-  .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .card { background: #fff; border: 2px solid #999; width: 380px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .card.wide { width: 560px; }
+  .card:has(.banner) { width: 560px; } .banner { white-space: nowrap; }
+  .toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #bbb; background: #e6e6e6; }
+  .toolbar > * { white-space: nowrap; flex: none; }
+  .btn { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #999; background: #fafafa; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
+  .btn.primary { background: #555; color: #fff; border-color: #555; justify-content: center; }
+  .btn.danger { border: 2px solid #333; font-weight: 600; }
+  .btn.disabled { color: #aaa; border-color: #ccc; background: #f4f4f4; }
+  .btn.sm { padding: 0 5px; }
+  .ai { width: 15px; height: 15px; flex: none; }
+  .sep { width: 1px; height: 22px; background: #bbb; margin: 0 4px; }
+  .grow { flex: 1 !important; }
+  .search { border: 1px solid #999; background: #fff; padding: 4px 8px; border-radius: 4px; width: 200px; color: #888; }
+  .seg { display: inline-flex; border: 1px solid #999; border-radius: 4px; overflow: hidden; }
+  .seg span { padding: 3px 7px; display: inline-flex; } .seg .on { background: #555; color: #fff; }
   .badge { border: 2px solid #555; border-radius: 999px; padding: 3px 10px; font-weight: 600; }
-  .body { display: grid; grid-template-columns: 1fr 380px; min-height: 520px; }
-  .main { padding: 14px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid #bbb; }
-  .item { display: grid; grid-template-columns: 50px 110px 1fr 80px; gap: 10px; align-items: center; border: 1px solid #bbb; padding: 6px 8px; }
-  .item.sel { border: 2px solid #555; background: #eee; }
-  .item.drop { color: #999; text-decoration: line-through; }
-  .item.into { margin-left: 40px; border-style: dashed; }
-  .select { border: 1px solid #777; padding: 2px 6px; background: #fff; }
-  .edit { grid-column: 3 / 5; }
+  .muted { color: #777; } .small { font-size: 11px; }
+  .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .banner { padding: 8px 10px; border-bottom: 2px solid #333; background: #d6d6d6; display: flex; gap: 8px; align-items: center; }
+  .side { border-right: 1px solid #bbb; padding: 10px; background: #f7f7f7; }
+  .sec { font-weight: 600; color: #555; margin: 10px 0 4px; font-size: 11px; text-transform: uppercase; }
+  .item { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 4px; }
+  .item.current { background: #ddd; font-weight: 600; }
+  .band { display: flex; gap: 8px; align-items: center; background: #f2f2f2; border-left: 3px solid #555; padding: 5px 10px; margin: 2px 0; }
+  .band.l2 { border-left-color: #888; } .band.l3 { border-left-color: #333; border-left-style: dashed; }
+  .band.sel { background: #ddd; outline: 2px solid #555; outline-offset: -2px; }
   .input { border: 1px solid #999; padding: 6px 8px; border-radius: 4px; background: #fff; }
-  .side { padding: 14px; display: flex; flex-direction: column; gap: 12px; background: #f7f7f7; }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .col { border: 1px solid #bbb; background: #fff; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
-  .c { border: 1px solid #ccc; padding: 2px 6px; font-size: 11px; }
+  .input.empty { color: #999; }
+  .check { display: flex; gap: 6px; align-items: center; }
+  .ok { border: 1px solid #999; padding: 6px 8px; background: #f4f4f4; }
   .warn { border: 2px solid #333; padding: 8px; background: #e0e0e0; }
-  .foot { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid #bbb; justify-content: flex-end; }
-  .card { background: #fff; border: 2px solid #999; width: 460px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
-  .banner { padding: 8px 10px; border-bottom: 2px solid #333; background: #d6d6d6; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: -12px -12px 0; }
+  .st { width: 16px; height: 16px; border: 1px solid #777; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .node { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #555; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; background: #fff; flex: none; }
+  .code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .ln { display: flex; white-space: pre; padding: 0 8px; min-height: 18px; }
+  .ln .n { width: 34px; color: #999; text-align: right; padding-right: 10px; flex: none; }
+  .ln.add { background: #e4e4e4; } .ln.add::before { content: "+"; width: 12px; }
+  .ln.del { background: #d0d0d0; text-decoration: line-through; text-decoration-color: #999; } .ln.del::before { content: "−"; width: 12px; }
+  .ln.ctx::before { content: " "; width: 12px; }
+  .ln.hl { background: #e2e2e2; } .ln.conf { background: #ccc; font-weight: 600; }
+  .ln.pick { outline: 2px solid #555; outline-offset: -2px; }
+  .hunk { background: #eee; color: #666; padding: 3px 8px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; display: flex; gap: 8px; align-items: center; }
+  .dialog { background: #fff; border: 2px solid #555; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 16px; display: flex; flex-direction: column; gap: 10px; width: 560px; }
+  .choices { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .f label { display: block; color: #555; font-size: 11px; margin-bottom: 3px; }
+  table { border-collapse: collapse; } td, th { border-bottom: 1px solid #ddd; padding: 4px 8px; text-align: left; }
+
+  .titlebar { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid #bbb; }
+  .rbody { display: grid; grid-template-columns: 1fr 420px; min-height: 420px; }
+  .rmain { padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+  .rbody .side { border-right: 0; border-left: 1px solid #bbb; display: flex; flex-direction: column; gap: 10px; }
+  .todo { flex-wrap: wrap; } .todo.into { margin-left: 28px; }
+  .select { border: 1px solid #999; border-radius: 4px; padding: 1px 8px; background: #fff; width: 80px; }
+  .edit { flex-basis: 100%; padding-left: 64px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .col { display: flex; flex-direction: column; gap: 0; font-size: 12px; }
+  .col .band { padding: 3px 6px; }
+  .foot { display: flex; gap: 8px; justify-content: flex-end; padding: 10px 12px; border-top: 1px solid #bbb; }
 </style>
 </head>
 <body>
 <h1>InteractiveRebase</h1>
-<p class="note">Low fidelity. Opened by right-click on a commit › “Interactive rebase from here”. Git's own rebase engine runs underneath.</p>
+<p class="note">Low fidelity (colours: <code>ux/direction/neon.html</code>). Opened by right-click on a commit › “Interactive rebase from here”. Each commit is a lane band, as in History. Git's own rebase engine runs underneath.</p>
 
 <h2>1 · Composing the rebase</h2>
 <div class="frame">
-  <div class="titlebar"><strong>Interactive rebase</strong> <span class="muted">of</span> feature/profiles <span class="muted">onto</span> develop · <span class="mono">e92a6b3</span><span class="grow"></span><span class="badge">● Work · @jag-work</span></div>
-  <div class="body">
-    <div class="main">
-      <div class="muted small">Oldest at the top. Move the selected commit with ↑ ↓ or ⌥↑ ⌥↓. Action shortcuts: p r s f d.</div>
-      <div class="item"><span><span class="btn sm">↑</span><span class="btn sm">↓</span></span><span class="select">pick ▾</span><span>feat(profiles): Profile model + SQLite storage</span><span class="mono muted">c41d8e0</span></div>
-      <div class="item sel"><span><span class="btn sm">↑</span><span class="btn sm">↓</span></span><span class="select">reword ▾</span><span>wip ssh</span><span class="mono muted">b72e110</span>
-        <span></span><span></span><div class="edit"><div class="muted small">New message</div><div class="input">feat(profiles): inject core.sshCommand per profile</div></div></div>
-      <div class="item into"><span><span class="btn sm">↑</span><span class="btn sm">↓</span></span><span class="select">fixup ▾</span><span>fix typo in ssh_cmd</span><span class="mono muted">d03f9a2</span></div>
-      <div class="item drop"><span><span class="btn sm">↑</span><span class="btn sm">↓</span></span><span class="select">drop ▾</span><span>debug: print args</span><span class="mono muted">91aa4c7</span></div>
-      <div class="item"><span><span class="btn sm">↑</span><span class="btn sm">↓</span></span><span class="select">squash ▾</span><span>feat(profiles): signing with gpg.format=ssh</span><span class="mono muted">a3f9c21</span></div>
+  <div class="toolbar">
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg>client-git ▾</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="7" r="2"/><path d="M6 7v10M18 9v1a5 5 0 0 1-5 5H9a3 3 0 0 0-3 3"/></svg>feature/profils</span>
+    <span class="sep"></span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Fetch All ▾</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg>Push 2</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="7" r="2"/><path d="M6 7v10M18 9v1a5 5 0 0 1-5 5H9a3 3 0 0 0-3 3"/></svg>Branch</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v6h16v-6M4 13h4l1 2h6l1-2h4M12 3v8M9 8l3 3 3-3"/></svg>Stash</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v6h16v-6M4 13h4l1 2h6l1-2h4M12 11V3M9 6l3-3 3 3"/></svg>Pop</span>
+    <span class="grow"></span>
+    <span class="muted small">fetched 2 min ago</span>
+    <span class="seg"><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z"/></svg></span><span class="on"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></svg></span><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg></span><span>▾</span></span>
+    <span class="badge">● Pro · @compte-pro</span>
+  </div>
+  <div class="titlebar"><strong>Interactive rebase</strong> <span class="muted">of</span> feature/profils <span class="muted">onto</span> <span class="mono">e92a6b3</span> <span class="muted">(parent of c41d8e0)</span><span class="grow"></span><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Back to graph  Esc</span></div>
+  <div class="rbody">
+    <div class="rmain">
+      <div class="muted small">Oldest at the top. ↑ ↓ select a commit; ⌥↑ ⌥↓ or the row buttons move it. Action shortcuts: p r s f d.</div>
+      <div class="band todo  "><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span><span class="select">pick ▾</span><span class="node">VO</span><span class="grow">feat(profils): modèle Profile + stockage SQLite</span><span class="mono muted">c41d8e0</span></div><div class="band todo sel "><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span><span class="select">reword ▾</span><span class="node">VO</span><span class="grow">wip ssh</span><span class="mono muted">b72e110</span><div class="edit"><div class="muted small">New message</div><div class="input">feat(profils): injection de core.sshCommand par profil</div></div></div><div class="band todo  into"><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span><span class="select">fixup ▾</span><span class="node">VO</span><span class="grow">fix typo in ssh_cmd</span><span class="mono muted">d03f9a2</span></div><div class="band todo  "><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span><span class="select">drop ▾</span><span class="node">VO</span><span class="grow"><s>debug: print args</s></span><span class="mono muted">91aa4c7</span></div><div class="band todo  "><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span><span class="select">squash ▾</span><span class="node">VO</span><span class="grow">feat(profils): signature avec gpg.format=ssh</span><span class="mono muted">a3f9c21</span></div>
       <div class="muted small">squash: messages are combined — edit the result below.</div>
-      <div class="input" style="height:60px">feat(profiles): Profile model + SQLite storage<br>feat(profiles): signing with gpg.format=ssh</div>
+      <div class="input" style="height:60px">feat(profils): modèle Profile + stockage SQLite<br>feat(profils): signature avec gpg.format=ssh</div>
     </div>
     <div class="side">
-      <strong>Result</strong>
+      <strong>Preview</strong>
       <div class="cols">
-        <div class="col"><span class="muted small">Before · 5 commits</span><span class="c">c41d8e0 Profile model…</span><span class="c">b72e110 wip ssh</span><span class="c">d03f9a2 fix typo…</span><span class="c">91aa4c7 debug: print…</span><span class="c">a3f9c21 signing…</span></div>
-        <div class="col"><span class="muted small">After · 2 commits</span><span class="c">Profile model + signing</span><span class="c">inject core.sshCommand…</span></div>
+        <div class="col"><span class="muted small">Before · 5 commits</span>
+          <div class="band"><span class="node">VO</span>Profile model…</div><div class="band"><span class="node">VO</span>wip ssh</div><div class="band"><span class="node">VO</span>fix typo…</div><div class="band"><span class="node">VO</span>debug: print…</div><div class="band"><span class="node">VO</span>signature…</div>
+          <div class="band l2"><span class="node">JG</span>develop</div></div>
+        <div class="col"><span class="muted small">After · 2 commits</span>
+          <div class="band"><span class="node">VO</span>Profile model + signature</div><div class="band"><span class="node">VO</span>injection de core.sshCommand…</div>
+          <div class="band l2"><span class="node">JG</span>develop</div></div>
       </div>
-      <div class="warn">2 commits already pushed to origin/feature/profiles: a force push will be needed.</div>
+      <div class="warn">2 commits already pushed to origin/feature/profils: a force push will be needed.</div>
     </div>
   </div>
-  <div class="foot"><span class="btn">Reset</span><span class="btn">Cancel</span><span class="btn primary">Start rebase</span></div>
+  <div class="foot"><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg>Reset</span><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>Cancel</span><span class="btn primary"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5l12 7-12 7z"/></svg>Start rebase</span></div>
 </div>
 
 <h2>2 · Other states (side by side)</h2>
 <div class="row">
-  <div class="state">
-    <div class="label">Running</div>
-    <div class="card">
-      <div class="banner"><strong>Rebase in progress</strong> · step 2 / 2<span class="grow"></span><span class="btn">Abort</span></div>
-      <div class="muted">Applying “inject core.sshCommand per profile”…</div>
-    </div>
-  </div>
-  <div class="state">
-    <div class="label">Conflict → ConflictResolver</div>
-    <div class="card">
-      <div class="banner"><strong>Rebase in progress</strong> · 1 / 2 · 1 conflict<span class="grow"></span><span class="btn">Resume</span><span class="btn">Abort</span></div>
-      <div class="muted small">ConflictResolver opens automatically.</div>
-    </div>
-  </div>
-  <div class="state">
-    <div class="label">Done</div>
-    <div class="card">
-      <div>✓ Rebase complete · 5 → 2 commits. Graph updated.</div>
-      <div><span class="btn">⇡ Force push</span></div>
-    </div>
-  </div>
-  <div class="state">
-    <div class="label">Nothing to rebase</div>
-    <div class="card">
-      <div class="muted">No commits between develop and feature/profiles.</div>
-    </div>
-  </div>
+  <div class="state"><div class="label">Running</div><div class="card">
+    <div class="banner" style="margin:-12px -12px 0"><strong>Rebase in progress</strong> · step 2 / 2<span class="grow"></span><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5l12 7-12 7z"/></svg>Continue</span><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>Abort</span></div>
+    <div class="muted">Applying “injection de core.sshCommand par profil”…</div></div></div>
+  <div class="state"><div class="label">Conflict → ConflictResolver</div><div class="card">
+    <div class="banner" style="margin:-12px -12px 0"><strong>Rebase in progress</strong> · 1 / 2 · 1 conflict<span class="grow"></span><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="2"/><circle cx="6" cy="6" r="2"/><path d="M6 8v13M6 8c0 5 4 10 10 10"/></svg>Resolve</span><span class="btn disabled"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5l12 7-12 7z"/></svg>Continue</span><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>Abort</span></div>
+    <div class="muted small">ConflictResolver opens automatically.</div></div></div>
+  <div class="state"><div class="label">Done</div><div class="card">
+    <div>✓ Rebase complete · 5 → 2 commits. Graph updated.</div>
+    <div><span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg>Force push</span></div></div></div>
 </div>
+
 </body>
 </html>

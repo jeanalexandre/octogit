@@ -53,39 +53,67 @@
   .banner { padding: 8px 10px; border-bottom: 2px solid #333; background: #d6d6d6; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .card { background: #fff; border: 2px solid #999; width: 380px; }
   .wide { width: 1100px; max-width: 100%; }
+
+  .lofi { --lane-1:#222;--lane-2:#555;--lane-3:#777;--lane-4:#444;--lane-5:#666;--lane-6:#888; --surface:#fff; --node-ink:#111; }
+  .ai { width: 15px; height: 15px; vertical-align: -3px; margin-right: 4px; }
+  .ic { width: 12px; height: 12px; vertical-align: -2px; }
+  .seg { display: inline-flex; border: 1px solid #999; border-radius: 4px; overflow: hidden; }
+  .seg span { padding: 3px 7px; } .seg .on { background: #555; color: #fff; }
+  .gbody { display: grid; grid-template-columns: 220px 1fr 340px; min-height: 560px; }
+  .gpane { display: flex; flex-direction: column; border-right: 1px solid #bbb; outline: 2px solid #555; outline-offset: -2px; }
+  .ghead, .crow { display: grid; grid-template-columns: 190px 198px 1fr; }
+  .ghead { border-bottom: 1px solid #bbb; background: #eee; font-size: 11px; color: #555; text-transform: uppercase; height: 26px; align-items: center; }
+  .ghead > span { padding-left: 10px; }
+  .ghead .cols, .band { display: grid; grid-template-columns: 1fr 100px 90px 70px; align-items: center; gap: 8px; padding-right: 10px; }
+  .grows { position: relative; flex: 1; padding: 8px 0; }
+  .svgwrap { position: absolute; left: 190px; top: 8px; }
+  .crow { height: 34px; }
+  .crow.sel .band { background: #ddd; outline: 2px solid #555; outline-offset: -2px; }
+  .band { margin: 2px 0; background: #f2f2f2; border-left: 3px solid #555; padding-left: 10px; }
+  .band .m { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .refcell { display: flex; align-items: center; gap: 4px; padding-left: 8px; }
+  .wire { flex: 1; height: 1px; background: #777; }
+  .r { font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 3px; white-space: nowrap; display: inline-flex; gap: 3px; align-items: center; }
+  .r.full { background: #555; color: #fff; }
+  .r.ahead { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px #555; }
+  .r.remote { border: 1.5px dashed #555; }
+  .r.tag { border: 1px solid #999; background: #fff; }
+  .hint { border-top: 1px solid #bbb; padding: 8px 12px; color: #666; font-size: 12px; }
 </style>
 </head>
 <body>
 <h1>History — main screen</h1>
-<p class="note">Low fidelity: layout and content only. Width ≈ 1 500 px (laptop full screen). WIP selected by default on repo open.</p>
+<p class="note">Low fidelity: layout and content only (colours: <code>ux/direction/neon.html</code>). Width ≈ 1 500 px. WIP selected by default on repo open. Layout from the reference of 05/11/2026.</p>
 
 <h2>1 · Default: WIP selected, identity matches profile</h2>
-<div class="frame">
+<div class="frame lofi">
   <div class="toolbar">
-    <span class="btn">client-git ▾</span>
-    <span class="btn">feature/profiles ▾</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg>client-git ▾</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="7" r="2"/><path d="M6 7v10M18 9v1a5 5 0 0 1-5 5H9a3 3 0 0 0-3 3"/></svg>feature/profils</span>
     <span class="sep"></span>
-    <span class="btn split">⇣ Fetch All</span>
-    <span class="btn">⇡ Push 2</span>
-    <span class="btn">Branch</span>
-    <span class="btn">Stash</span>
-    <span class="btn">Pop</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Fetch All ▾</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg>Push 2</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="7" r="2"/><path d="M6 7v10M18 9v1a5 5 0 0 1-5 5H9a3 3 0 0 0-3 3"/></svg>Branch</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v6h16v-6M4 13h4l1 2h6l1-2h4M12 3v8M9 8l3 3 3-3"/></svg>Stash</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v6h16v-6M4 13h4l1 2h6l1-2h4M12 11V3M9 6l3-3 3 3"/></svg>Pop</span>
     <span class="grow"></span>
-    <span class="search">Search message, author, SHA  ⌘F</span>
+    <span class="search">Message, author, SHA  ⌘F</span>
     <span class="muted small">fetched 2 min ago</span>
-    <span class="badge">● Work · @jag-work</span>
+    <span class="seg"><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z"/></svg></span><span class="on"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></svg></span><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg></span><span>▾</span></span>
+    <span class="badge">● Pro · @compte-pro</span>
   </div>
-  <div class="body">
+  <div class="gbody">
     <div class="side">
-      <div class="mono small muted">~/Dev/Work/client-git</div>
+      <strong>client-git</strong>
+      <div class="mono small muted">~/Dev/Pro/client-git</div>
       <div class="sec">Local · 3</div>
       <div class="item">main</div>
       <div class="item">develop</div>
-      <div class="item current">feature/profiles  ↑2</div>
+      <div class="item current">feature/profils  2↑</div>
       <div class="sec">origin · 5</div>
       <div class="item">main</div>
       <div class="item">develop</div>
-      <div class="item">feature/profiles</div>
+      <div class="item">feature/profils</div>
       <div class="item">feature/graph</div>
       <div class="item">spike/gix-vs-libgit2</div>
       <div class="sec">Tags · 2</div>
@@ -94,31 +122,56 @@
       <div class="sec">Stashes · 1</div>
       <div class="item">WIP on develop: try notify debounce</div>
     </div>
-    <div class="graph">
-      <div class="commit sel"><span class="lanes"><span class="node wip">+3</span></span><span>// WIP — 3 changed files</span><span></span><span></span><span></span></div>
-      <div class="commit"><span class="lanes"><span class="node">JG</span></span><span><span class="ref">⌂ feature/profiles</span>feat(profiles): inject core.sshCommand per profile</span><span class="muted">J. Gautreau</span><span class="muted">12 min ago</span><span class="mono muted">a3f9c21</span></div>
-      <div class="commit"><span class="lanes"><span class="node">JG</span></span><span><span class="ref">☁ origin/feature/profiles</span>feat(profiles): Profile model + SQLite storage</span><span class="muted">J. Gautreau</span><span class="muted">yesterday</span><span class="mono muted">c41d8e0</span></div>
-      <div class="commit"><span class="lanes"><span class="node l2">ML</span></span><span><span class="ref">☁ origin/feature/graph</span>feat(graph): virtualised canvas for lanes</span><span class="muted">M. Leroy</span><span class="muted">2 h ago</span><span class="mono muted">7be04d1</span></div>
-      <div class="commit"><span class="lanes"><span class="node l3">JG</span></span><span><span class="ref">⌂ develop</span><span class="ref">☁ origin/develop</span>Merge branch 'hotfix/push-progress' into develop</span><span class="muted">J. Gautreau</span><span class="muted">yesterday</span><span class="mono muted">e92a6b3</span></div>
-      <div class="commit"><span class="lanes"><span class="node l3">ML</span></span><span>fix(push): read progress from stderr</span><span class="muted">M. Leroy</span><span class="muted">2 days ago</span><span class="mono muted">5d17f4a</span></div>
-      <div class="commit"><span class="lanes"><span class="node l3">JG</span></span><span>feat(status): watch .git with notify</span><span class="muted">J. Gautreau</span><span class="muted">2 weeks ago</span><span class="mono muted">4f5e6d7</span></div>
-      <div class="commit"><span class="lanes"><span class="node">JG</span></span><span><span class="ref">⌂ main</span><span class="ref">☁ origin/main</span><span class="ref">◆ v0.1.0</span>release: v0.1.0</span><span class="muted">J. Gautreau</span><span class="muted">1 week ago</span><span class="mono muted">1a2b3c4</span></div>
-      <div class="commit"><span class="lanes"><span class="node">JG</span></span><span>chore: init Tauri 2 + Svelte + gix</span><span class="muted">J. Gautreau</span><span class="muted">3 weeks ago</span><span class="mono muted">2c3d4e5</span></div>
-      <div class="commit"><span class="lanes"><span class="node">JG</span></span><span>Initial commit</span><span class="muted">J. Gautreau</span><span class="muted">3 weeks ago</span><span class="mono muted">0a1b2c3</span></div>
+    <div class="gpane">
+      <div class="ghead"><span>Branch / tag</span><span>Graph</span><span class="cols"><span>Commit message</span><span>Author</span><span>Date</span><span>SHA</span></span></div>
+      <div class="grows">
+        <div class="svgwrap"><svg class="lanes" width="198" height="612" aria-hidden="true"><path class="g" style="color:var(--lane-3)" d="M0 51.0 H86" stroke="currentColor" stroke-width="1"/><path class="g" style="color:var(--lane-4)" d="M0 85.0 H116" stroke="currentColor" stroke-width="1"/><path class="g" style="color:var(--lane-6)" d="M0 119.0 H176" stroke="currentColor" stroke-width="1"/><path class="g" style="color:var(--lane-3)" d="M0 153.0 H86" stroke="currentColor" stroke-width="1"/><path class="g" style="color:var(--lane-2)" d="M0 289.0 H56" stroke="currentColor" stroke-width="1"/><path class="g" style="color:var(--lane-1)" d="M0 425.0 H26" stroke="currentColor" stroke-width="1"/><path class="g" style="color:var(--lane-1)" d="M0 493.0 H26" stroke="currentColor" stroke-width="1"/><path class="g" style="color:var(--lane-3)" d="M86 17.0 V51.0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="4 3"/><path class="g" style="color:var(--lane-3)" d="M86 51.0 V153.0" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-3)" d="M86 153.0 V187.0" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-3)" d="M86 187.0 V349.0 Q86 357.0 78 357.0 H56" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-4)" d="M116 85.0 V221.0" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-4)" d="M116 221.0 V255.0" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-4)" d="M116 255.0 V451.0 Q116 459.0 108 459.0 H56" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-6)" d="M176 119.0 V519.0 Q176 527.0 168 527.0 H56" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-2)" d="M56 289.0 V357.0" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-5)" d="M56 289.0 H138 Q146 289.0 146 297.0 V323.0" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-5)" d="M146 323.0 V383.0 Q146 391.0 138 391.0 H56" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-2)" d="M56 357.0 V391.0" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-2)" d="M56 391.0 V459.0" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-1)" d="M26 425.0 V493.0" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-2)" d="M26 425.0 H48 Q56 425.0 56 433.0 V459.0" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-2)" d="M56 459.0 V527.0" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-1)" d="M26 493.0 V561.0" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-2)" d="M56 527.0 V553.0 Q56 561.0 48 561.0 H26" fill="none" stroke="currentColor" stroke-width="2.5"/><path class="g" style="color:var(--lane-1)" d="M26 561.0 V595.0" fill="none" stroke="currentColor" stroke-width="2.5"/><circle class="g" style="color:var(--lane-3)" cx="86" cy="17.0" r="11" fill="var(--surface)" stroke="currentColor" stroke-width="2" stroke-dasharray="3 3"/><circle class="g" style="color:var(--lane-3);fill:color-mix(in srgb, var(--lane-3) 40%, #fff)" cx="86" cy="51.0" r="12" stroke="currentColor" stroke-width="2"/><text x="86" y="55.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">VO</text><circle class="g" style="color:var(--lane-4);fill:color-mix(in srgb, var(--lane-4) 40%, #fff)" cx="116" cy="85.0" r="12" stroke="currentColor" stroke-width="2"/><text x="116" y="89.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">BI</text><circle class="g" style="color:var(--lane-6);fill:color-mix(in srgb, var(--lane-6) 40%, #fff)" cx="176" cy="119.0" r="12" stroke="currentColor" stroke-width="2"/><text x="176" y="123.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">BI</text><circle class="g" style="color:var(--lane-3);fill:color-mix(in srgb, var(--lane-3) 40%, #fff)" cx="86" cy="153.0" r="12" stroke="currentColor" stroke-width="2"/><text x="86" y="157.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">VO</text><circle class="g" style="color:var(--lane-3);fill:color-mix(in srgb, var(--lane-3) 40%, #fff)" cx="86" cy="187.0" r="12" stroke="currentColor" stroke-width="2"/><text x="86" y="191.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">VO</text><circle class="g" style="color:var(--lane-4);fill:color-mix(in srgb, var(--lane-4) 40%, #fff)" cx="116" cy="221.0" r="12" stroke="currentColor" stroke-width="2"/><text x="116" y="225.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">BI</text><circle class="g" style="color:var(--lane-4);fill:color-mix(in srgb, var(--lane-4) 40%, #fff)" cx="116" cy="255.0" r="12" stroke="currentColor" stroke-width="2"/><text x="116" y="259.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">BI</text><circle class="g" style="color:var(--lane-2)" cx="56" cy="289.0" r="6" fill="currentColor"/><circle class="g" style="color:var(--lane-5);fill:color-mix(in srgb, var(--lane-5) 40%, #fff)" cx="146" cy="323.0" r="12" stroke="currentColor" stroke-width="2"/><text x="146" y="327.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">CO</text><circle class="g" style="color:var(--lane-2);fill:color-mix(in srgb, var(--lane-2) 40%, #fff)" cx="56" cy="357.0" r="12" stroke="currentColor" stroke-width="2"/><text x="56" y="361.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">VO</text><circle class="g" style="color:var(--lane-2);fill:color-mix(in srgb, var(--lane-2) 40%, #fff)" cx="56" cy="391.0" r="12" stroke="currentColor" stroke-width="2"/><text x="56" y="395.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">VO</text><circle class="g" style="color:var(--lane-1)" cx="26" cy="425.0" r="6" fill="currentColor"/><circle class="g" style="color:var(--lane-2);fill:color-mix(in srgb, var(--lane-2) 40%, #fff)" cx="56" cy="459.0" r="12" stroke="currentColor" stroke-width="2"/><text x="56" y="463.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">BI</text><circle class="g" style="color:var(--lane-1);fill:color-mix(in srgb, var(--lane-1) 40%, #fff)" cx="26" cy="493.0" r="12" stroke="currentColor" stroke-width="2"/><text x="26" y="497.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">VO</text><circle class="g" style="color:var(--lane-2);fill:color-mix(in srgb, var(--lane-2) 40%, #fff)" cx="56" cy="527.0" r="12" stroke="currentColor" stroke-width="2"/><text x="56" y="531.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">VO</text><circle class="g" style="color:var(--lane-1);fill:color-mix(in srgb, var(--lane-1) 40%, #fff)" cx="26" cy="561.0" r="12" stroke="currentColor" stroke-width="2"/><text x="26" y="565.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">VO</text><circle class="g" style="color:var(--lane-1);fill:color-mix(in srgb, var(--lane-1) 40%, #fff)" cx="26" cy="595.0" r="12" stroke="currentColor" stroke-width="2"/><text x="26" y="599.0" text-anchor="middle" font-size="12" font-weight="700" fill="var(--node-ink)">VO</text></svg></div>
+        <div class="crow sel" data-lane="2"><span class="refcell"></span><span></span><span class="band"><span class="m"><i>// WIP</i> <span class="muted">3 changed files</span></span><span></span><span></span><span></span></span></div><div class="crow" data-lane="2"><span class="refcell"><span class="r full ahead">feature/profils <svg class="ic" viewBox="0 0 16 16"><path d="M3 4h10v6H3zM1.5 12.5h13" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></span><span class="wire"></span></span><span></span><span class="band"><span class="m">feat(profils): injection de core.sshCommand par profil</span><span class="muted">V. Olivier</span><span class="muted">12 min ago</span><span class="mono muted">a3f9c21</span></span></div><div class="crow" data-lane="3"><span class="refcell"><span class="r remote">feature/graph <svg class="ic" viewBox="0 0 16 16"><path d="M4.5 12h7a2.5 2.5 0 0 0 .3-5 3.5 3.5 0 0 0-6.7-.8A2.9 2.9 0 0 0 4.5 12z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="wire"></span></span><span></span><span class="band"><span class="m">feat(graph): lignes orthogonales et fonds colorés</span><span class="muted">B. Imbert</span><span class="muted">40 min ago</span><span class="mono muted">9e1b7c4</span></span></div><div class="crow" data-lane="5"><span class="refcell"><span class="r remote">spike/gix-vs-libgit2 <svg class="ic" viewBox="0 0 16 16"><path d="M4.5 12h7a2.5 2.5 0 0 0 .3-5 3.5 3.5 0 0 0-6.7-.8A2.9 2.9 0 0 0 4.5 12z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="wire"></span></span><span></span><span class="band"><span class="m">spike: comparer libgit2 et gix en lecture <span class="muted">never fetched locally</span></span><span class="muted">B. Imbert</span><span class="muted">yesterday</span><span class="mono muted">77d0a1f</span></span></div><div class="crow" data-lane="2"><span class="refcell"><span class="r remote">feature/profils <svg class="ic" viewBox="0 0 16 16"><path d="M4.5 12h7a2.5 2.5 0 0 0 .3-5 3.5 3.5 0 0 0-6.7-.8A2.9 2.9 0 0 0 4.5 12z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="wire"></span></span><span></span><span class="band"><span class="m">feat(profils): règles d'association chemin / propriétaire</span><span class="muted">V. Olivier</span><span class="muted">yesterday</span><span class="mono muted">c41d8e0</span></span></div><div class="crow" data-lane="2"><span class="refcell"></span><span></span><span class="band"><span class="m">feat(profils): modèle Profile + stockage SQLite</span><span class="muted">V. Olivier</span><span class="muted">yesterday</span><span class="mono muted">5f2c1a0</span></span></div><div class="crow" data-lane="3"><span class="refcell"></span><span></span><span class="band"><span class="m">feat(graph): calcul des lanes</span><span class="muted">B. Imbert</span><span class="muted">yesterday</span><span class="mono muted">b8e2d93</span></span></div><div class="crow" data-lane="3"><span class="refcell"></span><span></span><span class="band"><span class="m">feat(graph): virtualisation des lignes</span><span class="muted">B. Imbert</span><span class="muted">yesterday</span><span class="mono muted">1c9f0e7</span></span></div><div class="crow" data-lane="1"><span class="refcell"><span class="r full">develop <svg class="ic" viewBox="0 0 16 16"><path d="M3 4h10v6H3zM1.5 12.5h13" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><svg class="ic" viewBox="0 0 16 16"><path d="M4.5 12h7a2.5 2.5 0 0 0 .3-5 3.5 3.5 0 0 0-6.7-.8A2.9 2.9 0 0 0 4.5 12z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="wire"></span></span><span></span><span class="band"><span class="m">Merge pull request #12 from hotfix/push-progress</span><span class="muted">J. Gautreau</span><span class="muted">yesterday</span><span class="mono muted">e92a6b3</span></span></div><div class="crow" data-lane="4"><span class="refcell"></span><span></span><span class="band"><span class="m">fix(push): lire la progression sur stderr</span><span class="muted">C. Oudin</span><span class="muted">2 days ago</span><span class="mono muted">5d17f4a</span></span></div><div class="crow" data-lane="1"><span class="refcell"></span><span></span><span class="band"><span class="m">feat(sync): pull en avance rapide seulement</span><span class="muted">V. Olivier</span><span class="muted">2 days ago</span><span class="mono muted">0b4e8c2</span></span></div><div class="crow" data-lane="1"><span class="refcell"></span><span></span><span class="band"><span class="m">feat(identity): alerte avant commit et push</span><span class="muted">V. Olivier</span><span class="muted">3 days ago</span><span class="mono muted">d3a7f15</span></span></div><div class="crow" data-lane="0"><span class="refcell"><span class="r full">main <svg class="ic" viewBox="0 0 16 16"><path d="M3 4h10v6H3zM1.5 12.5h13" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><svg class="ic" viewBox="0 0 16 16"><path d="M4.5 12h7a2.5 2.5 0 0 0 .3-5 3.5 3.5 0 0 0-6.7-.8A2.9 2.9 0 0 0 4.5 12z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="r tag">v0.1.0 <svg class="ic" viewBox="0 0 16 16"><path d="M2 2h6l6 6-6 6-6-6z" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="5.5" cy="5.5" r="1.2" fill="currentColor"/></svg></span><span class="wire"></span></span><span></span><span class="band"><span class="m">Merge pull request #10 from develop</span><span class="muted">J. Gautreau</span><span class="muted">5 days ago</span><span class="mono muted">1a2b3c4</span></span></div><div class="crow" data-lane="1"><span class="refcell"></span><span></span><span class="band"><span class="m">feat(status): surveillance de .git via notify</span><span class="muted">B. Imbert</span><span class="muted">6 days ago</span><span class="mono muted">4f5e6d7</span></span></div><div class="crow" data-lane="0"><span class="refcell"><span class="r tag">v0.0.9 <svg class="ic" viewBox="0 0 16 16"><path d="M2 2h6l6 6-6 6-6-6z" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="5.5" cy="5.5" r="1.2" fill="currentColor"/></svg></span><span class="wire"></span></span><span></span><span class="band"><span class="m">chore(release): 0.0.9</span><span class="muted">V. Olivier</span><span class="muted">1 week ago</span><span class="mono muted">8c0d1e2</span></span></div><div class="crow" data-lane="1"><span class="refcell"></span><span></span><span class="band"><span class="m">feat(graph): premier rendu du graphe</span><span class="muted">V. Olivier</span><span class="muted">1 week ago</span><span class="mono muted">6a7b8c9</span></span></div><div class="crow" data-lane="0"><span class="refcell"></span><span></span><span class="band"><span class="m">chore: init Tauri 2 + Svelte + gix</span><span class="muted">V. Olivier</span><span class="muted">3 weeks ago</span><span class="mono muted">2c3d4e5</span></span></div><div class="crow" data-lane="0"><span class="refcell"></span><span></span><span class="band"><span class="m">Initial commit</span><span class="muted">V. Olivier</span><span class="muted">3 weeks ago</span><span class="mono muted">0a1b2c3</span></span></div>
+      </div>
+      <div class="hint">Click the branch that receives (none: the current one), then right-click the source branch to merge or rebase, or a commit to rebase, cherry-pick, revert, reset… Double-click a branch to check it out.</div>
     </div>
     <div class="panel">
       <h3>Working changes · 3 files</h3>
       <div class="muted small">Unstaged · 2 <span class="btn" style="float:right;padding:0 6px">Stage all</span></div>
-      <div class="file"><span class="st">M</span><span class="mono">src-tauri/src/profile/inject.rs</span></div>
-      <div class="file"><span class="st">A</span><span class="mono">src/lib/ProfileBadge.svelte</span></div>
+      <div class="file"><span class="st">M</span><span class="mono">profile/inject.rs</span></div>
+      <div class="file"><span class="st">A</span><span class="mono">lib/ProfileBadge.svelte</span></div>
       <div class="muted small">Staged · 1 <span class="btn" style="float:right;padding:0 6px">Unstage all</span></div>
-      <div class="file"><span class="st">M</span><span class="mono">src-tauri/src/git/command.rs</span></div>
+      <div class="file"><span class="st">M</span><span class="mono">git/command.rs</span></div>
       <div class="muted small">Click a file to stage hunks or lines.</div>
-      <div class="input">feat(profiles): show active profile in toolbar</div>
-      <div class="input textarea">Description</div>
+      <div class="muted small">Summary</div>
+      <div class="input">feat(profils): badge du profil actif</div>
+      <div class="muted small">Description</div>
+      <div class="input textarea">Affiche le profil actif dans la barre d'outils.</div>
       <label class="check"><input type="checkbox"> Amend last commit</label>
-      <div class="ok small">✓ Identity matches profile Work · jag@work-company.fr</div>
-      <span class="btn primary" style="text-align:center">Commit to feature/profiles  ⌘↵</span>
+      <div class="ok small">✓ Identity matches profile Pro · jag@pro-company.fr</div>
+      <span class="btn primary" style="text-align:center"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.5"/><path d="M3 12h5.5M15.5 12H21"/></svg>Commit to feature/profils  ⌘↵</span>
+    </div>
+  </div>
+</div>
+
+<h2>1b · Menus added on 05/11</h2>
+<div class="row">
+  <div class="state">
+    <div class="label">ThemeSwitch ▾ → appearance</div>
+    <div class="card panel">
+      <div class="muted small">Theme</div>
+      <label class="check"><input type="radio"> Dark</label>
+      <label class="check"><input type="radio" checked> Light</label>
+      <label class="check"><input type="radio"> System</label>
+      <div class="muted small">Palette</div>
+      <label class="check"><input type="radio" checked> Neon</label>
+      <label class="check"><input type="radio"> Kraken</label>
+      <label class="check"><input type="checkbox" checked> Halo (dark theme only)</label>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Right-click on graph header → columns</div>
+    <div class="card panel">
+      <label class="check"><input type="checkbox" checked disabled> Commit message</label>
+      <label class="check"><input type="checkbox" checked> Author</label>
+      <label class="check"><input type="checkbox" checked> Date</label>
+      <label class="check"><input type="checkbox" checked> SHA</label>
+      <div class="muted small">Branch / tag and Graph columns always shown.</div>
     </div>
   </div>
 </div>
@@ -146,7 +199,7 @@
       <h3>feat(profiles): inject core.sshCommand per profile</h3>
       <div class="muted">Every git command gets -c core.sshCommand with the profile key and IdentitiesOnly=yes.</div>
       <div class="small">Author: J. Gautreau · jag@work-company.fr<br>Date: 22 Oct 2026 · 10:12<br>Parent: <span class="mono">c41d8e0</span></div>
-      <div><span class="btn">Checkout</span> <span class="btn">Cherry-pick</span> <span class="btn">Revert</span> <span class="btn">Branch here</span></div>
+      <div><span class="btn">Checkout</span> <span class="btn">Cherry-pick</span> <span class="btn">Revert</span> <span class="btn">Create branch here</span></div>
       <div class="muted small">4 files changed · +141 −23</div>
       <div class="file"><span class="st">M</span><span class="mono">profile/inject.rs</span><span class="muted small">+88 −12</span></div>
       <div class="file"><span class="st">A</span><span class="mono">profile/ssh.rs</span><span class="muted small">+41</span></div>
@@ -209,6 +262,19 @@
     </div>
   </div>
   <div class="state">
+    <div class="label">Push blocked: commit with another identity (J-13)</div>
+    <div class="card panel">
+      <span class="btn disabled">⇡ Push 2</span>
+      <div class="warn small">1 of 2 commits authored as jag@perso.fr. Profile Work expects jag@work.fr.<br>
+        <span class="mono">a3f9c21 feat(profiles): inject core.sshCommand</span> <span class="muted">✕ author</span><br>
+        <span class="mono">b72e110 wip ssh</span> <span class="muted">✓</span></div>
+      <div class="muted small">Committer mismatch: « 1 of 2 commits committed as &lt;name and address&gt;. Profile Work expects &lt;name and address of Work&gt;. », commit marked ✕ committer. A colleague as author does not block.</div>
+      <div class="muted small">Offending commits marked in the graph (✕ author / ✕ committer). No push until fixed.</div>
+      <div style="text-align:right"><span class="btn primary">Fix commit identity</span></div>
+      <div class="muted small">One action: rewrites every offending commit, keeps a colleague as author, then a normal push. With uncommitted changes: « Commit or stash your changes before fixing commit identity. »</div>
+    </div>
+  </div>
+  <div class="state">
     <div class="label">Offline / error</div>
     <div class="card panel">
       <div><span class="muted">○ offline — auto-fetch paused</span></div>
@@ -226,7 +292,7 @@
   <div class="state">
     <div class="label">Operation in progress (all screens)</div>
     <div class="frame wide">
-      <div class="banner"><strong>Rebase in progress</strong> · step 2 / 5 · 1 conflict <span class="grow"></span><span class="btn">Resume</span><span class="btn">Continue</span><span class="btn">Abort</span></div>
+      <div class="banner"><strong>Rebase in progress</strong> · step 2 / 5 · 1 conflict <span class="grow"></span><span class="btn">Resolve</span><span class="btn">Continue</span><span class="btn">Abort</span></div>
       <div class="toolbar"><span class="btn">client-git ▾</span><span class="btn disabled">feature/profiles ▾</span><span class="btn disabled">⇣ Fetch All</span><span class="btn disabled">⇡ Push</span><span class="grow"></span><span class="badge">● Work · @jag-work</span></div>
     </div>
   </div>

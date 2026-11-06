@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Octogit — DiffView (low-fi)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; font: 13px/1.4 -apple-system, system-ui, sans-serif; color: #222; background: #f2f2f2; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 32px 0 8px; color: #555; text-transform: uppercase; letter-spacing: .05em; }
+  h3 { margin: 0; font-size: 13px; }
+  .note { color: #666; margin: 0 0 16px; }
+  .frame { background: #fff; border: 2px solid #999; width: 1500px; max-width: 100%; overflow: hidden; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .state { display: flex; flex-direction: column; gap: 6px; }
+  .state > .label { font-weight: 600; color: #555; }
+  .card { background: #fff; border: 2px solid #999; width: 380px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .card.wide { width: 560px; }
+  .card:has(.banner) { width: 560px; } .banner { white-space: nowrap; }
+  .toolbar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #bbb; background: #e6e6e6; }
+  .toolbar > * { white-space: nowrap; flex: none; }
+  .btn { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #999; background: #fafafa; padding: 4px 10px; border-radius: 4px; white-space: nowrap; }
+  .btn.primary { background: #555; color: #fff; border-color: #555; justify-content: center; }
+  .btn.danger { border: 2px solid #333; font-weight: 600; }
+  .btn.disabled { color: #aaa; border-color: #ccc; background: #f4f4f4; }
+  .btn.sm { padding: 0 5px; }
+  .ai { width: 15px; height: 15px; flex: none; }
+  .sep { width: 1px; height: 22px; background: #bbb; margin: 0 4px; }
+  .grow { flex: 1 !important; }
+  .search { border: 1px solid #999; background: #fff; padding: 4px 8px; border-radius: 4px; width: 200px; color: #888; }
+  .seg { display: inline-flex; border: 1px solid #999; border-radius: 4px; overflow: hidden; }
+  .seg span { padding: 3px 7px; display: inline-flex; } .seg .on { background: #555; color: #fff; }
+  .badge { border: 2px solid #555; border-radius: 999px; padding: 3px 10px; font-weight: 600; }
+  .muted { color: #777; } .small { font-size: 11px; }
+  .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .banner { padding: 8px 10px; border-bottom: 2px solid #333; background: #d6d6d6; display: flex; gap: 8px; align-items: center; }
+  .side { border-right: 1px solid #bbb; padding: 10px; background: #f7f7f7; }
+  .sec { font-weight: 600; color: #555; margin: 10px 0 4px; font-size: 11px; text-transform: uppercase; }
+  .item { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 4px; }
+  .item.current { background: #ddd; font-weight: 600; }
+  .band { display: flex; gap: 8px; align-items: center; background: #f2f2f2; border-left: 3px solid #555; padding: 5px 10px; margin: 2px 0; }
+  .band.l2 { border-left-color: #888; } .band.l3 { border-left-color: #333; border-left-style: dashed; }
+  .band.sel { background: #ddd; outline: 2px solid #555; outline-offset: -2px; }
+  .input { border: 1px solid #999; padding: 6px 8px; border-radius: 4px; background: #fff; }
+  .input.empty { color: #999; }
+  .check { display: flex; gap: 6px; align-items: center; }
+  .ok { border: 1px solid #999; padding: 6px 8px; background: #f4f4f4; }
+  .warn { border: 2px solid #333; padding: 8px; background: #e0e0e0; }
+  .st { width: 16px; height: 16px; border: 1px solid #777; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .node { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #555; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; background: #fff; flex: none; }
+  .code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .ln { display: flex; white-space: pre; padding: 0 8px; min-height: 18px; }
+  .ln .n { width: 34px; color: #999; text-align: right; padding-right: 10px; flex: none; }
+  .ln.add { background: #e4e4e4; } .ln.add::before { content: "+"; width: 12px; }
+  .ln.del { background: #d0d0d0; text-decoration: line-through; text-decoration-color: #999; } .ln.del::before { content: "−"; width: 12px; }
+  .ln.ctx::before { content: " "; width: 12px; }
+  .ln.hl { background: #e2e2e2; } .ln.conf { background: #ccc; font-weight: 600; }
+  .ln.pick { outline: 2px solid #555; outline-offset: -2px; }
+  .hunk { background: #eee; color: #666; padding: 3px 8px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; display: flex; gap: 8px; align-items: center; }
+  .dialog { background: #fff; border: 2px solid #555; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 16px; display: flex; flex-direction: column; gap: 10px; width: 560px; }
+  .choices { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .f label { display: block; color: #555; font-size: 11px; margin-bottom: 3px; }
+  table { border-collapse: collapse; } td, th { border-bottom: 1px solid #ddd; padding: 4px 8px; text-align: left; }
+
+  .dhead { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #bbb; background: #f7f7f7; }
+  .dcode { padding: 0 0 8px; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; } .split > div + div { border-left: 1px solid #bbb; }
+</style>
+</head>
+<body>
+<h1>DiffView</h1>
+<p class="note">Low fidelity (colours: <code>ux/direction/neon.html</code>). Opened by clicking a file in WorkingChanges (working diff, staging) or in CommitDetail (commit diff, read only). Esc returns to the same place in the graph. Added / deleted lines carry a + / − sign, never colour alone.</p>
+
+<h2>1 · Working diff (unified): stage file, hunk or lines</h2>
+<div class="frame">
+  <div class="toolbar">
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h6l2 2h10v11H3z"/></svg>client-git ▾</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="7" r="2"/><path d="M6 7v10M18 9v1a5 5 0 0 1-5 5H9a3 3 0 0 0-3 3"/></svg>feature/profils</span>
+    <span class="sep"></span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Fetch All ▾</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg>Push 2</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="7" r="2"/><path d="M6 7v10M18 9v1a5 5 0 0 1-5 5H9a3 3 0 0 0-3 3"/></svg>Branch</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v6h16v-6M4 13h4l1 2h6l1-2h4M12 3v8M9 8l3 3 3-3"/></svg>Stash</span>
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v6h16v-6M4 13h4l1 2h6l1-2h4M12 11V3M9 6l3-3 3 3"/></svg>Pop</span>
+    <span class="grow"></span>
+    <span class="muted small">fetched 2 min ago</span>
+    <span class="seg"><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z"/></svg></span><span class="on"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></svg></span><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/></svg></span><span>▾</span></span>
+    <span class="badge">● Pro · @compte-pro</span>
+  </div>
+  <div class="dhead">
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Back to graph  Esc</span>
+    <span class="st">M</span><span class="mono" style="font-weight:600">src-tauri/src/profile/inject.rs</span><span class="muted small">+12 −3 · unstaged</span>
+    <span class="grow"></span>
+    <span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></span><span class="muted small">File 1 / 3</span><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+    <span class="seg"><span class="on"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 12h18"/></svg></span><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M12 4v16"/></svg></span></span>
+    <span class="btn primary"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Stage file</span>
+  </div>
+  <div class="code dcode">
+    <div class="hunk">@@ -10,7 +10,16 @@ pub fn git_args(p: &amp;Profile) <span class="grow"></span><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Stage hunk</span></div>
+    <div class="ln ctx"><span class="n">10</span>use crate::profile::Profile;</div>
+    <div class="ln ctx"><span class="n">11</span></div>
+    <div class="ln del"><span class="n">12</span>pub fn git_args(p: &amp;Profile) -&gt; Vec&lt;String&gt; {</div>
+    <div class="ln add pick"><span class="n">12</span>pub fn git_args(p: &amp;Profile, repo: &amp;Repo) -&gt; Vec&lt;String&gt; {</div>
+    <div class="ln add pick"><span class="n">13</span>    let key = p.ssh_key_path();</div>
+    <div class="ln add"><span class="n">14</span>    let ssh = format!("ssh -i {} -o IdentitiesOnly=yes", key.display());</div>
+    <div class="ln ctx"><span class="n">15</span>    let mut args = vec![];</div>
+    <div class="hunk">2 lines selected <span class="grow"></span><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Stage selected lines</span><span class="muted small">Shift+click or drag in the gutter to select lines</span></div>
+    <div class="hunk">@@ -40,4 +49,7 @@ fn ssh_cmd <span class="grow"></span><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Stage hunk</span></div>
+    <div class="ln ctx"><span class="n">49</span>fn ssh_cmd(p: &amp;Profile) -&gt; String {</div>
+    <div class="ln del"><span class="n">50</span>    String::new()</div>
+    <div class="ln add"><span class="n">50</span>    format!("ssh -i {}", p.ssh_key_path().display())</div>
+    <div class="ln ctx"><span class="n">51</span>}</div>
+  </div>
+</div>
+
+<h2>2 · Commit diff (side by side), from CommitDetail</h2>
+<div class="frame">
+  <div class="dhead">
+    <span class="btn"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Back to graph  Esc</span>
+    <span class="node">VO</span><span class="mono">a3f9c21</span><span class="muted">feat(profils): injection de core.sshCommand par profil</span>
+    <span class="grow"></span>
+    <span class="st">M</span><span class="mono">git/command.rs</span><span class="muted small">+10 −9</span>
+    <span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></span><span class="muted small">File 3 / 4</span><span class="btn sm"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+    <span class="seg"><span><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 12h18"/></svg></span><span class="on"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M12 4v16"/></svg></span></span>
+  </div>
+  <div class="split code">
+    <div><div class="hunk">c41d8e0 (before)</div>
+      <div class="ln ctx"><span class="n">20</span>let mut cmd = Command::new("git");</div>
+      <div class="ln del"><span class="n">21</span>cmd.args(args);</div>
+      <div class="ln ctx"><span class="n">22</span>cmd.current_dir(dir);</div></div>
+    <div><div class="hunk">a3f9c21 (after)</div>
+      <div class="ln ctx"><span class="n">20</span>let mut cmd = Command::new("git");</div>
+      <div class="ln add"><span class="n">21</span>cmd.args(profile::git_args(&amp;p, &amp;repo));</div>
+      <div class="ln add"><span class="n">22</span>cmd.args(args);</div>
+      <div class="ln ctx"><span class="n">23</span>cmd.current_dir(dir);</div></div>
+  </div>
+</div>
+
+<h2>3 · Other states (side by side)</h2>
+<div class="row">
+  <div class="state"><div class="label">Binary file</div><div class="card">
+    <div><span class="st">M</span> <span class="mono">assets/icon.png</span></div>
+    <div class="muted">Binary file · 12.4 KB → 13.1 KB. No text diff.</div>
+    <div><span class="btn primary"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Stage file</span></div></div></div>
+  <div class="state"><div class="label">Too big</div><div class="card">
+    <div><span class="st">M</span> <span class="mono">Cargo.lock</span></div>
+    <div class="muted">Diff too large to display (6 214 lines).</div>
+    <div><span class="btn">Show diff</span> <span class="btn primary"><svg class="ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Stage file</span></div></div></div>
+  <div class="state"><div class="label">Added file (one side only)</div><div class="card">
+    <div><span class="st">A</span> <span class="mono">lib/ProfileBadge.svelte</span> <span class="muted small">new · 41 lines</span></div>
+    <div class="code"><div class="ln add"><span class="n">1</span>&lt;script lang="ts"&gt;</div><div class="ln add"><span class="n">2</span>  export let profile: Profile;</div></div>
+    <div class="muted small">Split view shows a single column.</div></div></div>
+  <div class="state"><div class="label">Deleted file</div><div class="card">
+    <div><span class="st">D</span> <span class="mono">src/lib/OldBadge.svelte</span> <span class="muted small">deleted · 28 lines</span></div>
+    <div class="code"><div class="ln del"><span class="n">1</span>&lt;script&gt;</div></div></div></div>
+</div>
+
+</body>
+</html>

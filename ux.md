@@ -108,16 +108,16 @@ Composants par écran dans `ux/ecrans/` ; composants partagés (`Toolbar`, `Them
 ## Réorganisation proposée
 | Écart | Proposition | Décision | Repris par |
 |---|---|---|---|
-| Carte « Intégration GitHub », « Voir sur GitHub », dépôts GitHub | Retirer (non-objectif) | retenu |  |
-| Onglets Blame et Historique du fichier | Retirer (non-objectif) | retenu |  |
-| Avatars d'auteur | Initiales | retenu |  |
-| Écriture `.git/config` optionnelle | Toujours, après choix en cas d'écart | retenu |  |
-| Glisser dans le rebase | ↑ ↓ et raccourcis, sans glisser (non-objectif) | retenu |  |
-| Fetch et Pull séparés | `SyncButton` | retenu |  |
-| Pas de Welcome, clone, recherche, bandeau d'opération | Ajouter | retenu |  |
-| Référence du 05/11 : refs en colonne à gauche reliées aux nœuds, lignes teintées | Adopter dans `CommitGraph` | retenu |  |
-| Référence du 05/11 : sélecteur de thème dans la barre d'outils | `ThemeSwitch`, avec palette et halo dans son menu | retenu |  |
-| Référence du 05/11 : barre d'aide en pied du graphe | Adopter | retenu |  |
-| Référence du 05/11 : ni auteur ni SHA, date absolue | Garder auteur, date relative, SHA, masquables par colonne | retenu |  |
-| Référence du 05/11 : icône devant chaque libellé de bouton | Adopter | retenu |  |
+| Carte « Intégration GitHub », « Voir sur GitHub », dépôts GitHub | Retirer (non-objectif) | retenu | `explorer-l-historique` (Exclu), `demarrer-un-depot` (Exclu) |
+| Onglets Blame et Historique du fichier | Retirer (non-objectif) | retenu | `explorer-l-historique` (Exclu) |
+| Avatars d'auteur | Initiales | retenu | S-4 |
+| Écriture `.git/config` optionnelle | Toujours, après choix en cas d'écart | retenu | S-10, S-11 |
+| Glisser dans le rebase | ↑ ↓ et raccourcis, sans glisser (non-objectif) | retenu | S-42 |
+| Fetch et Pull séparés | `SyncButton` | retenu | S-18 |
+| Pas de Welcome, clone, recherche, bandeau d'opération | Ajouter | retenu | S-2, S-27, S-30, S-39 |
+| Référence du 05/11 : refs en colonne à gauche reliées aux nœuds, lignes teintées | Adopter dans `CommitGraph` | retenu | S-4, S-5 |
+| Référence du 05/11 : sélecteur de thème dans la barre d'outils | `ThemeSwitch`, avec palette et halo dans son menu | retenu | S-47, S-48 |
+| Référence du 05/11 : barre d'aide en pied du graphe | Adopter | retenu | S-4 |
+| Référence du 05/11 : ni auteur ni SHA, date absolue | Garder auteur, date relative, SHA, masquables par colonne | retenu | S-4 |
+| Référence du 05/11 : icône devant chaque libellé de bouton | Adopter | retenu | S-48 |
 | Référence du 05/11 : interface en français, Fetch et Pull séparés, filtre « Whole repo / Local », bouton Undo | Garder l'anglais et `SyncButton` ; ni filtre ni Undo (non-objectif) | écarté |  |

@@ -5,6 +5,7 @@
 >   23/10/2026 — retour de `/ux` : J-14 élargi à n'importe quel commit et aux modes soft, mixed, hard.
 >   06/11/2026 — retour de `/ux` (direction visuelle) : J-13 bloque au lieu d'alerter, J-15 ajouté (thème, palette, halo), thèmes personnalisés en non-objectif.
 >   06/11/2026 — retour de `/spec` (revenir-en-arriere) : J-16 ajouté (gérer les branches), outils de branches avancés en non-objectif.
+>   08/11/2026 — retour de `/stack` : J-17 ajouté (installer Git en un clic sur un Mac neuf), gestion des versions et des installations de Git en non-objectif.
 
 ## Problème
 Je veux un client Git de bureau complet que je contrôle entièrement : gratuit, au périmètre figé, sans abonnement ni fonctionnalités superflues imposées. GitKraken couvre mon usage depuis des années, mais ses évolutions ne m'apportent plus rien et son coût augmente. Au quotidien, je jongle entre plusieurs comptes (plusieurs entreprises et un compte perso) et je veux que chaque dépôt utilise toujours la bonne identité et la bonne clé, quel que soit l'outil qui lance Git.
@@ -29,6 +30,7 @@ Moi seul : développeur sur macOS qui segmente ses usages entre plusieurs compte
 - **J-14** (ajouté le 23/10/2026, modifié le 23/10/2026) : Quand je veux ramener ma branche à un état antérieur ou à sa version distante, je veux la réinitialiser sur n'importe quel commit en choisissant ce que je garde (soft, mixed, hard) et en voyant ce qui sera perdu, pour repartir proprement sans passer par le terminal.
 - **J-15** (ajouté le 06/11/2026) : Quand je passe la journée dans l'outil, je veux choisir le thème (sombre, clair, système), la palette (Neon, Kraken) et le halo (activé ou non), pour travailler dans un environnement qui me plaît.
 - **J-16** (ajouté le 06/11/2026) : Quand je change de tâche, je veux changer de branche (locale, ou distante jamais récupérée), créer une branche depuis la courante ou un commit, renommer ou supprimer une branche locale, et supprimer une branche sur `origin`, pour naviguer entre mes travaux sans terminal.
+- **J-17** (ajouté le 08/11/2026) : Quand je lance Octogit sur un Mac neuf ou réinstallé où Git n'est pas encore installé, je veux être guidé en un clic vers l'installation proposée par Apple, puis qu'Octogit reprenne seul une fois Git disponible, pour démarrer sans passer par le terminal.
 
 ## Non-objectifs
 - Usage par d'autres que moi : installation, documentation et support pour des tiers.
@@ -43,6 +45,7 @@ Moi seul : développeur sur macOS qui segmente ses usages entre plusieurs compte
 - Annulation (Undo) des opérations : une erreur se rattrape au terminal.
 - Toute modification de la configuration Git globale (`~/.gitconfig`).
 - Thèmes personnalisés : couleurs choisies, import de thèmes, réglage de police et de taille.
+- Mise à jour de Git ou version minimale exigée, choix entre plusieurs Git installés, installation par Homebrew ou Git embarqué, vérification d'autres outils que Git.
 - Suppression en lot des branches fusionnées, renommage d'une branche sur `origin`, comparaison de deux branches, stash automatique au checkout, épinglage ou masquage de branches.
 
 ## Hypothèses risquées

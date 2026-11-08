@@ -2,6 +2,7 @@
 
 > Produit par `/spec` à partir de `brief.md`. Fichier : `specs/nettoyer-une-branche.md`. Validé par l'humain le 06/11/2026.
 > Révisions : 06/11/2026, renvoi des actions du `RefContextMenu` et de `CommitDetail` (cherry-pick, revert, reset) mis à jour vers `specs/revenir-en-arriere.md` ; aucun critère modifié.
+> Révisions : 07/11/2026, section « À reporter → Vers `ux.md` » et ligne « Composants à ajouter » retirées : tout est intégré à `ux.md` (J-7), `ux/ecrans/interactive-rebase.md` et `ux/maquettes/interactive-rebase.html` (révision du 06/11/2026) ; section Interface alignée ; exclusion de la désactivation pendant une opération précisée (entrée sans raison affichée, `specs/resoudre-les-conflits.md` CA-16, décision de l'humain du 07/11/2026) ; aucun critère modifié. Validé par l'humain le 07/11/2026.
 
 ## Objectif
 Depuis `History`, je fais un clic droit sur un commit de ma branche courante et j'ouvre `InteractiveRebase`. Pour ce commit et tous les suivants, je choisis une action (pick, reword, squash, fixup, drop), j'édite les messages et je réordonne au clavier. Un aperçu avant / après me montre le résultat, et une alerte me prévient si des commits sont déjà poussés. Start rebase réécrit la branche sans que j'édite de fichier todo, et le graphe obtenu est celui de l'aperçu.
@@ -14,7 +15,7 @@ Depuis `History`, je fais un clic droit sur un commit de ma branche courante et 
   - Aplatissement des commits de merge : une plage qui en contient est refusée (CA-3).
   - Rebase depuis la racine : l'entrée est désactivée sur le commit racine (CA-2).
   - Refus de Start rebase pour identité non conforme ou « No profile » → `specs/proteger-l-identite.md` (CA-16).
-  - Conflits, Continue, Abort, `OperationBanner` et désactivation des actions pendant le rebase → `specs/resoudre-les-conflits.md` (CA-9, CA-11, CA-13, CA-16).
+  - Conflits, Continue, Abort, `OperationBanner` et désactivation des actions pendant le rebase → `specs/resoudre-les-conflits.md` (CA-9, CA-11, CA-13, CA-16) ; pendant une opération en cours, l'entrée « Interactive rebase from here » y est désactivée sans raison affichée (CA-16, décision de l'humain du 07/11/2026).
   - Force push et `ForcePushDialog` après réécriture de commits déjà poussés → `specs/synchroniser.md` (CA-16).
   - Rebase d'une branche sur une autre depuis le `RefContextMenu` → `specs/integrer-une-branche.md`.
   - Actions du `RefContextMenu` et de `CommitDetail` (cherry-pick, revert, reset) → `specs/revenir-en-arriere.md`.
@@ -39,17 +40,11 @@ Depuis `History`, je fais un clic droit sur un commit de ma branche courante et 
 - **CA-16** : Étant donné `InteractiveRebase`, alors ces actions se font au clavier, avec un focus visible : sélection d'une ligne, choix de l'action, édition d'un message, déplacement, Reset, Cancel, Start rebase.
 
 ## Interface
-- Écrans concernés (`ux.md`) : `InteractiveRebase` (`ux/ecrans/interactive-rebase.md`, maquette `ux/maquettes/interactive-rebase.html` : « Composing the rebase », « Running », « Conflict → ConflictResolver », « Done ») ; `History` (menu contextuel d'un commit, graphe après rebase).
-- Composants utilisés (`ux.md`) : `RebaseTodoList` (pick · reword · squash · fixup · drop), `RefContextMenu`, `CommitGraph` / `CommitNode`, `OperationBanner` (rebase), `PushButton` (Force push, affiché seulement), `ProfileBadge` (affiché).
-- Composants à ajouter : raisons « No current branch. » et « Root commit cannot be rebased. » de l'entrée désactivée (CA-2) ; message de refus pour commit de merge dans la plage (CA-3) ; raison de Start rebase désactivé (CA-7) ; message de refus pour modifications non commitées (CA-11).
+- Écrans concernés (`ux.md`, J-7) : `InteractiveRebase` (`ux/ecrans/interactive-rebase.md` : titre avec branche courante et SHA abrégé de la base ; clavier ↑ ↓ sélection, Alt+↑ ↓ ou boutons ↑ ↓ déplacement, p r s f d ; états composition, Start rebase désactivé avec raison, refusé (modifications non commitées, plage avec merge), entrée désactivée (HEAD détachée, commit racine), non conforme ou « No profile », en cours avec Continue et Abort, conflit, terminé ; maquette `ux/maquettes/interactive-rebase.html` : « Composing the rebase », « Running », « Conflict → ConflictResolver », « Done », où ⌥↑ ⌥↓ est Alt+↑ ↓ sur macOS) ; `History` (menu contextuel d'un commit, graphe après rebase).
+- Composants utilisés (`ux.md`) : `RebaseTodoList` (pick · reword (« New message ») · squash · fixup · drop), `RefContextMenu`, `CommitGraph` / `CommitNode`, `OperationBanner` (rebase), `PushButton` (Force push, affiché seulement), `ProfileBadge` (affiché).
 
 ## À reporter
 - Vers `stack.md` : il faut pouvoir lancer un rebase interactif à partir d'une liste d'actions et de messages composée par Octogit, sans éditeur ni fichier todo à éditer par l'humain, avec le profil du dépôt comme committer et sa signature ; calculer l'aperçu (commits produits, dans l'ordre) avant exécution ; détecter un commit de merge dans une plage ; savoir quels commits d'une plage sont présents sur la branche distante suivie.
-- Vers `ux.md` :
-  - La maquette dit « Move the selected commit with ↑ ↓ or ⌥↑ ⌥↓ » ; `ux.md` J-7 dit Alt+↑ ↓. Cette spec retient : Alt+↑ ↓ et les boutons ↑ ↓ de la ligne déplacent, ↑ ↓ seuls sélectionnent (CA-6).
-  - Le titre de la maquette (« onto develop · e92a6b3 ») et l'état « Nothing to rebase » (« No commits between develop and feature/profils. ») supposent une base de branche. Cette spec prend pour base le parent du commit cliqué, inclus dans la liste (CA-1). La liste n'est donc jamais vide, et l'état « Nothing to rebase » devient inatteignable.
-  - L'état « Running » de la maquette montre seulement Abort ; `specs/resoudre-les-conflits.md` (CA-13) prévoit aussi Continue.
-  - Sans maquette : refus en HEAD détachée ou sur le commit racine, refus pour commit de merge, raison de Start rebase désactivé, refus pour modifications non commitées. `ux/ecrans/interactive-rebase.md` ne liste pas ces états.
 
 ## Questions ouvertes
 - aucune

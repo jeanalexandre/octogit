@@ -3,6 +3,7 @@
 > Produit par `/spec` à partir de `brief.md`. Fichier : `specs/preparer-un-commit.md`. Validé par l'humain le 06/11/2026.
 > Révisions : 06/11/2026 : renvois « → spec à écrire » remplacés par `specs/proteger-l-identite.md`, `specs/synchroniser.md` et `specs/configurer-les-profils.md` ; « Amend author » remplacé par « Fix commit identity » (mise à jour de référence, aucun critère changé).
 > Révisions : 06/11/2026 : renvoi « résoudre les conflits » mis à jour vers `specs/resoudre-les-conflits.md` (mise à jour de référence, aucun critère changé).
+> Révisions : 07/11/2026 : « À reporter » vers `ux.md` retiré, traité par les révisions du 06/11 et du 07/11/2026 de `ux.md` (`ux/ecrans/history.md`, `ux/ecrans/diff-view.md`, `ux/maquettes/diff-view.html`) ; section Interface alignée, composants à ajouter devenus composants utilisés (mise à jour de référence, aucun critère changé). Validé par l'humain le 07/11/2026.
 
 ## Objectif
 J'ouvre un dépôt : la ligne WIP est sélectionnée et `WorkingChanges` liste mes modifications. J'indexe ou je désindexe des fichiers entiers, ou un bloc ou quelques lignes depuis `DiffView`. J'écris le résumé et la description, j'amende si besoin, puis je committe au clavier. Je mets aussi de côté mon travail en cours dans un stash, puis je le réapplique, sans taper de commande.
@@ -47,13 +48,11 @@ J'ouvre un dépôt : la ligne WIP est sélectionnée et `WorkingChanges` liste m
 - **CA-26** : Étant donné un clic droit sur un fichier non suivi (ex. `lib/ProfileBadge.svelte`), quand je choisis Discard changes, alors la confirmation dit que le fichier sera supprimé (« ProfileBadge.svelte will be deleted. ») ; après confirmation, le fichier n'existe plus sur le disque ni dans `WorkingChanges` ; après annulation, rien ne change.
 
 ## Interface
-- Écrans concernés (`ux.md`) : `History` (`ux/ecrans/history.md`, maquette `ux/maquettes/history.html`, état 1 et variante « No changes ») ; `DiffView` en mode travail (`ux/ecrans/diff-view.md`, maquette `ux/maquettes/diff-view.html`, états 1 et 3).
-- Composants utilisés (`ux.md`) : `Toolbar`, `StashButtons`, `BranchSidebar`, `CommitGraph` / `CommitNode` (variante WIP), `WorkingChanges` (fichiers, propre, amend), `DiffView` (travail, binaire), `ProfileBadge` (affiché).
-- Composants à ajouter : menu contextuel d'un stash (Apply, Pop, Drop) et confirmation de Drop ; menu contextuel d'un fichier non indexé ou non suivi (Discard changes) et confirmation de Discard, avec sa variante de suppression ; `DiffView` en mode indexé (Unstage file / hunk / lines) ; raison de Commit désactivé dans `WorkingChanges`.
+- Écrans concernés (`ux.md`) : `History` (`ux/ecrans/history.md`, maquette `ux/maquettes/history.html`, état 1 et variante « No changes ») ; `DiffView` en mode travail et indexé (`ux/ecrans/diff-view.md`, maquette `ux/maquettes/diff-view.html`, états 1 et 3, dont « trop gros » avec Show diff).
+- Composants utilisés (`ux.md`) : `Toolbar`, `StashButtons`, `BranchSidebar`, `CommitGraph` / `CommitNode` (variante WIP), `WorkingChanges` (fichiers, propre, Commit désactivé avec « Summary required » / « No staged changes », amend avec brouillon restauré, conflit de Pop ou d'Apply, clic droit Discard changes), `RefContextMenu` (entrées Stash : Apply, Pop, Drop confirmé ; entrées Fichier non indexé ou non suivi : Discard changes confirmé, variante « will be deleted. »), `DiffView` (travail, indexé, binaire, trop gros), `ProfileBadge` (affiché).
 
 ## À reporter
 - Vers `stack.md` : détection en moins de 1 s des changements de l'arbre de travail faits hors d'Octogit ; indexation et désindexation partielles par bloc et par ligne ; création de commit et d'amend qui respecte l'identité et la signature du `.git/config` local ; stash fichiers non suivis compris, apply, pop, drop ; abandon des modifications non indexées d'un fichier suivi et suppression d'un fichier non suivi.
-- Vers `ux.md` : menu contextuel d'un stash et confirmation de Drop, absents des composants listés (`RefContextMenu` ne couvre pas les stashes) ; Discard changes par clic droit sur un fichier non indexé ou non suivi, et sa confirmation, qui annonce la suppression pour un fichier non suivi (CA-25, CA-26) ; `DiffView` en mode indexé, symétrique de l'indexation (CA-24) ; raisons « Summary required » et « No staged changes » dans `WorkingChanges` (CA-22) ; pré-remplissage par Amend et restauration du brouillon (CA-23) ; état « trop gros » : seuil de 5 000 lignes et bouton Show diff, alors que la maquette `diff-view.html` montre Show anyway pour 4 812 lignes (CA-10).
 
 ## Questions ouvertes
 - aucune

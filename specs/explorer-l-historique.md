@@ -8,6 +8,8 @@
 > Révisions : 06/11/2026, renvoi des actions du `RefContextMenu` et de `CommitDetail` scindé : merge et rebase mis à jour vers `specs/integrer-une-branche.md` ; cherry-pick, revert et reset restent à écrire ; aucun critère modifié.
 > Révisions : 06/11/2026, renvoi « `OperationBanner` » mis à jour vers `specs/resoudre-les-conflits.md` ; aucun critère modifié.
 > Révisions : 06/11/2026, renvoi des actions du `RefContextMenu` et de `CommitDetail` (cherry-pick, revert, reset) mis à jour vers `specs/revenir-en-arriere.md` ; aucun critère modifié.
+> Révisions : 07/11/2026, « À reporter → Vers `ux.md` » retiré : la variante « Not published » de l'indicateur d'avance / retard (CA-11) et le format de la date relative / absolue au survol (CA-15) figurent dans `ux/ecrans/history.md` (ligne « Avance / retard » et composant `CommitGraph`) ; aucun critère modifié. Validé par l'humain le 07/11/2026.
+> Révisions : 08/11/2026, report de `specs/demarrer-un-depot.md` (J-17) : CA-1 précédé de « Git installé » (Git absent au lancement → `Welcome` à l'état « Git not found », même si un dernier dépôt existe, `ux.md` J-17) ; exclusion « Git absent au lancement (J-17) » ajoutée vers `specs/demarrer-un-depot.md` (CA-20) ; CA-1 modifié, aucun autre critère modifié. Validé par l'humain le 08/11/2026.
 
 ## Objectif
 J'ouvre Octogit : le dernier dépôt s'affiche dans `History`. Le graphe en lanes montre les branches locales et distantes à jour, sans geste de ma part. Je lis l'état du projet d'un coup d'œil. Je retrouve un commit passé par son message, son auteur ou son SHA, puis j'en consulte le détail et le diff de ses fichiers, et je reviens au même endroit du graphe.
@@ -22,6 +24,7 @@ J'ouvre Octogit : le dernier dépôt s'affiche dans `History`. Le graphe en lane
   - Filtre « Whole repo / Local » (écarté dans `ux.md`).
   - Tags : création, push, suppression → `specs/synchroniser.md`
   - Démarrer un dépôt (`Welcome`, état « dépôt introuvable », clone par URL) → `specs/demarrer-un-depot.md`
+  - Git absent au lancement (J-17) → `specs/demarrer-un-depot.md` (CA-20)
   - `OperationBanner` (bandeau d'opération) → `specs/resoudre-les-conflits.md`
   - Merge et rebase depuis le `RefContextMenu` → `specs/integrer-une-branche.md`
   - Actions du `RefContextMenu` et de `CommitDetail` (cherry-pick, revert, reset) → `specs/revenir-en-arriere.md`
@@ -31,7 +34,7 @@ J'ouvre Octogit : le dernier dépôt s'affiche dans `History`. Le graphe en lane
   - Apparence (`ThemeSwitch` dans la barre d'outils de `History`) → `specs/choisir-l-apparence.md` (CA-1)
 
 ## Critères d'acceptation
-- **CA-1** : Étant donné un dépôt ouvert lors de la session précédente et toujours présent, quand je lance Octogit, alors ce dépôt s'affiche dans `History` sans autre geste ; si ce dépôt est introuvable, `Welcome` s'ouvre à la place.
+- **CA-1** (modifié le 08/11/2026) : Étant donné Git installé et un dépôt ouvert lors de la session précédente et toujours présent, quand je lance Octogit, alors ce dépôt s'affiche dans `History` sans autre geste ; si ce dépôt est introuvable, `Welcome` s'ouvre à la place.
 - **CA-2** : Étant donné `History` affiché, quand je choisis un autre dépôt dans `RepoPicker`, alors `History` affiche le graphe de ce dépôt dans la même fenêtre.
 - **CA-3** : Étant donné une branche poussée sur `origin` par un autre clone après le dernier fetch, quand j'ouvre le dépôt, alors un fetch part sans geste de ma part et la branche apparaît dans le graphe avec une `RefLabel` en pointillés.
 - **CA-4** : Étant donné un dépôt ouvert, quand 1 min s'est écoulée depuis le dernier fetch, alors un fetch part sans geste et `FetchStatus` affiche l'âge relatif du dernier fetch réussi.
@@ -62,13 +65,12 @@ J'ouvre Octogit : le dernier dépôt s'affiche dans `History`. Le graphe en lane
 - **CA-29** : Étant donné `DiffView` ouvert depuis un commit, quand je fais Échap, alors `History` revient avec le même commit sélectionné et la même position de défilement du graphe.
 
 ## Interface
-- Écrans concernés (`ux.md`) : `History` (`ux/ecrans/history.md`, maquette `ux/maquettes/history.html`), états vide, attente, erreur, hors ligne ; `DiffView` en mode commit (`ux/ecrans/diff-view.md`, maquette `ux/maquettes/diff-view.html`).
+- Écrans concernés (`ux.md`) : `History` (`ux/ecrans/history.md`, maquette `ux/maquettes/history.html`, sections 1 à 3), états vide, attente, erreur, hors ligne ; `DiffView` en mode commit (`ux/ecrans/diff-view.md`, maquette `ux/maquettes/diff-view.html`).
 - Composants utilisés (`ux.md`) : `Toolbar`, `RepoPicker`, `ProfileBadge` (affiché, non modifié), `FetchStatus`, `BranchSidebar`, `CommitGraph`, `CommitNode`, `RefLabel`, `SearchBox`, `CommitDetail`, `DiffView`, `PushButton` (état actif seulement).
 - Composants à ajouter : aucun.
 
 ## À reporter
 - Vers `stack.md` : lecture du graphe de commits, des refs et des diffs ; fetch en tâche de fond sans bloquer l'interface ; 10 000 lignes de graphe affichées en moins de 3 s et défilées à 60 images/s ; mémorisation locale des préférences (dernier dépôt, colonnes masquées).
-- Vers `ux.md` : variante « Not published » de l'indicateur d'avance / retard (CA-11), absente des états listés ; format de la date relative et date absolue au survol (CA-15).
 
 ## Questions ouvertes
 - aucune

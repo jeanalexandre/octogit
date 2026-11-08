@@ -303,5 +303,236 @@
     </div>
   </div>
 </div>
+
+<h2>4 · Branches (J-16) — added on 07/11</h2>
+<div class="row">
+  <div class="state">
+    <div class="label">Branch / Create branch here → inline name, refused while typing</div>
+    <div class="card panel">
+      <div class="refcell" style="padding-left:0"><span class="input mono" style="padding:2px 6px;border-width:2px;border-color:#555">develop</span><span class="wire"></span><span class="node">JG</span></div>
+      <div class="warn small">Branch develop already exists.</div>
+      <div class="muted small">Other case: « Invalid branch name. » (feature graph, feature..x). Enter does nothing while a message is shown; Esc cancels. Valid name + Enter: branch created on this commit and checked out, « Not published ».</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Rename (same inline input)</div>
+    <div class="card panel">
+      <div class="refcell" style="padding-left:0"><span class="input mono" style="padding:2px 6px;border-width:2px;border-color:#555">feature/lanes</span><span class="wire"></span><span class="node">JG</span></div>
+      <div class="muted small">Enter: feature/graph becomes feature/lanes, still tracks origin/feature/graph (not renamed on origin).</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Right-click on local branch</div>
+    <div class="card panel">
+      <div class="btn">Checkout</div>
+      <div class="btn">Rename</div>
+      <div class="btn">Delete local</div>
+      <div class="muted small">On the current branch: Delete local disabled · « Current branch cannot be deleted. »</div>
+      <div class="muted small">Merged into the current branch: deleted at once, no dialog.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Delete local — merged elsewhere</div>
+    <div class="card panel">
+      <h3>feature/graph is not merged into feature/profiles (merged into origin/develop). Delete anyway?</h3>
+      <div style="text-align:right"><span class="btn">Cancel</span> <span class="btn primary">Delete local</span></div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Delete local — merged nowhere</div>
+    <div class="card panel">
+      <h3>feature/graph has 3 commits not merged anywhere. Delete anyway?</h3>
+      <div style="text-align:right"><span class="btn">Cancel</span> <span class="btn primary">Delete local</span></div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Right-click on origin/feature/graph</div>
+    <div class="card panel">
+      <div class="btn">Checkout</div>
+      <div class="btn">Delete from origin…</div>
+      <div class="muted small">Identity mismatch or No profile: Delete from origin refused with the Push reason; Checkout stays available.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Delete from origin — confirmation</div>
+    <div class="card panel">
+      <h3>Delete feature/graph from origin?</h3>
+      <div>Local branch feature/graph is kept and will no longer track it.</div>
+      <div class="muted small">Line absent when no local branch tracks it.</div>
+      <div style="text-align:right"><span class="btn">Cancel</span> <span class="btn primary">Delete from origin</span></div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">After Delete from origin</div>
+    <div class="card panel">
+      <div class="side" style="border:0;padding:0;background:none">
+        <div class="sec">Local · 3</div>
+        <div class="item">feature/graph <span class="muted small">Not published</span></div>
+        <div class="sec">origin · 4</div>
+        <div class="item muted">(origin/feature/graph gone)</div>
+      </div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Checkout origin/feature/graph — local differs</div>
+    <div class="card panel">
+      <h3>feature/graph already exists locally. Reset it to origin/feature/graph?</h3>
+      <div class="warn small">Local commits not on origin/feature/graph:<br>
+        <span class="mono">e51a0b2 wip lanes colors</span><br>
+        <span class="mono">9c3d7f4 fix lane overlap</span></div>
+      <div style="text-align:right"><span class="btn">Cancel</span> <span class="btn">Checkout local as is</span> <span class="btn primary">Reset and checkout</span></div>
+      <div class="muted small">Same commit: checkout at once, no dialog.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">CommitDetail › Checkout — several branches</div>
+    <div class="card panel">
+      <div><span class="btn">Checkout ▾</span> <span class="btn">Cherry-pick</span> <span class="btn">Revert</span></div>
+      <div class="card panel" style="width:220px">
+        <div class="btn">feature/profiles</div>
+        <div class="btn">fix/graph</div>
+      </div>
+      <div class="muted small">Only origin/… on the commit: same as its checkout. No branch: Checkout absent, Create branch here shown.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Operation in progress</div>
+    <div class="card panel">
+      <div class="btn disabled">Checkout · Operation in progress.</div>
+      <div class="btn disabled">Rename · Operation in progress.</div>
+      <div class="btn disabled">Delete local · Operation in progress.</div>
+      <div class="muted small">Same for Branch, Create branch here, Delete from origin.</div>
+    </div>
+  </div>
+</div>
+
+<h2>5 · Menus and dialogs added on 07/11</h2>
+<div class="row">
+  <div class="state">
+    <div class="label">Right-click on a merge commit</div>
+    <div class="card panel">
+      <div class="btn">Rebase feature/profiles onto 7d2e4a1</div>
+      <div class="btn disabled">Cherry-pick · Merge commits cannot be cherry-picked or reverted.</div>
+      <div class="btn disabled">Revert · Merge commits cannot be cherry-picked or reverted.</div>
+      <div class="btn">Reset feature/profiles to here ›</div>
+      <div class="btn">Create branch here</div>
+      <div class="muted small">Detached HEAD (opened from the terminal): Cherry-pick, Revert, Reset, Interactive rebase disabled · « No current branch. »</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Cherry-pick / revert refused</div>
+    <div class="card panel">
+      <div class="warn small">c41d8e0 brings no changes to feature/profiles.</div>
+      <div class="warn small">Commit or stash your changes before cherry-picking.</div>
+      <div class="warn small">Cherry-pick failed: &lt;one line from Git&gt; <u>Details</u></div>
+      <div class="muted small">Nothing has moved after a refusal.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">ResetHardDialog — nothing to lose</div>
+    <div class="card panel">
+      <h3>Hard reset feature/profiles to c41d8e0?</h3>
+      <div class="ok small">Nothing will be lost: no commits or modified files.</div>
+      <div style="text-align:right"><span class="btn">Cancel</span> <span class="btn primary">Hard reset</span></div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">ProfileBadge — identity mismatch, menu open</div>
+    <div class="card panel">
+      <div><span class="badge alert">⚠ Work · identity mismatch</span></div>
+      <div class="card panel" style="width:260px">
+        <div class="btn primary">Fix repository identity</div>
+        <div class="btn">✓ Work</div>
+        <div class="btn">Perso</div>
+        <div class="btn">Edit profiles…</div>
+        <div class="btn">Reset to rules</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>6 · Merge, rebase, tags and force push — added on 07/11</h2>
+<div class="row">
+  <div class="state">
+    <div class="label">feature/profiles selected, right-click on develop</div>
+    <div class="card panel">
+      <div class="btn">Merge develop into feature/profiles</div>
+      <div class="btn">Rebase feature/profiles onto develop</div>
+      <div class="btn">Checkout</div>
+      <div class="btn">Rename</div>
+      <div class="btn">Delete local</div>
+      <div class="muted small">No entry the other way round. Merge always creates a merge commit (« Merge branch 'develop' into feature/profiles »), no dialog. If feature/profiles is not current, it is checked out first.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Right-click on the receiving branch, or with origin/… selected</div>
+    <div class="card panel">
+      <div class="btn">Checkout</div>
+      <div class="btn">Rename</div>
+      <div class="btn">Delete local</div>
+      <div class="muted small">No merge or rebase entry. On origin/develop as source: « Merge origin/develop into feature/profiles », « Rebase feature/profiles onto origin/develop ».</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Operation in progress / refused</div>
+    <div class="card panel">
+      <div class="btn disabled" style="white-space:normal">Merge develop into feature/profiles · Operation in progress.</div>
+      <div class="btn disabled" style="white-space:normal">Rebase feature/profiles onto develop · Operation in progress.</div>
+      <div class="warn small">Commit or stash your changes before merging.</div>
+      <div class="ok small">Already up to date.</div>
+      <div class="muted small">Identity mismatch or No profile: merge and rebase refused with the Commit reason (J-13).</div>
+    </div>
+  </div>
+</div>
+<div class="row" style="margin-top:24px">
+  <div class="state">
+    <div class="label">Right-click on a commit › Create tag (inline)</div>
+    <div class="card panel">
+      <div><span class="r tag">v1.2.0|</span> <span class="mono small muted">c41d8e0</span></div>
+      <div class="input muted">Message (optional: annotated tag)</div>
+      <div class="warn small">Tag v1.1.0 already exists.</div>
+      <div class="muted small">Enter creates the tag (no effect while a message shows), Esc cancels. The tag appears in the graph and in BranchSidebar; it is not pushed with the branch.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Right-click on a tag</div>
+    <div class="card panel">
+      <div><span class="r tag">v1.2.0</span></div>
+      <div class="btn">Push tag</div>
+      <div class="btn">Delete tag</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Delete tag — pushed / local only</div>
+    <div class="card panel">
+      <h3>Delete tag v1.2.0?</h3>
+      <div class="warn small">It will also be deleted from origin.</div>
+      <div class="muted small">Local only: « It exists only in this repository. »</div>
+      <div style="text-align:right"><span class="btn">Cancel</span> <span class="btn primary">Delete tag</span></div>
+    </div>
+  </div>
+</div>
+<div class="row" style="margin-top:24px">
+  <div class="state">
+    <div class="label">ForcePushDialog — after amend or rebase</div>
+    <div class="card panel">
+      <h3>Force push feature/profiles to origin?</h3>
+      <div class="warn small">2 commits on origin/feature/profiles will be overwritten:</div>
+      <div class="mono small">a91f3c2 &nbsp;ajout du badge de profil</div>
+      <div class="mono small">7be04d1 &nbsp;corrige l'ordre des règles</div>
+      <div class="muted small">Protected: refused if origin received a commit since the last fetch.</div>
+      <div style="text-align:right"><span class="btn">Cancel</span> <span class="btn primary">Force push</span></div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">ForcePushDialog — refused</div>
+    <div class="card panel">
+      <h3>Force push refused</h3>
+      <div class="warn small">origin/feature/profiles received a commit since the last fetch. Nothing was overwritten.</div>
+      <div class="muted small">Fetch, then decide again. <u>Details</u></div>
+      <div style="text-align:right"><span class="btn primary">Close</span></div>
+    </div>
+  </div>
+</div>
 </body>
 </html>

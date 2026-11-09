@@ -5,6 +5,7 @@
 > Version du profil de stack utilisée : `0.22.5`
 > Validé par l'humain le 08/11/2026.
 > Révisions : 08/11/2026 — reports des specs : J-17 (`specs/demarrer-un-depot.md` : `xcode-select --install`, revérification, reprise en 5 s) ; icônes Lucide ; détection des changements par `notify` ; graphe en liste virtualisée HTML et lanes SVG ; intégrations macOS par plugins Tauri et `keyring` (`platform` dépend désormais de Tauri).
+> Révisions : 08/11/2026 — amendement de S-1 (décisions de l'humain) : Node 26.13.0 et pnpm 12.18.0 fixés ; dépendances d'outillage acceptées (voir Commandes de qualité) ; exception d'audit GHSA-gcqx-w48m-w2h4.
 
 ## Type
 - Type de projet : application de bureau, macOS seulement pour la première version (d'autres systèmes ne sont pas exclus ensuite)
@@ -47,12 +48,13 @@
 - Isolement d'un worktree : créneau n (1 à 3) → `OCTOGIT_PORT=142n` (1421, 1422, 1423) et `OCTOGIT_DATA_DIR=.dev-data/slot-n` ; installation `pnpm install` dans le worktree ; aucun fichier local à copier ; arrêt : `Ctrl+C` puis `rm -rf .dev-data/slot-n` (pas de volume).
 
 ## Commandes de qualité (porte de sortie du dev)
-- Installation : gestionnaire JavaScript pnpm (choix de l'humain) ; `pnpm install` (chaîne Rust fixée par `rust-toolchain.toml`).
+- Installation : gestionnaire JavaScript pnpm (choix de l'humain) ; `pnpm install` (chaîne Rust fixée par `rust-toolchain.toml`). Node 26.13.0 fixé par `.nvmrc` (nvm), pnpm 12.18.0 installé par `npm i -g pnpm@12` et fixé par `packageManager` (corepack ne lance pas pnpm 12) (choix de l'humain, 08/11/2026).
+- Dépendances d'outillage acceptées (choix de l'humain, 08/11/2026, S-1) : Rust `serde`, `serde_json`, `specta`, `specta-typescript` ; JavaScript `@sveltejs/vite-plugin-svelte`, `vite`, `typescript`, `svelte-check`, `@tauri-apps/api`, `@tauri-apps/cli`, `jsdom`, `@testing-library/jest-dom`, `@eslint/js`, `globals`, `@types/node` ; surcharge `minimatch >= 11.0.1`.
 - Lint (choix de l'humain) : `cargo clippy` avec les avertissements en erreur ; ESLint avec `eslint-plugin-svelte` (dont règles d'accessibilité) et `typescript-eslint`. `pnpm lint` (= `cargo clippy --workspace --all-targets -- -D warnings` puis `eslint .`).
 - Formatage (choix de l'humain) : `rustfmt` ; Prettier avec `prettier-plugin-svelte`. `pnpm format` (écrit) ; `pnpm format:check` (= `cargo fmt --all --check` puis `prettier --check .`).
 - Tests unitaires (choix de l'humain) : `cargo test` (workspace, crates sans Tauri) ; Vitest avec Testing Library pour Svelte. `pnpm test` (= `cargo test --workspace` puis `vitest run`).
 - Tests de bout en bout (choix de l'humain) : Playwright sur l'interface Svelte servie dans Chromium ; en mode test, ses appels Tauri passent par un pont local qui exécute les vraies commandes du crate `app` sur des dépôts temporaires, avec le faux `ssh` (`tauri-driver` ne fonctionne pas sur macOS). Non couverts : fenêtre Tauri, menu natif, trousseau (tests manuels). `pnpm e2e` (= `playwright test --trace off`).
-- Audit des dépendances (choix de l'humain) : `cargo audit` (base RustSec) et `pnpm audit`. `pnpm audit:deps`.
+- Audit des dépendances (choix de l'humain) : `cargo audit` (base RustSec) et `pnpm audit`. `pnpm audit:deps`. Exception acceptée (choix de l'humain, 08/11/2026) : GHSA-gcqx-w48m-w2h4 (`deepmerge`, faible, outil de build, sans correctif) dans `auditConfig.ignoreGhsas` de `pnpm-workspace.yaml` (pnpm 12 ne lit plus le champ `pnpm` de `package.json` ; la surcharge `minimatch` y est aussi), à retirer dès qu'un correctif existe.
 - Build : `pnpm tauri build` (vérifie aussi `pnpm check`, contrôle de types Svelte et TypeScript).
 - Fichiers générés (produits par une commande, exclus du formatage et du lint, jamais édités à la main) : `src/lib/bindings.ts`, par `pnpm gen:bindings` (aussi régénéré par `pnpm tauri dev`).
 - Mise à jour des dépendances (choix de l'humain) : Dependabot (Cargo et pnpm, hebdomadaire, groupée), fichier `.github/dependabot.yml` créé par une story.

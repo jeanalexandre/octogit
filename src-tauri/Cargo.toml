@@ -1,0 +1,22 @@
+[package]
+name = "octogit-app"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+default-run = "octogit-app"
+
+[lib]
+name = "octogit_app"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+octogit-git = { path = "../crates/git" }
+octogit-store = { path = "../crates/store" }
+tauri = { version = "2", features = [] }
+tauri-specta = { version = "=2.0.0-rc.26", features = ["derive", "typescript"] }
+specta = "=2.0.0-rc.26"
+specta-typescript = "=0.0.13"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

@@ -19,6 +19,22 @@ Poser le socle exécutable (workspace Cargo `git`, `identity`, `store`, `platfor
 ## Décisions de l'humain
 ### Fiche (08/11/2026)
 1. Variables du shell (`OCTOGIT_DATA_DIR`, `OCTOGIT_PORT`, `E2E_BASE_URL`) : vérifiées par l'humain, aucune définie avec une valeur différente (RAS).
+2. Chaîne d'outils absente (dev bloqué, passage 1) : l'humain autorise /story à installer rustup (stable, `aarch64-apple-darwin`), pnpm (`corepack enable pnpm`) et `cargo-audit` sur le poste. Versions de Tauri 2, `gix` et `tauri-specta` fixées à la première installation (conforme à `stack.md`). Installé : Rust 1.99.1 (rustup stable), pnpm 10.34.9 via corepack (pnpm 12 incompatible avec le corepack 0.33 du Node local : fixer `packageManager` sur pnpm 10 dans `package.json`), `cargo-audit` 0.22.2. Le `PATH` du shell ne contient pas encore `~/.cargo/bin` : préfixer chaque commande qui appelle Rust par `. "$HOME/.cargo/env" &&`.
+
+### Écarts du passage 1 (08/11/2026)
+1. Dépendances hors liste de `stack.md` : acceptées (1a) — Rust `serde`, `serde_json`, `specta`, `specta-typescript` ; JavaScript `@sveltejs/vite-plugin-svelte`, `vite`, `typescript` (~6.0), `svelte-check`, `@tauri-apps/api`, `@tauri-apps/cli`, `jsdom`, `@testing-library/jest-dom`, `@eslint/js`, `globals`, `@types/node` ; surcharge `minimatch >= 11.0.1`. `stack.md` amendé.
+2. Avis GHSA-gcqx-w48m-w2h4 (`deepmerge` ≤ 4.3.1, faible, outil de build seulement, sans correctif) : exception gardée dans `pnpm.auditConfig.ignoreGhsas` (2a) ; consigné dans `notes-production.md` (limite acceptée, à retirer quand un correctif sort).
+3. Versions de Node et pnpm : Node 26.13.0 (LTS) et pnpm 12.18.0 (3a), à fixer dans le projet : `.nvmrc` = `26.13.0`, `packageManager` = `pnpm@12.18.0`, `engines` (`node` ≥ 26.13.0, `pnpm` ≥ 12), lockfile régénéré par pnpm 12, toutes les commandes de qualité revérifiées. pnpm 12 est installé globalement par npm (corepack ne sait pas lancer pnpm 12) : le README doit l'indiquer (`nvm install` puis `npm i -g pnpm@12`) à la place de corepack.
+4. Version nvm par défaut du poste passée à 26.13.0 (4a) par /story : les shells des agents trouvent Node 26 et pnpm 12 sans préfixe.
+
+### Après la revue 1 (09/11/2026)
+- Problèmes 1, 3 : traiter (bloquants).
+- Problème 2 : traiter sans nouvelle dépendance : documenter que `OCTOGIT_DATA_DIR` et `OCTOGIT_PORT` se passent dans l'environnement du shell, retirer la consigne de copie en `.env` (d'office).
+- Problème 4 : reporter vers S-14 (ligne WIP) : la ligne WIP remplace « No commits yet. » dans l'état vide de `History` ; le texte reste en S-1 (d'office).
+- Problèmes 5, 6, 7 : traiter (d'office).
+- CSP de la fenêtre Tauri (`csp` à `null`) : à décider par l'humain à la Fin, sans effet sur le code de S-1.
+- Protection du pont de `pnpm dev:web` (jeton, contrôle de l'origine) avant les commandes d'écriture : à décider par l'humain à la Fin, sans effet sur le code de S-1.
+- `notes-production.md` absent : pris en compte (pour information) ; créé par /story à la Fin de S-1.
 
 ## Contexte technique
 - Lire `stack.md` en entier : Architecture, Interface, Données, Environnement local, Commandes de qualité, Structure et conventions.
@@ -65,10 +81,18 @@ Poser le socle exécutable (workspace Cargo `git`, `identity`, `store`, `platfor
 - `.env.example` : `OCTOGIT_DATA_DIR`, `OCTOGIT_PORT`, avec leurs valeurs par défaut commentées (rattrapage : le fichier n'existe pas).
 
 ## Terminé quand
-- [ ] Tests, lint et build passent : `pnpm lint`, `pnpm format:check`, `pnpm test`, `pnpm e2e`, `pnpm audit:deps`, `pnpm tauri build`
-- [ ] Documentation listée ci-dessus à jour
-- [ ] Verdict du reviewer : **validé**
+- [x] Tests, lint et build passent : `pnpm lint`, `pnpm format:check`, `pnpm test`, `pnpm e2e`, `pnpm audit:deps`, `pnpm tauri build`
+- [x] Documentation listée ci-dessus à jour
+- [x] Verdict du reviewer : **validé**
 
 ## Journal
+Référence du diff : `8c9931f`
+
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | bloqué : chaîne d'outils absente (rustup/cargo, pnpm), aucun code écrit | — |
+| 1 | dev | terminé (reprise du code existant, aucun fichier modifié) ; vérifications relancées ✅ ; rouge non constaté sur les tests rapides : renvoyé à dev sans revue | — |
+| 1 | dev | terminé : rouge constaté par mutation sur chaque test rapide de critère, code restauré ; vérifications relancées ✅ | — |
+| 1 | reviewer (opus) | 3 bloquants (test des bindings, `.env` non lu, typographie), 4 mineurs, 2 à décider (CSP, pont de test) — `stories/S-01-revue-1.md` | à corriger |
+| 2 | dev | terminé : problèmes 1, 2, 3, 5, 6, 7 traités, rouge constaté ; vérifications relancées ✅ | — |
+| 2 | reviewer (opus) | aucun problème — `stories/S-01-revue-2.md` | validé |

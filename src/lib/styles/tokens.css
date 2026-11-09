@@ -1,0 +1,57 @@
+/*
+ * Tokens de couleur d'Octogit : thème par défaut Neon, sombre et clair selon le système.
+ * Écrit à partir de `ux/tokens.md`, seule source des couleurs. Aucune couleur brute ailleurs.
+ * Le choix de thème, palette et Halo arrive en S-47 / S-48.
+ */
+:root {
+  color-scheme: dark light;
+  --surface: #141518;
+  --surface-raised: #1b1c20;
+  --border: #2a2c31;
+  --border-strong: #6e727b;
+  --ink: #e8e9ec;
+  --muted: #a2a5ad;
+  --brand: #2563eb;
+  --on-brand: #ffffff;
+  --link: #6ea0ff;
+  --selection: #1f2b45;
+  --focus: #5b8def;
+  --success: #4ade80;
+  --warning: #f5a524;
+  --danger: #f87171;
+  --lane-1: #6b9cff;
+  --lane-2: #2ec4b0;
+  --lane-3: #f5a524;
+  --lane-4: #f472b6;
+  --lane-5: #b38cff;
+  --lane-6: #5fd068;
+  --on-label: #111316;
+  --node-ink: #111316;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --surface: #ffffff;
+    --surface-raised: #f7f8fa;
+    --border: #e3e6eb;
+    --border-strong: #848a95;
+    --ink: #1f2328;
+    --muted: #5c6370;
+    --brand: #2563eb;
+    --on-brand: #ffffff;
+    --link: #1d5bd8;
+    --selection: #e6eeff;
+    --focus: #2563eb;
+    --success: #126b31;
+    --warning: #9a4708;
+    --danger: #c81e1e;
+    --lane-1: #1d4ed8;
+    --lane-2: #0f766e;
+    --lane-3: #9a4708;
+    --lane-4: #be185d;
+    --lane-5: #6d28d9;
+    --lane-6: #126b31;
+    --on-label: #ffffff;
+    --node-ink: #111827;
+  }
+}

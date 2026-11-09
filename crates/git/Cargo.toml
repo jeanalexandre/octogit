@@ -1,0 +1,8 @@
+[package]
+name = "octogit-git"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+gix = { version = "0.90", default-features = false, features = ["revision", "sha1"] }

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Faux ssh de test, à placer en tête du PATH.
+# Enregistre les options reçues dans $FAKE_SSH_LOG (défaut : ./fake-ssh.log), une ligne par appel.
+# Réponse selon $FAKE_SSH_MODE : ok (défaut), denied (refus), silent (silence au-delà de 10 s).
+echo "$*" >> "${FAKE_SSH_LOG:-./fake-ssh.log}"
+case "${FAKE_SSH_MODE:-ok}" in
+  ok) echo "Hi octogit! You've successfully authenticated, but GitHub does not provide shell access." >&2; exit 1 ;;
+  denied) echo "git@github.com: Permission denied (publickey)." >&2; exit 255 ;;
+  silent) sleep 15 ;;
+esac

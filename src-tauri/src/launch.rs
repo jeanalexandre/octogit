@@ -1,6 +1,8 @@
 //! Décision de lancement : ouvrir le dernier dépôt dans `History`, sinon `Welcome`.
 //! Aucune dépendance au runtime Tauri : testable seule.
 
+use std::path::Path;
+
 use octogit_store::Store;
 use serde::Serialize;
 use specta::Type;
@@ -33,33 +35,39 @@ pub enum LaunchState {
     Welcome,
 }
 
+/// Lit le dépôt `path` pour `History` ; `None` si ce n'est pas un dépôt Git lisible.
+pub fn repository_view(path: &Path) -> Option<RepositoryView> {
+    let commits = octogit_git::read_commits(path, COMMIT_LIMIT).ok()?;
+    Some(RepositoryView {
+        name: folder_name(path),
+        path: path.to_string_lossy().into_owned(),
+        commits: commits
+            .into_iter()
+            .map(|c| CommitView {
+                id: c.id,
+                summary: c.summary,
+                author: c.author,
+                timestamp: c.timestamp as f64,
+            })
+            .collect(),
+    })
+}
+
+/// Nom du dossier (dernier élément du chemin).
+pub fn folder_name(path: &Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.to_string_lossy().into_owned())
+}
+
 /// Dernier dépôt mémorisé et lisible : `History` ; sinon (aucun, dossier absent, pas un dépôt) : `Welcome`.
 pub fn launch_state(store: &Store) -> LaunchState {
-    let Some(path) = store.last_repository() else {
-        return LaunchState::Welcome;
-    };
-    let Ok(commits) = octogit_git::read_commits(&path, COMMIT_LIMIT) else {
-        return LaunchState::Welcome;
-    };
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.to_string_lossy().into_owned());
-    LaunchState::History {
-        repository: RepositoryView {
-            name,
-            path: path.to_string_lossy().into_owned(),
-            commits: commits
-                .into_iter()
-                .map(|c| CommitView {
-                    id: c.id,
-                    summary: c.summary,
-                    author: c.author,
-                    timestamp: c.timestamp as f64,
-                })
-                .collect(),
-        },
-    }
+    store
+        .last_repository()
+        .and_then(|path| repository_view(&path))
+        .map_or(LaunchState::Welcome, |repository| LaunchState::History {
+            repository,
+        })
 }
 
 #[cfg(test)]
@@ -110,7 +118,7 @@ mod tests {
         let ws = Workspace::new();
         let repo = ws.repo("simple.sh");
         let store = ws.store();
-        store.set_last_repository(&repo).unwrap();
+        store.record_opened(&repo, 1).unwrap();
         match launch_state(&store) {
             LaunchState::History { repository } => {
                 assert_eq!(repository.name, "my-repo");
@@ -135,7 +143,7 @@ mod tests {
         let ws = Workspace::new();
         let repo = ws.repo("empty.sh");
         let store = ws.store();
-        store.set_last_repository(&repo).unwrap();
+        store.record_opened(&repo, 1).unwrap();
         match launch_state(&store) {
             LaunchState::History { repository } => assert!(repository.commits.is_empty()),
             other => panic!("expected History, got {other:?}"),
@@ -147,7 +155,7 @@ mod tests {
         let ws = Workspace::new();
         let repo = ws.repo("simple.sh");
         let store = ws.store();
-        store.set_last_repository(&repo).unwrap();
+        store.record_opened(&repo, 1).unwrap();
         assert!(matches!(launch_state(&store), LaunchState::History { .. }));
         std::fs::remove_dir_all(&repo).unwrap();
         assert_eq!(launch_state(&store), LaunchState::Welcome);
@@ -158,7 +166,7 @@ mod tests {
         let ws = Workspace::new();
         let repo = ws.repo("simple.sh");
         let store = ws.store();
-        store.set_last_repository(&repo).unwrap();
+        store.record_opened(&repo, 1).unwrap();
         assert!(matches!(launch_state(&store), LaunchState::History { .. }));
         std::fs::remove_dir_all(repo.join(".git")).unwrap();
         assert_eq!(launch_state(&store), LaunchState::Welcome);
@@ -168,7 +176,7 @@ mod tests {
     fn first_launch_opens_welcome() {
         let ws = Workspace::new();
         let repo = ws.repo("simple.sh");
-        ws.store().set_last_repository(&repo).unwrap();
+        ws.store().record_opened(&repo, 1).unwrap();
         assert!(matches!(
             launch_state(&ws.store()),
             LaunchState::History { .. }

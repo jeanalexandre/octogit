@@ -22,6 +22,14 @@ pnpm install
 - `pnpm tauri dev` : l'application dans sa fenêtre ; régénère `src/lib/bindings.ts`.
 - `pnpm dev:web` : l'interface seule sur `http://localhost:1420` dans le navigateur, avec un pont local qui exécute les vraies commandes Rust (utilisé par Playwright et les captures de revue).
 
+## Ouvrir un dépôt
+
+- Depuis `Welcome` : **Open folder…** (Cmd+O) ouvre le sélecteur de dossier ; la liste **Recent** (nom, chemin, date relative de dernière ouverture) ouvre un dépôt d'un clic.
+- Un dossier qui n'est pas un dépôt Git est refusé par un message qui le nomme ; rien n'est écrit dans ce dossier.
+- Dans `History`, le sélecteur de dépôt (`RepoPicker`, le nom du dépôt en haut à gauche) liste les récents et propose aussi **Open folder…** pour changer de dépôt dans la même fenêtre.
+- Le dépôt ouvert passe en tête de Recent ; au lancement, Octogit rouvre le dernier dépôt ouvert (`repositories.json`, version 2 ; la version 1 est migrée à la lecture).
+- En test (`pnpm dev:web`, Playwright), le sélecteur natif est remplacé par le dossier posé dans `window.__octogitChosenFolder`.
+
 ## Commandes de qualité
 
 | Commande            | Rôle                                                                 |

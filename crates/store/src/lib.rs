@@ -7,11 +7,25 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 pub const REPOSITORIES_FILE: &str = "repositories.json";
-pub const REPOSITORIES_VERSION: u32 = 1;
+pub const REPOSITORIES_VERSION: u32 = 2;
 
+/// Dépôt récent : chemin et date de dernière ouverture (secondes depuis l'epoch).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecentRepository {
+    pub path: PathBuf,
+    pub last_opened: u64,
+}
+
+/// Format courant : `recent` du plus récent au plus ancien, sans doublon.
 #[derive(Debug, Serialize, Deserialize)]
 struct RepositoriesFile {
     version: u32,
+    recent: Vec<RecentRepository>,
+}
+
+/// Format de la version 1 (S-1) : un seul dépôt mémorisé.
+#[derive(Debug, Deserialize)]
+struct RepositoriesFileV1 {
     last_repository: Option<PathBuf>,
 }
 
@@ -30,20 +44,64 @@ impl Store {
         &self.dir
     }
 
-    /// Dernier dépôt ouvert ; fichier absent, illisible ou d'une autre version : aucun dépôt.
-    pub fn last_repository(&self) -> Option<PathBuf> {
-        let content = fs::read_to_string(self.dir.join(REPOSITORIES_FILE)).ok()?;
-        let file: RepositoriesFile = serde_json::from_str(&content).ok()?;
-        if file.version != REPOSITORIES_VERSION {
-            return None;
+    /// Dépôts récents, du plus récent au plus ancien. Fichier absent, illisible ou d'une version
+    /// inconnue : liste vide. La version 1 est migrée à la lecture.
+    pub fn recent_repositories(&self) -> Vec<RecentRepository> {
+        let file_path = self.dir.join(REPOSITORIES_FILE);
+        let Ok(content) = fs::read_to_string(&file_path) else {
+            return Vec::new();
+        };
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(&content) else {
+            return Vec::new();
+        };
+        match value.get("version").and_then(|v| v.as_u64()) {
+            Some(2) => serde_json::from_value::<RepositoriesFile>(value)
+                .map(|f| f.recent)
+                .unwrap_or_default(),
+            Some(1) => {
+                let Ok(old) = serde_json::from_value::<RepositoriesFileV1>(value) else {
+                    return Vec::new();
+                };
+                let modified = fs::metadata(&file_path)
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map_or(0, |d| d.as_secs());
+                old.last_repository
+                    .map(|path| {
+                        vec![RecentRepository {
+                            path,
+                            last_opened: modified,
+                        }]
+                    })
+                    .unwrap_or_default()
+            }
+            _ => Vec::new(),
         }
-        file.last_repository
     }
 
-    pub fn set_last_repository(&self, repository: &Path) -> io::Result<()> {
+    /// Dernier dépôt ouvert (tête de la liste des récents).
+    pub fn last_repository(&self) -> Option<PathBuf> {
+        self.recent_repositories()
+            .into_iter()
+            .next()
+            .map(|r| r.path)
+    }
+
+    /// Place `repository` en tête des récents (sans doublon), daté de `now`.
+    pub fn record_opened(&self, repository: &Path, now: u64) -> io::Result<()> {
+        let mut recent = self.recent_repositories();
+        recent.retain(|r| r.path != repository);
+        recent.insert(
+            0,
+            RecentRepository {
+                path: repository.to_path_buf(),
+                last_opened: now,
+            },
+        );
         let file = RepositoriesFile {
             version: REPOSITORIES_VERSION,
-            last_repository: Some(repository.to_path_buf()),
+            recent,
         };
         let json = serde_json::to_string_pretty(&file).map_err(io::Error::other)?;
         self.write_atomically(REPOSITORIES_FILE, json.as_bytes())
@@ -98,12 +156,75 @@ mod tests {
         names
     }
 
+    fn paths(store: &Store) -> Vec<PathBuf> {
+        store
+            .recent_repositories()
+            .into_iter()
+            .map(|r| r.path)
+            .collect()
+    }
+
     #[test]
     fn reads_back_the_last_repository() {
         let tmp = TempDir::new();
         let store = Store::new(tmp.0.join("data"));
-        store.set_last_repository(Path::new("/some/repo")).unwrap();
+        store.record_opened(Path::new("/some/repo"), 1_000).unwrap();
         assert_eq!(store.last_repository(), Some(PathBuf::from("/some/repo")));
+    }
+
+    #[test]
+    fn reopening_a_repository_moves_it_first_without_duplicate() {
+        let tmp = TempDir::new();
+        let store = Store::new(tmp.0.join("data"));
+        store.record_opened(Path::new("/a"), 100).unwrap();
+        store.record_opened(Path::new("/b"), 200).unwrap();
+        store.record_opened(Path::new("/c"), 300).unwrap();
+        assert_eq!(
+            paths(&store),
+            [PathBuf::from("/c"), "/b".into(), "/a".into()]
+        );
+        store.record_opened(Path::new("/a"), 400).unwrap();
+        assert_eq!(
+            paths(&store),
+            [PathBuf::from("/a"), "/c".into(), "/b".into()]
+        );
+        let recent = store.recent_repositories();
+        assert_eq!(recent[0].last_opened, 400);
+        assert_eq!(recent[1].last_opened, 300);
+        assert_eq!(store.last_repository(), Some(PathBuf::from("/a")));
+    }
+
+    #[test]
+    fn recent_list_survives_a_new_store_on_the_same_folder() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        Store::new(&data).record_opened(Path::new("/a"), 1).unwrap();
+        Store::new(&data).record_opened(Path::new("/b"), 2).unwrap();
+        assert_eq!(
+            paths(&Store::new(&data)),
+            [PathBuf::from("/b"), "/a".into()]
+        );
+    }
+
+    #[test]
+    fn version_1_file_is_migrated_to_the_recent_list() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(REPOSITORIES_FILE),
+            include_str!("../tests-data/repositories-v1.json"),
+        )
+        .unwrap();
+        assert_eq!(paths(&store), [PathBuf::from("/work/legacy-repo")]);
+        assert_eq!(
+            store.last_repository(),
+            Some(PathBuf::from("/work/legacy-repo"))
+        );
+        store.record_opened(Path::new("/new"), 5).unwrap();
+        assert_eq!(
+            paths(&store),
+            [PathBuf::from("/new"), "/work/legacy-repo".into()]
+        );
     }
 
     #[test]
@@ -111,21 +232,23 @@ mod tests {
         let tmp = TempDir::new();
         let data = tmp.0.join("data");
         let store = Store::new(&data);
-        store.set_last_repository(Path::new("/a")).unwrap();
-        store.set_last_repository(Path::new("/b")).unwrap();
+        store.record_opened(Path::new("/a"), 1).unwrap();
+        store.record_opened(Path::new("/b"), 2).unwrap();
         assert_eq!(names(&data), vec![REPOSITORIES_FILE.to_string()]);
         let json: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(data.join(REPOSITORIES_FILE)).unwrap())
                 .unwrap();
         assert_eq!(json["version"], REPOSITORIES_VERSION);
-        assert_eq!(json["last_repository"], "/b");
+        assert_eq!(json["recent"][0]["path"], "/b");
+        assert_eq!(json["recent"][0]["last_opened"], 2);
+        assert_eq!(json["recent"][1]["path"], "/a");
     }
 
     #[test]
     fn missing_file_means_no_repository() {
         let tmp = TempDir::new();
         let store = Store::new(&tmp.0);
-        store.set_last_repository(Path::new("/a")).unwrap();
+        store.record_opened(Path::new("/a"), 1).unwrap();
         assert_eq!(store.last_repository(), Some(PathBuf::from("/a")));
         fs::remove_file(tmp.0.join(REPOSITORIES_FILE)).unwrap();
         assert_eq!(store.last_repository(), None);
@@ -135,13 +258,13 @@ mod tests {
     fn unreadable_or_foreign_version_file_means_no_repository() {
         let tmp = TempDir::new();
         let store = Store::new(&tmp.0);
-        store.set_last_repository(Path::new("/a")).unwrap();
+        store.record_opened(Path::new("/a"), 1).unwrap();
         assert_eq!(store.last_repository(), Some(PathBuf::from("/a")));
         fs::write(tmp.0.join(REPOSITORIES_FILE), "{ not json").unwrap();
         assert_eq!(store.last_repository(), None);
         fs::write(
             tmp.0.join(REPOSITORIES_FILE),
-            r#"{"version": 999, "last_repository": "/a"}"#,
+            r#"{"version": 999, "recent": [{"path": "/a", "last_opened": 1}]}"#,
         )
         .unwrap();
         assert_eq!(store.last_repository(), None);
@@ -152,9 +275,7 @@ mod tests {
         let tmp = TempDir::new();
         let data = tmp.0.join("data");
         fs::create_dir_all(tmp.0.join("neighbour")).unwrap();
-        Store::new(&data)
-            .set_last_repository(Path::new("/a"))
-            .unwrap();
+        Store::new(&data).record_opened(Path::new("/a"), 1).unwrap();
         assert_eq!(
             names(&tmp.0),
             vec!["data".to_string(), "neighbour".to_string()]

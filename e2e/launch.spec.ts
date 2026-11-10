@@ -44,7 +44,8 @@ test("CA-1 : un dépôt mémorisé introuvable ouvre Welcome à la place de Hist
   await page.goto(ws.url);
 
   await expect(page.getByRole("heading", { name: "Welcome to Octogit" })).toBeVisible();
-  await expect(page.getByRole("listitem")).toHaveCount(0);
+  // Le dépôt introuvable reste dans Recent (S-2) ; aucun commit n'est affiché.
+  await expect(page.getByText("Fix parser bug")).toHaveCount(0);
 });
 
 test("CA-1 : au premier lancement, sans dépôt mémorisé, Welcome s'affiche", async ({ page }) => {

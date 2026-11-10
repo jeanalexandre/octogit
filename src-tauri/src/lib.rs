@@ -3,6 +3,7 @@
 
 pub mod commands;
 pub mod launch;
+pub mod open;
 
 use std::path::PathBuf;
 
@@ -25,12 +26,18 @@ pub fn data_dir() -> PathBuf {
 
 /// Contrat entre Rust et TypeScript : commandes exportées vers `src/lib/bindings.ts`.
 pub fn builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![commands::get_launch_state])
+    Builder::<tauri::Wry>::new().commands(collect_commands![
+        commands::get_launch_state,
+        commands::list_recent_repositories,
+        commands::open_repository,
+        commands::choose_folder
+    ])
 }
 
 pub fn run() {
     let builder = builder();
     tauri::Builder::default()
+        .plugin(octogit_platform::dialog_plugin())
         .invoke_handler(builder.invoke_handler())
         .run(tauri::generate_context!())
         .expect("error while running Octogit");

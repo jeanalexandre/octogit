@@ -23,7 +23,11 @@ function bridge(): Plugin {
           if (typeof header === "string" && header) env.OCTOGIT_DATA_DIR = header;
           const child = execFile(binary, [command], { env }, (error, stdout, stderr) => {
             res.setHeader("content-type", "application/json");
-            if (error) {
+            if (error && "code" in error && error.code === 3) {
+              // Erreur métier de la commande : son JSON est transmis tel quel à l'interface.
+              res.statusCode = 422;
+              res.end(stdout);
+            } else if (error) {
               res.statusCode = 500;
               res.end(JSON.stringify(stderr || String(error)));
             } else {

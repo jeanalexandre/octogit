@@ -29,6 +29,11 @@ impl fmt::Display for GitError {
 
 impl std::error::Error for GitError {}
 
+/// Vrai si `path` est la racine d'un dépôt Git lisible. Lecture seule : rien n'est créé dans `path`.
+pub fn is_repository(path: &Path) -> bool {
+    gix::open(path).is_ok()
+}
+
 /// Commits atteignables depuis HEAD, du plus récent au plus ancien, au plus `limit`.
 pub fn read_commits(path: &Path, limit: usize) -> Result<Vec<CommitInfo>, GitError> {
     let repo = gix::open(path).map_err(|_| GitError::NotARepository)?;
@@ -125,6 +130,67 @@ mod tests {
     fn repository_without_commit_gives_empty_list() {
         let fixture = Fixture::new("empty.sh");
         assert_eq!(read_commits(&fixture.0, 100).unwrap(), vec![]);
+    }
+
+    /// Liste triée de tous les fichiers et dossiers sous `dir`, avec leur contenu.
+    fn snapshot(dir: &Path) -> Vec<(String, Option<Vec<u8>>)> {
+        let mut out = Vec::new();
+        let mut stack = vec![dir.to_path_buf()];
+        while let Some(current) = stack.pop() {
+            for entry in std::fs::read_dir(&current).unwrap() {
+                let path = entry.unwrap().path();
+                let rel = path
+                    .strip_prefix(dir)
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned();
+                if path.is_dir() {
+                    out.push((rel, None));
+                    stack.push(path);
+                } else {
+                    out.push((rel, Some(std::fs::read(&path).unwrap())));
+                }
+            }
+        }
+        out.sort();
+        out
+    }
+
+    #[test]
+    fn detects_a_real_repository() {
+        let fixture = Fixture::new("simple.sh");
+        assert!(is_repository(&fixture.0));
+    }
+
+    #[test]
+    fn plain_folder_and_missing_folder_are_not_repositories() {
+        let dir = std::env::temp_dir().join(format!("octogit-git-plain-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(dir.join("notes.txt"), "hello").unwrap();
+        let before = snapshot(&dir);
+        let plain = is_repository(&dir);
+        let missing = is_repository(&dir.join("missing"));
+        let after = snapshot(&dir);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(!plain);
+        assert!(!missing);
+        assert_eq!(before, after, "detection must not write in the folder");
+    }
+
+    #[test]
+    fn detection_writes_nothing_in_a_repository() {
+        let fixture = Fixture::new("simple.sh");
+        let before = snapshot(&fixture.0);
+        assert!(is_repository(&fixture.0));
+        assert_eq!(before, snapshot(&fixture.0));
+    }
+
+    #[test]
+    fn subfolder_of_a_repository_is_not_a_repository_root() {
+        let fixture = Fixture::new("simple.sh");
+        let sub = fixture.0.join("sub");
+        std::fs::create_dir_all(&sub).unwrap();
+        assert!(!is_repository(&sub));
     }
 
     #[test]

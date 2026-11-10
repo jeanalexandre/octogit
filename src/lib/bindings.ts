@@ -5,6 +5,10 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	getLaunchState: () => __TAURI_INVOKE<LaunchState>("get_launch_state"),
+	listRecentRepositories: () => __TAURI_INVOKE<RecentView[]>("list_recent_repositories"),
+	openRepository: (path: string) => typedError<RepositoryView, OpenError>(__TAURI_INVOKE("open_repository", { path })),
+	/**  Sélecteur de dossier natif ; `None` si annulé. En mode test, le pont d'interface répond à sa place. */
+	chooseFolder: () => __TAURI_INVOKE<string | null>("choose_folder"),
 };
 
 /* Types */
@@ -18,9 +22,30 @@ export type CommitView = {
 
 export type LaunchState = { screen: "history"; repository: RepositoryView } | { screen: "welcome" };
 
+export type OpenError = 
+/**  Le dossier n'est pas un dépôt Git lisible ; `name` est le nom du dossier. */
+{ kind: "notARepository"; name: string };
+
+export type RecentView = {
+	name: string,
+	path: string,
+	/**  Secondes depuis l'epoch. */
+	lastOpened: number | null,
+};
+
 export type RepositoryView = {
 	name: string,
 	path: string,
 	commits: CommitView[],
 };
+
+/* Tauri Specta runtime */
+async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
+    try {
+        return { status: "ok", data: await result };
+    } catch (e) {
+        if (e instanceof Error) throw e;
+        return { status: "error", error: e as any };
+    }
+}
 

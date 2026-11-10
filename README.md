@@ -42,6 +42,39 @@ pnpm install
 | `pnpm gen:bindings` | génère `src/lib/bindings.ts` depuis le contrat Rust (`tauri-specta`) |
 | `pnpm tauri build`  | build de l'application (lance aussi `pnpm check`)                    |
 
+## Livraison
+
+Octogit est livré en `.dmg` pour puces Apple, signé ad hoc (sans compte Apple Developer ni notarisation). Pas de mise à jour intégrée : on met à jour en téléchargeant la nouvelle version.
+
+### Construire
+
+```sh
+pnpm tauri build
+scripts/check-bundle.sh   # monte le .dmg (lecture seule) et vérifie Octogit.app : signature ad hoc, arm64, macOS 13 minimum
+```
+
+Le `.dmg` est dans `target/release/bundle/dmg/` (`Octogit_<version>_aarch64.dmg`), l'application dans `target/release/bundle/macos/Octogit.app`.
+
+### Installer
+
+Ouvrir le `.dmg`, glisser `Octogit.app` dans `Applications`.
+
+### Premier lancement (version téléchargée)
+
+macOS bloque une application non notarisée téléchargée. Une seule fois :
+
+- macOS 15 et plus récent (dont macOS 26) : Réglages Système › Confidentialité et sécurité › **Ouvrir quand même** (après une première tentative de lancement). Le clic droit › Ouvrir ne contourne plus Gatekeeper ;
+- macOS 13 et 14 seulement : clic droit sur `Octogit.app` › **Ouvrir**, puis confirmer (la voie des Réglages Système marche aussi).
+
+### Publier une release (manuel, sur `jeanalexandre/octogit`)
+
+1. Monter la version dans `package.json`, `src-tauri/tauri.conf.json` et le `Cargo.toml` racine (`[workspace.package]`, dont `src-tauri/Cargo.toml` hérite), puis lancer `pnpm tauri build` et `scripts/check-bundle.sh`.
+2. Créer un tag `v<version>` et le pousser sur `jeanalexandre/octogit`.
+3. Sur GitHub : Releases › Draft a new release, choisir le tag, rédiger les notes.
+4. Attacher `target/release/bundle/dmg/Octogit_<version>_aarch64.dmg`, puis publier.
+
+Aucune automatisation ni CI de release.
+
 ## Données
 
 Octogit écrit ses fichiers JSON dans `OCTOGIT_DATA_DIR`. En développement et en test, le défaut est le dossier `.dev-data/` du repo (ignoré par Git) ; jamais `~/Library/Application Support/Octogit/`, réservé à l'application livrée. Les variables `OCTOGIT_DATA_DIR` et `OCTOGIT_PORT` se passent dans l'environnement du shell (aucun fichier `.env` n'est lu), par exemple `OCTOGIT_PORT=1421 OCTOGIT_DATA_DIR=/chemin/absolu pnpm dev:web`. Une valeur absolue est préférable pour `OCTOGIT_DATA_DIR`. `OCTOGIT_PORT` n'agit que sur `pnpm dev:web` : `pnpm tauri dev` sert toujours sur le port 1420, donc deux `pnpm tauri dev` en parallèle se bloquent. Voir `.env.example`.

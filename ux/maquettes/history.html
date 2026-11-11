@@ -79,6 +79,18 @@
   .r.remote { border: 1.5px dashed #555; }
   .r.tag { border: 1px solid #999; background: #fff; }
   .hint { border-top: 1px solid #bbb; padding: 8px 12px; color: #666; font-size: 12px; }
+  .grip { height: 5px; margin: 4px 0; border-bottom: 3px double #aaa; cursor: row-resize; }
+  .scrollsec { height: 150px; overflow: hidden; position: relative; border-right: 4px solid #ccc; }
+  .scrollsec::after { content: ""; position: absolute; right: -4px; top: 30px; height: 50px; border-right: 4px solid #777; }
+  .rail { width: 40px; background: #f7f7f7; border-right: 1px solid #bbb; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 10px 0; }
+  .rail span { width: 26px; height: 26px; border: 1px solid #999; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; background: #fff; }
+  .rail span.on { background: #555; color: #fff; }
+  .float { position: absolute; background: #fff; border: 2px solid #555; box-shadow: 0 4px 14px rgba(0,0,0,.25); padding: 8px; }
+  .vsplit { width: 6px; background: #ccc; border-left: 1px solid #777; border-right: 1px solid #777; cursor: col-resize; }
+  .fade { background: linear-gradient(to right, transparent, #fff); width: 24px; }
+  .refcut { max-width: 150px; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
+  .more { font-size: 10px; border: 1px solid #777; border-radius: 8px; padding: 0 5px; background: #fff; }
+  .tip { position: absolute; background: #333; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -104,19 +116,24 @@
   </div>
   <div class="gbody">
     <div class="side">
-      <strong>client-git</strong>
+      <strong>client-git</strong> <span class="btn" style="float:right;padding:0 5px" title="Collapse sidebar">⇤</span>
       <div class="mono small muted">~/Dev/Pro/client-git</div>
-      <div class="sec">Local · 3</div>
-      <div class="item">main</div>
+      <div class="sec">▾ Local · 3</div>
+      <div class="item">▾ feature · 1</div>
+      <div class="item current" style="padding-left:20px">profils  2↑</div>
       <div class="item">develop</div>
-      <div class="item current">feature/profils  2↑</div>
-      <div class="sec">origin · 5</div>
       <div class="item">main</div>
+      <div class="grip"></div>
+      <div class="sec">▾ origin · 5</div>
+      <div class="item">▾ feature · 2</div>
+      <div class="item" style="padding-left:20px">graph</div>
+      <div class="item" style="padding-left:20px">profils</div>
+      <div class="item">▾ spike · 1</div>
+      <div class="item" style="padding-left:20px">gix-vs-libgit2</div>
       <div class="item">develop</div>
-      <div class="item">feature/profils</div>
-      <div class="item">feature/graph</div>
-      <div class="item">spike/gix-vs-libgit2</div>
-      <div class="sec">Tags · 2</div>
+      <div class="item">main</div>
+      <div class="grip"></div>
+      <div class="sec">▾ Tags · 2</div>
       <div class="item">v0.1.0</div>
       <div class="item">v0.0.9</div>
       <div class="sec">Stashes · 1</div>
@@ -531,6 +548,98 @@
       <div class="warn small">origin/feature/profiles received a commit since the last fetch. Nothing was overwritten.</div>
       <div class="muted small">Fetch, then decide again. <u>Details</u></div>
       <div style="text-align:right"><span class="btn primary">Close</span></div>
+    </div>
+  </div>
+</div>
+
+<h2>7 · Sidebar and layout — added on 11/11</h2>
+<p class="note">Section order is fixed: Local, origin, other remotes (A–Z), Tags, Stashes. Branches A–Z, tags and stashes newest first. Names grouped by path, folders first, expanded by default.</p>
+<div class="row">
+  <div class="state">
+    <div class="label">Sidebar expanded — section heights</div>
+    <div class="side" style="width:230px">
+      <strong>client-git</strong> <span class="btn" style="float:right;padding:0 5px" title="Collapse sidebar">⇤</span>
+      <div class="sec">▾ Local · 4</div>
+      <div class="item">▾ feature · 2</div>
+      <div class="item" style="padding-left:20px">graph</div>
+      <div class="item current" style="padding-left:20px">profils  2↑</div>
+      <div class="item">develop</div>
+      <div class="item">main</div>
+      <div class="grip" title="Drag to resize · double-click: default height"></div>
+      <div class="sec">▾ origin · 23</div>
+      <div class="scrollsec">
+        <div class="item">▾ feature · 9</div>
+        <div class="item" style="padding-left:20px">auth-sso</div>
+        <div class="item" style="padding-left:20px">billing-export</div>
+        <div class="item" style="padding-left:20px">graph</div>
+        <div class="item" style="padding-left:20px">profils</div>
+        <div class="item" style="padding-left:20px">search</div>
+      </div>
+      <div class="muted small">8 lines max by default, then the section scrolls on its own.</div>
+      <div class="grip"></div>
+      <div class="sec">▸ Tags · 14</div>
+      <div class="muted small">Folded: click the header.</div>
+      <div class="grip"></div>
+      <div class="sec">Stashes · 0</div>
+      <div class="muted small">Empty: header only.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Sidebar collapsed — floating section open</div>
+    <div class="frame" style="width:560px;height:330px;display:flex;position:relative">
+      <div class="rail">
+        <span title="Expand sidebar">⇥</span>
+        <span class="on" title="Local">⑂</span>
+        <span title="origin">☁</span>
+        <span title="Tags">◇</span>
+        <span title="Stashes">▤</span>
+      </div>
+      <div style="flex:1;padding:10px" class="muted">Graph keeps its width and position.</div>
+      <div class="float side" style="left:46px;top:50px;width:220px">
+        <div class="sec" style="margin-top:0">Local · 4</div>
+        <div class="item">▾ feature · 2</div>
+        <div class="item" style="padding-left:20px">graph</div>
+        <div class="item current" style="padding-left:20px">profils  2↑</div>
+        <div class="item">develop</div>
+        <div class="item">main</div>
+        <div class="muted small">Same gestures as the sidebar. Esc, click outside or checkout closes it.</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="row" style="margin-top:24px">
+  <div class="state">
+    <div class="label">Graph width — separator and cut lanes</div>
+    <div class="frame" style="width:760px">
+      <div style="display:grid;grid-template-columns:180px 150px 24px 6px 1fr;height:120px;align-items:stretch">
+        <div style="padding:8px" class="muted small">Refs (180 px, fixed)</div>
+        <div style="padding:8px" class="muted small">Lanes 1–5 of 9</div>
+        <div class="fade"></div>
+        <div class="vsplit" title="Drag to resize · double-click: default width"></div>
+        <div style="padding:8px">feat(profils): injection de core.sshCommand par profil</div>
+      </div>
+    </div>
+    <div class="muted small">Default: all lanes, at most 40 % of the graph area. Width saved per repository. Fade = lanes cut.</div>
+  </div>
+  <div class="state">
+    <div class="label">Ref column — truncated, « +2 », hover</div>
+    <div class="frame" style="width:520px;height:150px;position:relative;padding:10px">
+      <div style="display:flex;gap:4px;align-items:center;width:180px">
+        <span class="r full refcut">feature/very-long-branch-name-for-sso</span><span class="more">+2</span><span class="wire"></span>
+      </div>
+      <div class="float" style="left:20px;top:40px;display:flex;flex-direction:column;gap:4px;padding:6px">
+        <span class="r full">feature/very-long-branch-name-for-sso-migration</span>
+        <span class="r remote">origin/hotfix/sso-token-refresh</span>
+        <span class="r tag">v2.4.0-rc.1</span>
+      </div>
+      <div class="muted small" style="position:absolute;left:20px;bottom:8px">On hover or focus, full labels float over the graph, in their style; double-click and right-click still work.</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">Author — hover or focus</div>
+    <div class="frame" style="width:360px;height:90px;position:relative;padding:10px">
+      <span class="muted">V. Olivier</span>
+      <div class="tip" style="left:30px;top:36px">Valérie Olivier &lt;v.olivier@pro-company.fr&gt;</div>
     </div>
   </div>
 </div>

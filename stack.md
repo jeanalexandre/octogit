@@ -6,6 +6,7 @@
 > Validé par l'humain le 08/11/2026.
 > Révisions : 08/11/2026 — reports des specs : J-17 (`specs/demarrer-un-depot.md` : `xcode-select --install`, revérification, reprise en 5 s) ; icônes Lucide ; détection des changements par `notify` ; graphe en liste virtualisée HTML et lanes SVG ; intégrations macOS par plugins Tauri et `keyring` (`platform` dépend désormais de Tauri).
 > Révisions : 08/11/2026 — amendement de S-1 (décisions de l'humain) : Node 26.13.0 et pnpm 12.18.0 fixés ; dépendances d'outillage acceptées (voir Commandes de qualité) ; exception d'audit GHSA-gcqx-w48m-w2h4.
+> Révisions : 11/11/2026 — report de `specs/organiser-l-espace.md` : mémorisations de mise en page dans les fichiers existants (préférences : hauteurs et repli des sections, repli du panneau ; dépôts : état des dossiers, largeur du graphe), écrites à la fin du glisser.
 
 ## Type
 - Type de projet : application de bureau, macOS seulement pour la première version (d'autres systèmes ne sont pas exclus ensuite)
@@ -29,7 +30,7 @@
 - Internationalisation : sans objet, interface en anglais seulement (de `ux.md`).
 
 ## Données
-- Stockage (choix de l'humain) : fichiers JSON, un par domaine (profils, ordre et règles ; dépôts : rattachements manuels, récents, dernier dossier de clone ; préférences : thème, palette, Halo, colonnes masquées, action par défaut de `SyncButton`), écriture atomique (fichier temporaire puis renommage), gérés par le crate `store`. Passphrases SSH dans le trousseau macOS (souhait de l'humain, `specs/configurer-les-profils.md`), via le crate `platform`. Rien n'est écrit dans `~/.gitconfig`.
+- Stockage (choix de l'humain) : fichiers JSON, un par domaine (profils, ordre et règles ; dépôts : rattachements manuels, récents, dernier dossier de clone, et par dépôt (clé : chemin) état des dossiers de `BranchSidebar` et largeur du graphe ; préférences : thème, palette, Halo, colonnes masquées, action par défaut de `SyncButton`, hauteurs et repli des sections de `BranchSidebar`, repli du panneau (choix de l'humain du 11/11/2026, `specs/organiser-l-espace.md`) ; un réglage par glisser est écrit à la fin du geste, pas pendant), écriture atomique (fichier temporaire puis renommage), gérés par le crate `store`. Passphrases SSH dans le trousseau macOS (souhait de l'humain, `specs/configurer-les-profils.md`), via le crate `platform`. Rien n'est écrit dans `~/.gitconfig`.
 - Évolution du schéma : champ `version` dans chaque fichier JSON ; migrations écrites dans le crate `store`, appliquées à la lecture, testées par des fichiers d'exemple versionnés.
 - Emplacement des données de l'utilisateur : `~/Library/Application Support/Octogit/` ; aucune donnée dans les dépôts hors du `.git/config` local écrit par J-12.
 

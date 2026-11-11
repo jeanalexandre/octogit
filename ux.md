@@ -1,6 +1,6 @@
 # UX : Octogit
 
-> Produit par `/ux` à partir de `brief.md`. Deux pages maximum. Validé par l'humain le 23/10/2026, révisions du 05/11 et du 06/11/2026 validées le 06/11/2026, révisions du 07/11/2026 validées le 07/11/2026, révisions du 08/11/2026 validées le 08/11/2026.
+> Produit par `/ux` à partir de `brief.md`. Deux pages maximum. Validé par l'humain le 23/10/2026, révisions du 05/11 et du 06/11/2026 validées le 06/11/2026, révisions du 07/11/2026 validées le 07/11/2026, révisions du 08/11/2026 validées le 08/11/2026, révisions du 11/11/2026 validées le 11/11/2026.
 > Révisions : 23/10/2026 — J-2 : comportement de Stash et Pop précisé, composant `StashButtons` ajouté (oubli relevé à la relecture).
 >   23/10/2026 — suite à la révision du brief : J-3 et J-6 à J-8 sans Undo (non-objectif), J-14 ajouté (reset Soft / Mixed / Hard sur n'importe quel commit, Hard confirmé), `ResetHardDialog` ajouté.
 >   05/11/2026 — direction visuelle « Neon » ajoutée (palettes Neon et Kraken, option Halo, icônes d'action) ; contraste AA précisé ; `History` réorganisé d'après la référence du 05/11 : colonne des refs reliée aux nœuds, colonnes auteur / date / SHA masquables, `ThemeSwitch` et barre d'aide ajoutés. Maquettes refaites dans cette disposition (`conflict-resolver`, `interactive-rebase`, `profile-settings`) et ajoutées (`diff-view`, `welcome`). Détail des écrans et composants sorti dans `ux/ecrans/`, tokens dans `ux/tokens.md` ; 1 837 mots gardés au-delà de 1 200 : 14 parcours, laissés dans `ux.md` pour `/spec`.
@@ -11,6 +11,8 @@
 >   07/11/2026 — report de `specs/resoudre-les-conflits.md` (CA-16, décision de l'humain) : pendant une opération en cours, rebase interactif, cherry-pick et revert désactivés sans raison affichée, sortis de « Désactivées, avec raison » dans `ux/ecrans/history.md`. Aucun parcours ni maquette modifié.
 >   08/11/2026 — suite à la révision du brief (J-17) : parcours J-17 ajouté (Git absent au lancement → `Welcome` à l'état « Git not found », installation d'Apple en un clic, attente, reprise seule) ; états ajoutés dans `ux/ecrans/welcome.md` (Profiles masqué tant que Git manque), sans maquette (choix de l'humain).
 >   08/11/2026 — report de `specs/demarrer-un-depot.md` (CA-23, CA-24, décisions de l'humain) : `ux/ecrans/welcome.md` précise la reprise au plus tard 5 s après que Git est disponible, et la revérification avec « Check again » active aussi dans l'état « installation impossible ». Aucun parcours ni maquette modifié.
+>   11/11/2026 — demande de l'humain (mise en page de `History`) : principe 6 ajouté ; `ux/ecrans/history.md` : `BranchSidebar` (ordre fixe des sections et tri, noms groupés par chemin, sections redimensionnables en hauteur et repliables, panneau repliable en bande d'icônes avec volet flottant), `CommitGraph` (largeur du graphe réglable par glisser, défaut sur toutes les lanes plafonné à 40 %), `RefLabel` (colonne des refs fixe à 180 px, nom tronqué en fin, « +n », étiquettes flottantes au survol), infobulle nom et adresse de l'auteur ; maquette `ux/maquettes/history.html` : section 1 alignée, section 7 ajoutée. Aucun parcours modifié. 3 287 mots gardés : 17 parcours laissés dans `ux.md` (choix de l'humain).
+>   11/11/2026 — report de `specs/organiser-l-espace.md` (décisions de l'humain du 11/11/2026) : `ux/ecrans/history.md` précise le repli d'une section mémorisé globalement, le compte d'un dossier (sous-dossiers compris), et la hauteur de section et la largeur du graphe par défaut figées jusqu'à la prochaine ouverture du dépôt, recalculées au double-clic. Aucun parcours ni maquette modifié. 3 359 mots gardés (choix de l'humain).
 
 ## Contexte d'usage
 - **Développeur multi-comptes, à la maison** : macOS, seul, second écran dédié ; Octogit ouvert en permanence, en plein écran, à côté de l'éditeur.
@@ -22,6 +24,7 @@
 3. L'identité active est toujours visible (`ProfileBadge`) ; une identité non conforme bloque toute création de commit et le Push, sans échappatoire.
 4. Une opération en cours reste visible sur tous les écrans (`OperationBanner`) jusqu'à sa fin ou son abandon, y compris lancée depuis le terminal.
 5. Toute action fréquente a un raccourci clavier (Cmd+F, Cmd+Entrée, Échap, Alt+↑ / Alt+↓).
+6. La mise en page ne bouge jamais seule : largeurs et hauteurs se règlent par glisser et sont mémorisées, un double-clic sur le séparateur revient au défaut ; un texte trop long est tronqué, entier au survol ou au focus.
 
 ## Parcours
 **J-1 · Voir l'historique.** Lancement → dernier dépôt dans `History` (sinon `Welcome`) ; `RepoPicker` pour changer. Fetch auto à l'ouverture puis périodique (`FetchStatus`). Graphe : lanes, branches locales et `origin/…` (même jamais récupérées), tags, stashes.
@@ -120,4 +123,6 @@ Composants par écran dans `ux/ecrans/` ; composants partagés (`Toolbar`, `Them
 | Référence du 05/11 : barre d'aide en pied du graphe | Adopter | retenu | S-4 |
 | Référence du 05/11 : ni auteur ni SHA, date absolue | Garder auteur, date relative, SHA, masquables par colonne | retenu | S-4 |
 | Référence du 05/11 : icône devant chaque libellé de bouton | Adopter | retenu | S-48 |
+| `BranchSidebar` : largeur fixe, sections Local / remotes / Tags / Stashes à plat, toujours dépliées | Ordre et tri fixes, groupement par chemin, sections redimensionnables et repliables, panneau repliable en bande d'icônes | retenu | S-57, S-58, S-59, S-25 (`organiser-l-espace` CA-1 à CA-10) |
+| `CommitGraph` : largeur du graphe non réglable, `RefLabel` sans limite de largeur, auteur sans adresse | Séparateur à glisser, colonne des refs à 180 px avec troncature et étiquettes flottantes, infobulle de l'auteur | retenu | S-60, S-61, S-26 (`organiser-l-espace` CA-11 à CA-18) |
 | Référence du 05/11 : interface en français, Fetch et Pull séparés, filtre « Whole repo / Local », bouton Undo | Garder l'anglais et `SyncButton` ; ni filtre ni Undo (non-objectif) | écarté |  |

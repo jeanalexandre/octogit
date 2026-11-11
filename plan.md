@@ -1,12 +1,12 @@
 # Plan : Octogit
 
-> Produit par `/plan` à partir de `brief.md` et des specs. Fichier : `plan.md`. Validé par l'humain le 08/11/2026.
-> Révisions : aucune.
+> Produit par `/plan` à partir de `brief.md` et des specs. Fichier : `plan.md`. Validé par l'humain le 08/11/2026, révision du 11/11/2026 validée le 11/11/2026.
+> Révisions : 11/11/2026 — `explorer-l-historique` CA-7 modifié (évolution de S-5) et nouvelle spec `organiser-l-espace` (révisions du 11/11/2026 de `ux.md` et `stack.md`) : stories S-57 à S-61 ajoutées en tranche « valeur 1 bis » ; `organiser-l-espace` CA-17 ajouté à S-26 ; CA-10 scindé entre S-59 et S-25 (fermeture au checkout) ; jobs J-1 et J-16 servis aussi par `organiser-l-espace`.
 
 ## Jobs du brief
 | Job | Résumé | Specs |
 |---|---|---|
-| J-1 | Voir l'historique en graphe à lanes, branches distantes comprises | `explorer-l-historique` |
+| J-1 | Voir l'historique en graphe à lanes, branches distantes comprises | `explorer-l-historique`, `organiser-l-espace` |
 | J-2 | Stager, committer, amender, stasher depuis l'interface | `preparer-un-commit` |
 | J-3 | Fetch, pull (ff ou rebase), push et tags en un clic, sans fusion surprise | `synchroniser` |
 | J-4 | Consulter le détail d'un commit et le diff d'un fichier | `explorer-l-historique` |
@@ -21,11 +21,11 @@
 | J-13 | Être empêché de committer ou pousser avec la mauvaise identité | `proteger-l-identite` |
 | J-14 | Réinitialiser une branche (soft, mixed, hard) en voyant ce qui sera perdu | `revenir-en-arriere` |
 | J-15 | Choisir thème, palette et halo | `choisir-l-apparence` |
-| J-16 | Changer, créer, renommer, supprimer des branches | `gerer-les-branches` |
+| J-16 | Changer, créer, renommer, supprimer des branches | `gerer-les-branches`, `organiser-l-espace` |
 | J-17 | Installer Git en un clic sur un Mac neuf | `demarrer-un-depot` |
 
 ## Backlog
-La table « Réorganisation proposée » de `ux.md` n'est pas découpée : aucun code n'existe, et ses écarts retenus sont déjà intégrés dans les specs.
+La table « Réorganisation proposée » de `ux.md` n'est pas découpée : aucun code n'existait au premier plan, et ses écarts retenus sont intégrés dans les specs ; les deux écarts du 11/11/2026 (`BranchSidebar`, `CommitGraph`) sont couverts par `organiser-l-espace` (S-57 à S-61, S-26).
 
 | Story | Objectif | Critères | Jobs | Tranche | Dépend de |
 |---|---|---|---|---|---|
@@ -35,6 +35,11 @@ La table « Réorganisation proposée » de `ux.md` n'est pas découpée : aucun
 | S-4 | Afficher le graphe en lanes colorées, virtualisé (10 000 commits), avec initiales, colonnes masquables mémorisées, dates relatives et barre d'aide | `explorer-l-historique` CA-9, CA-12, CA-13, CA-14, CA-15, CA-16, CA-23 | J-1 | valeur 1 | S-1 |
 | S-5 | Afficher les refs (branches, `origin/…`, tags, stashes) reliées aux nœuds, l'avance / retard de la branche courante, et `CommitDetail` au clic sur un commit | `explorer-l-historique` CA-7, CA-8, CA-10, CA-24, CA-25 | J-1, J-4 | valeur 1 | S-4 |
 | S-6 | Fetch automatique à l'ouverture puis chaque minute, `FetchStatus`, sans pull implicite | `explorer-l-historique` CA-3, CA-4, CA-6 | J-1 | valeur 1 | S-5 |
+| S-57 | `BranchSidebar` : sections dans l'ordre fixe et triées, noms groupés par chemin en dossiers dépliables, état des dossiers mémorisé par dépôt | `organiser-l-espace` CA-1, CA-2, CA-3 | J-1, J-16 | valeur 1 bis | S-5 |
+| S-58 | Sections de `BranchSidebar` à hauteur ajustée (8 lignes au plus, défilement interne), redimensionnables et repliables, mémorisées globalement ; refs toujours dans le graphe | `organiser-l-espace` CA-4, CA-5, CA-6, CA-7, CA-8 | J-1, J-16 | valeur 1 bis | S-57 |
+| S-59 | Replier `BranchSidebar` en bande d'icônes, volet flottant d'une section par-dessus le graphe, fermé par Échap ou un clic ailleurs. Scinde `organiser-l-espace` CA-10 : la fermeture au checkout est en S-25 | `organiser-l-espace` CA-9, CA-10 (sauf checkout) | J-1, J-16 | valeur 1 bis | S-58 |
+| S-60 | Largeur du graphe : toutes les lanes au plus 40 %, fondu des lanes coupées, séparateur à glisser mémorisé par dépôt, figée jusqu'à la réouverture | `organiser-l-espace` CA-11, CA-12, CA-13 | J-1 | valeur 1 bis | S-4 |
+| S-61 | Évolution de S-5 : colonne des refs à 180 px, une `RefLabel` par commit tronquée en fin avec « +n », étiquettes entières flottantes au survol ou au focus ; infobulle nom et adresse de l'auteur | `explorer-l-historique` CA-7 (évolution) ; `organiser-l-espace` CA-14, CA-15, CA-16, CA-18 | J-1 | valeur 1 bis | S-5 |
 | S-7 | Créer, enregistrer et réordonner des profils dans `ProfileSettings`, sans jamais toucher `~/.gitconfig` | `configurer-les-profils` CA-2, CA-3, CA-13, CA-14, CA-17, CA-19 | J-11 | valeur 2 | S-1 |
 | S-8 | Associer une clé SSH à un profil : choisir dans `~/.ssh`, générer une ed25519, copier la clé publique, passphrase gardée dans le trousseau | `configurer-les-profils` CA-5, CA-6, CA-7, CA-15, CA-16 | J-11 | valeur 2 | S-7 |
 | S-9 | Tester la connexion d'un profil à github.com avec sa seule clé (hypothèse risquée n°1) | `configurer-les-profils` CA-8, CA-9, CA-10 | J-11, J-12 | valeur 2 | S-8 |
@@ -53,8 +58,8 @@ La table « Réorganisation proposée » de `ux.md` n'est pas découpée : aucun
 | S-22 | Vérifier auteur et committer des commits à pousser et marquer les fautifs dans le graphe, commits faits au terminal compris | `proteger-l-identite` CA-20, CA-22, CA-23, CA-26 | J-13 | valeur 4 | S-21 |
 | S-23 | « Fix commit identity » : réécrire en un geste les commits fautifs en gardant les auteurs collègues | `proteger-l-identite` CA-21, CA-24, CA-25 | J-13 | valeur 4 | S-22 |
 | S-24 | Force push après réécriture locale, par `ForcePushDialog` (`--force-with-lease`) | `synchroniser` CA-16, CA-17, CA-18 | J-3 | valeur 4 | S-20, S-15 |
-| S-25 | Changer de branche (double-clic, sélecteur de la `Toolbar`, clic droit), y compris une `origin/…` jamais récupérée, sans jamais détacher HEAD | `gerer-les-branches` CA-1, CA-2, CA-3, CA-4, CA-5, CA-21, CA-23 | J-16 | valeur 5 | S-5 |
-| S-26 | Créer une branche (Branch, Create branch here) par saisie en ligne, et Checkout depuis `CommitDetail` | `gerer-les-branches` CA-7, CA-8, CA-9, CA-10, CA-11 | J-16 | valeur 5 | S-25 |
+| S-25 | Changer de branche (double-clic, sélecteur de la `Toolbar`, clic droit), y compris une `origin/…` jamais récupérée, sans jamais détacher HEAD ; un checkout depuis le volet flottant de `BranchSidebar` le ferme (partie de `organiser-l-espace` CA-10 scindée de S-59) | `gerer-les-branches` CA-1, CA-2, CA-3, CA-4, CA-5, CA-21, CA-23 ; `organiser-l-espace` CA-10 (fermeture au checkout) | J-16 | valeur 5 | S-5, S-59 |
+| S-26 | Créer une branche (Branch, Create branch here) par saisie en ligne, qui s'élargit au-dessus du graphe (reprise ensuite par Rename et Create tag), et Checkout depuis `CommitDetail` | `gerer-les-branches` CA-7, CA-8, CA-9, CA-10, CA-11 ; `organiser-l-espace` CA-17 | J-16 | valeur 5 | S-25, S-61 |
 | S-27 | Cloner par `CloneDialog` avec un profil choisi, dossier pré-rempli, `.git/config` écrit avant l'ouverture dans `History` | `demarrer-un-depot` CA-1, CA-8, CA-9, CA-10, CA-15, CA-16 ; `proteger-l-identite` CA-12 | J-10, J-12 | valeur 6 | S-10, S-2 |
 | S-28 | Clone sans profil (création à la volée), URL HTTPS convertie en SSH, seule la clé du profil présentée, progression et Cancel | `demarrer-un-depot` CA-5, CA-11, CA-12, CA-17, CA-18 | J-10, J-11 | valeur 6 | S-27 |
 | S-29 | `DiffView` d'un fichier d'un commit : côte à côte ou unifié, fichier suivant / précédent, retour au même endroit du graphe | `explorer-l-historique` CA-26, CA-27, CA-28, CA-29 | J-4 | valeur 7 | S-5 |
@@ -89,6 +94,7 @@ La table « Réorganisation proposée » de `ux.md` n'est pas découpée : aucun
 ### Pourquoi cet ordre
 - **socle** : ouvrir un vrai dépôt dans une application installée depuis un `.dmg`, avec les outils de test qui serviront à toutes les stories. Question pour l'humain : `tokens.css` est posé dès S-1 avec le thème par défaut, plutôt qu'une story d'habillage séparée ; le choix de thème, de palette et de Halo reste la tranche valeur 14.
 - **valeur 1** : lire mes dépôts réels en graphe, branches distantes à jour sans geste, et vérifier tout de suite la fluidité sur 10 000 commits (hypothèse risquée n°5).
+- **valeur 1 bis** : tant que `History` vient d'être construit, le rendre lisible sur un dépôt chargé (panneau rangé, graphe à la bonne largeur, noms longs qui ne poussent rien) avant d'y empiler les tranches suivantes ; S-61 reprend la colonne des refs de S-5.
 - **valeur 2** : définir mes profils pro et perso et voir chaque dépôt écrire la bonne identité et la bonne clé dans son `.git/config`, vérifiable au terminal (hypothèses risquées n°1 et n°4).
 - **valeur 3** : committer depuis Octogit avec la certitude d'être bloqué sur la mauvaise identité.
 - **valeur 4** : échanger avec github.com (fetch, pull, push, force push) sans jamais pousser un commit fait avec le mauvais compte, même depuis le terminal.

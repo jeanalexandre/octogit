@@ -10,6 +10,7 @@
 > Révisions : 06/11/2026, renvoi des actions du `RefContextMenu` et de `CommitDetail` (cherry-pick, revert, reset) mis à jour vers `specs/revenir-en-arriere.md` ; aucun critère modifié.
 > Révisions : 07/11/2026, « À reporter → Vers `ux.md` » retiré : la variante « Not published » de l'indicateur d'avance / retard (CA-11) et le format de la date relative / absolue au survol (CA-15) figurent dans `ux/ecrans/history.md` (ligne « Avance / retard » et composant `CommitGraph`) ; aucun critère modifié. Validé par l'humain le 07/11/2026.
 > Révisions : 08/11/2026, report de `specs/demarrer-un-depot.md` (J-17) : CA-1 précédé de « Git installé » (Git absent au lancement → `Welcome` à l'état « Git not found », même si un dernier dépôt existe, `ux.md` J-17) ; exclusion « Git absent au lancement (J-17) » ajoutée vers `specs/demarrer-un-depot.md` (CA-20) ; CA-1 modifié, aucun autre critère modifié. Validé par l'humain le 08/11/2026.
+> Révisions : 11/11/2026, révision du 11/11/2026 de `ux.md` (principe 6, `BranchSidebar`, `CommitGraph` / `RefLabel` dans `ux/ecrans/history.md`, section 7 de `ux/maquettes/history.html`) : CA-7 modifié (la colonne des refs ne montre plus une `RefLabel` par ref mais au moins une par commit désigné, voir « +n ») ; organisation de `BranchSidebar`, largeur du graphe, colonne des refs et infobulle de l'auteur portées par `specs/organiser-l-espace.md` (décision de l'humain du 11/11/2026), exclusion ajoutée ; aucun autre critère modifié. Validé par l'humain le 11/11/2026.
 
 ## Objectif
 J'ouvre Octogit : le dernier dépôt s'affiche dans `History`. Le graphe en lanes montre les branches locales et distantes à jour, sans geste de ma part. Je lis l'état du projet d'un coup d'œil. Je retrouve un commit passé par son message, son auteur ou son SHA, puis j'en consulte le détail et le diff de ses fichiers, et je reviens au même endroit du graphe.
@@ -22,6 +23,7 @@ J'ouvre Octogit : le dernier dépôt s'affiche dans `History`. Le graphe en lane
   - Avatars GitHub (non-objectif).
   - Onglets multi-dépôts (non-objectif).
   - Filtre « Whole repo / Local » (écarté dans `ux.md`).
+  - Organisation de `BranchSidebar` (ordre, tri, groupement par chemin, hauteur et repli des sections, repli du panneau), largeur du graphe, colonne des refs (180 px, troncature, « +n », étiquettes flottantes, saisie en ligne élargie) et infobulle de l'auteur → `specs/organiser-l-espace.md`
   - Tags : création, push, suppression → `specs/synchroniser.md`
   - Démarrer un dépôt (`Welcome`, état « dépôt introuvable », clone par URL) → `specs/demarrer-un-depot.md`
   - Git absent au lancement (J-17) → `specs/demarrer-un-depot.md` (CA-20)
@@ -40,7 +42,7 @@ J'ouvre Octogit : le dernier dépôt s'affiche dans `History`. Le graphe en lane
 - **CA-4** : Étant donné un dépôt ouvert, quand 1 min s'est écoulée depuis le dernier fetch, alors un fetch part sans geste et `FetchStatus` affiche l'âge relatif du dernier fetch réussi.
 - **CA-5** : Étant donné le réseau coupé, quand un fetch automatique échoue, alors `FetchStatus` passe à l'état hors ligne, aucune branche locale ni l'arbre de travail ne change, et le graphe reste consultable.
 - **CA-6** : Étant donné un fetch automatique terminé, alors aucune branche locale n'a bougé (aucun pull implicite) et `.git/config` n'a pas été écrit.
-- **CA-7** : Étant donné un dépôt avec des branches locales, des `origin/…`, des tags et des stashes, quand `History` s'affiche, alors chacun apparaît dans `BranchSidebar` et sous forme de `RefLabel` dans la colonne des refs, reliée par un fil au nœud du commit qu'il désigne.
+- **CA-7** (modifié le 11/11/2026) : Étant donné un dépôt avec des branches locales, des `origin/…`, des tags et des stashes, quand `History` s'affiche, alors chacun apparaît dans `BranchSidebar`, et chaque commit qu'ils désignent porte dans la colonne des refs une `RefLabel` reliée par un fil à son nœud.
 - **CA-8** : Étant donné une `RefLabel`, alors sa variante suit son état : pleine si synchronisée, pleine avec anneau si en avance, pointillés si distante seule, tag pour un tag ; chaque étiquette porte le nom de la ref en texte.
 - **CA-9** : Étant donné un graphe affiché, alors chaque ligne de commit est teintée de la couleur de sa lane et ouverte par un trait de cette couleur ; deux branches voisines n'ont pas la même couleur de lane.
 - **CA-10** : Étant donné la branche courante en avance de 2 et en retard de 3 sur sa branche distante suivie, quand `History` s'affiche, alors les deux nombres 2 et 3 sont lisibles sans survol ni clic.

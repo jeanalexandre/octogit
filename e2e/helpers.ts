@@ -69,12 +69,32 @@ export class Workspace {
     return out.sort();
   }
 
+  /**
+   * Un autre clone de l'`origin` de `repo` (fixture `refs`) pousse une nouvelle branche d'un commit :
+   * `repo` ne la connaît pas avant son prochain fetch.
+   */
+  pushBranchFromOther(repo: string, branch: string): void {
+    const other = `${repo}-other`;
+    const git = (...args: string[]) =>
+      execFileSync("git", ["-C", other, ...args], {
+        env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+      });
+    git("checkout", "-q", "-b", branch, "origin/develop");
+    git("commit", "-q", "--allow-empty", "-m", `Work on ${branch}`);
+    git("push", "-q", "origin", branch);
+  }
+
   /** Adresse de l'interface qui lit et écrit dans le dossier de données de ce test. */
   get url(): string {
     return `/?data_dir=${encodeURIComponent(this.dataDir)}`;
   }
 
+  /** Comme `url`, avec le fetch automatique toutes les `ms` millisecondes (au lieu de 60 s). */
+  urlWithFetchInterval(ms: number): string {
+    return `${this.url}&fetch_interval_ms=${ms}`;
+  }
+
   dispose(): void {
-    rmSync(this.root, { recursive: true, force: true });
+    rmSync(this.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }

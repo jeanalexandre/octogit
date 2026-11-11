@@ -3,6 +3,7 @@
 
 pub mod commands;
 pub mod detail;
+pub mod fetch;
 pub mod launch;
 pub mod open;
 pub mod preferences;
@@ -35,7 +36,8 @@ pub fn builder() -> Builder<tauri::Wry> {
         commands::choose_folder,
         commands::get_hidden_columns,
         commands::set_hidden_columns,
-        commands::get_commit_detail
+        commands::get_commit_detail,
+        commands::fetch_repository
     ])
 }
 

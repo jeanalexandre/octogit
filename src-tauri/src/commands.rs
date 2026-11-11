@@ -7,6 +7,7 @@ use octogit_store::Store;
 
 use crate::data_dir;
 use crate::detail::{self, CommitDetailView};
+use crate::fetch;
 use crate::launch::{self, LaunchState, RepositoryView};
 use crate::open::{self, OpenError, RecentView};
 use crate::preferences::{self, Column};
@@ -56,4 +57,13 @@ pub fn set_hidden_columns(columns: Vec<Column>) {
 #[specta::specta]
 pub fn get_commit_detail(path: String, id: String) -> Result<CommitDetailView, String> {
     detail::commit_detail(Path::new(&path), &id)
+}
+
+/// Fetch automatique de `path` en tâche de fond (sans bloquer l'interface), puis relecture du dépôt s'il a changé.
+#[tauri::command]
+#[specta::specta]
+pub async fn fetch_repository(path: String) -> Result<Option<RepositoryView>, String> {
+    tauri::async_runtime::spawn_blocking(move || fetch::fetch_repository(Path::new(&path)))
+        .await
+        .map_err(|_| "Fetch was interrupted.".to_string())?
 }

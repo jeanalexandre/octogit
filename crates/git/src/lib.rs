@@ -1,10 +1,12 @@
 //! Lecture de dépôts Git avec `gix` (graphe, refs). Aucune dépendance à Tauri.
 
+mod fetch;
 mod graph;
 
 use std::fmt;
 use std::path::Path;
 
+pub use fetch::{fetch, FetchError, FETCH_TIMEOUT};
 pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

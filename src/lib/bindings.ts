@@ -13,6 +13,8 @@ export const commands = {
 	setHiddenColumns: (columns: Column[]) => __TAURI_INVOKE<void>("set_hidden_columns", { columns }),
 	/**  Détail d'un commit du dépôt `path` (message, auteur, date, signature, fichiers modifiés). */
 	getCommitDetail: (path: string, id: string) => typedError<CommitDetailView, string>(__TAURI_INVOKE("get_commit_detail", { path, id })),
+	/**  Fetch automatique de `path` en tâche de fond (sans bloquer l'interface), puis relecture du dépôt s'il a changé. */
+	fetchRepository: (path: string) => typedError<RepositoryView_Serialize | null, string>(__TAURI_INVOKE("fetch_repository", { path })),
 };
 
 /* Types */

@@ -21,6 +21,10 @@
 ### Fiche (10/11/2026)
 1. Le fetch automatique fait un prune : une `origin/…` supprimée sur `origin` disparaît du graphe ; la branche locale qui la suivait, ses commits et sa configuration de suivi dans `.git/config` restent intacts (option b).
 
+### Après la revue 1
+1. Mineur 1, fetch sauté à la réouverture d'un dépôt : traiter (d'office). Rouvrir un dépôt, y compris celui déjà ouvert, lance son fetch d'ouverture. C'est la règle de la fiche : « un fetch à l'ouverture du dépôt ». Si un fetch du même dépôt est encore en cours, le fetch d'ouverture attend sa fin au lieu d'être sauté. Il n'y a jamais deux fetchs en même temps sur un dépôt.
+2. Mineur 2, test e2e de CA-4 qui ne prouve pas que l'âge se rafraîchit : traiter (d'office). L'e2e montre l'âge qui change sans geste, par exemple avec une horloge simulée par Playwright, de « just now » à « 1 min ago ».
+
 ## Contexte technique
 - Dépend de S-5 : refs et `RefLabel` (pointillés pour une distante seule), `History`, `crates/git`, contrat `pnpm gen:bindings`.
 - `stack.md` « Accès à Git » : le fetch est une écriture réseau, donc par le binaire `git` en sous-processus (respecte `.git/config` local, `core.sshCommand`), dans le crate `git`, sortie brute gardée. Tâche de fond : ne bloque jamais l'interface ; un seul fetch à la fois par dépôt ; changer de dépôt (`RepoPicker`) arrête la planification de l'ancien.
@@ -57,7 +61,11 @@
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : <à noter au début de la boucle>
+Référence du diff : b7f4e40
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; vérifications relancées ✅ | — |
+| 1 | reviewer | `stories/S-06-revue-1.md` : 2 mineurs | validé |
+| 2 | dev | terminé (mineurs 1 et 2 traités) ; vérifications relancées ✅ | — |
+| 2 | reviewer | `stories/S-06-revue-2.md` : aucun problème | validé |

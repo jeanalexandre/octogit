@@ -3,6 +3,7 @@
   import BranchSidebar from "../components/BranchSidebar.svelte";
   import CommitDetail from "../components/CommitDetail.svelte";
   import CommitGraph from "../components/CommitGraph.svelte";
+  import FetchStatus from "../components/FetchStatus.svelte";
   import RepoPicker from "../components/RepoPicker.svelte";
 
   let {
@@ -10,6 +11,7 @@
     recent,
     error,
     hiddenColumns,
+    lastFetched = null,
     onopen,
     onchoose,
     onhidecolumns,
@@ -21,6 +23,8 @@
     error: string | null;
     /** Colonnes du graphe masquées par l'utilisateur. */
     hiddenColumns: Column[];
+    /** Secondes depuis l'epoch du dernier fetch réussi, ou `null`. */
+    lastFetched?: number | null;
     onopen: (path: string) => void;
     onchoose: () => void;
     onhidecolumns: (columns: Column[]) => void;
@@ -60,13 +64,16 @@
     <h1 class="visually-hidden">{repository.name}</h1>
     <RepoPicker {recent} current={repository.path} {onopen} {onchoose} />
     <span class="path">{repository.path}</span>
-    {#if tracking}
-      <span class="sync" role="group" aria-label="Ahead and behind">
-        <span class="branch">{tracking.name}</span>
-        <span aria-label="{tracking.ahead} commits ahead">{tracking.ahead}↑</span>
-        <span aria-label="{tracking.behind} commits behind">{tracking.behind}↓</span>
-      </span>
-    {/if}
+    <div class="end">
+      <FetchStatus {lastFetched} />
+      {#if tracking}
+        <span class="sync" role="group" aria-label="Ahead and behind">
+          <span class="branch">{tracking.name}</span>
+          <span aria-label="{tracking.ahead} commits ahead">{tracking.ahead}↑</span>
+          <span aria-label="{tracking.behind} commits behind">{tracking.behind}↓</span>
+        </span>
+      {/if}
+    </div>
   </header>
 
   {#if error}
@@ -135,10 +142,16 @@
     font-size: 12px;
   }
 
+  .end {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-left: auto;
+  }
+
   .sync {
     display: inline-flex;
     gap: 8px;
-    margin-left: auto;
     font-size: 13px;
     font-weight: 600;
   }

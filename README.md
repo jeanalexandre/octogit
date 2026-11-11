@@ -39,6 +39,13 @@ pnpm install
 - Dépôt avec toutes les refs : `fixtures/refs.sh <dossier>` (tags, stash, `develop` en avance de 2 et en retard de 3 sur un `origin` bare, branche seulement distante, merge, commit signé).
 - Dépôt de 10 000 commits : `fixtures/large.sh <dossier>` le crée en moins d'une seconde (un seul `git fast-import`, déterministe). Il sert au test de performance de `e2e/graph.spec.ts` (ouverture en moins de 3 s, défilement du premier au dernier commit sans trou, 50 images/s au moins sur Chromium) ; ce test, d'une quinzaine de secondes, tourne avec les autres par `pnpm e2e`. Pour lui seul : `pnpm e2e -g CA-23`.
 
+## Fetch automatique
+
+- À l'ouverture d'un dépôt (au lancement comme par `RepoPicker`), puis chaque minute tant qu'il reste ouvert, Octogit lance `git fetch --prune` en tâche de fond (binaire `git` du poste : `.git/config` est respecté, jamais écrit). Un seul fetch à la fois par dépôt ; changer de dépôt arrête la planification de l'ancien ; un fetch qui dépasse 30 s est tué ; aucune saisie n'est jamais demandée.
+- Le fetch ne modifie jamais une branche locale, `HEAD` ni l'arbre de travail (aucun pull implicite) : seules les refs `origin/…` et les tags distants changent. Une `origin/…` supprimée sur `origin` disparaît du graphe (prune) ; la branche locale qui la suivait reste intacte.
+- `FetchStatus`, dans l'en-tête de `History`, affiche « fetched n min ago » : l'âge du dernier fetch réussi, mis à jour sans geste. Un échec garde le dernier âge (états hors ligne et erreur : à venir).
+- En test, l'intervalle de 60 s se règle par `?fetch_interval_ms=<ms>` dans l'adresse de `pnpm dev:web` (lu par `src/web-bridge.ts`, sans effet dans l'application livrée).
+
 ## Commandes de qualité
 
 | Commande            | Rôle                                                                 |

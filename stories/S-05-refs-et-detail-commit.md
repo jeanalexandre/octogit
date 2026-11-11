@@ -25,6 +25,7 @@
 
 ## Contexte technique
 - Dépend de S-4 : `CommitGraph` en lanes virtualisé, colonnes, `CommitNode` ; `crates/git/src/lib.rs` (lecture `gix`), `src-tauri/src/commands.rs`, contrat `pnpm gen:bindings`.
+- Graphe de tout le dépôt : aujourd'hui `read_commits` ne parcourt que depuis `HEAD`. Pour CA-7, le parcours part de toutes les refs (branches locales, `origin/…`, tags, stashes), triées du plus récent au plus ancien, pour que chaque ref ait son nœud dans le graphe et que les lanes de S-4 montrent toutes les branches. La limite de 10 000 commits et CA-23 (S-4) restent tenus.
 - Refs : branches locales, `origin/…` (même jamais récupérées localement), tags, stashes (`refs/stash` et son reflog) ; le crate `git` les lit, `app` les expose. Une ref désigne un commit ; plusieurs refs sur un commit se groupent dans la colonne des refs.
 - Variantes `RefLabel` (`ux/ecrans/history.md`) : pleine (synchronisée), pleine avec anneau (en avance), pointillés (distante seule), tag ; le nom est toujours en texte (jamais la couleur seule). « Not published » (CA-11) et `PushButton` sont en S-20, pas ici.
 - Avance / retard : la branche courante comparée à sa branche distante suivie (configuration de suivi du dépôt) ; deux nombres visibles sans survol. Branche courante sans suivi : rien n'est affiché ici (S-20).

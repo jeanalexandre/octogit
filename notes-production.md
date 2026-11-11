@@ -13,3 +13,5 @@
 <!-- Limites visibles par un utilisateur ou un exploitant, risques acceptés en tri, mineurs conservés qui décrivent une limite. -->
 
 - Avis GHSA-gcqx-w48m-w2h4 (`deepmerge` ≤ 4.3.1, gravité faible, outil de build seulement, sans correctif) ignoré dans `auditConfig.ignoreGhsas` de `pnpm-workspace.yaml` : accepté par l'humain (2a), exception à retirer dès qu'un correctif sort (S-1, écarts du passage 1)
+- `History` lit au plus 10 000 commits : au-delà, le graphe s'arrête sans signe, les lanes encore ouvertes descendent jusqu'en bas et rien n'indique que l'historique est tronqué (S-4, revue 1, pour information)
+- Un échec d'écriture du fichier de préférences (`preferences.json`) est ignoré sans message : une colonne masquée paraît mémorisée mais réapparaît à la relance (S-4, revue 1, pour information)

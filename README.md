@@ -30,6 +30,12 @@ pnpm install
 - Le dépôt ouvert passe en tête de Recent ; au lancement, Octogit rouvre le dernier dépôt ouvert (`repositories.json`, version 2 ; la version 1 est migrée à la lecture).
 - En test (`pnpm dev:web`, Playwright), le sélecteur natif est remplacé par le dossier posé dans `window.__octogitChosenFolder`.
 
+## Graphe de `History`
+
+- Le graphe est une liste virtualisée (seules les lignes visibles, plus quelques-unes de marge, existent dans le DOM) : lanes colorées tracées en SVG par ligne, nœuds aux initiales de l'auteur, dates relatives (heure absolue au survol), barre d'aide en pied. Jusqu'à 10 000 commits sont lus.
+- Un clic droit sur l'en-tête (au clavier : touche menu ou Maj+F10 depuis l'en-tête qui a le focus) masque ou réaffiche les colonnes auteur, date et SHA ; le choix est gardé dans `preferences.json` (`version` 1, champ `hidden_columns`) sous `OCTOGIT_DATA_DIR`.
+- Dépôt de 10 000 commits : `fixtures/large.sh <dossier>` le crée en moins d'une seconde (un seul `git fast-import`, déterministe). Il sert au test de performance de `e2e/graph.spec.ts` (ouverture en moins de 3 s, défilement du premier au dernier commit sans trou, 50 images/s au moins sur Chromium) ; ce test, d'une quinzaine de secondes, tourne avec les autres par `pnpm e2e`. Pour lui seul : `pnpm e2e -g CA-23`.
+
 ## Commandes de qualité
 
 | Commande            | Rôle                                                                 |

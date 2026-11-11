@@ -9,15 +9,41 @@ export const commands = {
 	openRepository: (path: string) => typedError<RepositoryView, OpenError>(__TAURI_INVOKE("open_repository", { path })),
 	/**  Sélecteur de dossier natif ; `None` si annulé. En mode test, le pont d'interface répond à sa place. */
 	chooseFolder: () => __TAURI_INVOKE<string | null>("choose_folder"),
+	getHiddenColumns: () => __TAURI_INVOKE<Column[]>("get_hidden_columns"),
+	setHiddenColumns: (columns: Column[]) => __TAURI_INVOKE<void>("set_hidden_columns", { columns }),
 };
 
 /* Types */
+/**  Colonnes du graphe que l'on peut masquer. */
+export type Column = "author" | "date" | "sha";
+
 export type CommitView = {
 	id: string,
 	summary: string,
 	author: string,
 	/**  Secondes depuis l'epoch. */
 	timestamp: number | null,
+	/**  Colonne du nœud dans le graphe. */
+	lane: number,
+	/**  Indice de couleur de lane, de 0 à 5 (`lane-1`…`lane-6`). */
+	color: number,
+	/**  Tronçons de lignes à tracer dans la hauteur de la ligne. */
+	edges: EdgeView[],
+};
+
+export type EdgeKindView = 
+/**  La lane `from` traverse la ligne de haut en bas. */
+"through" | 
+/**  De la lane `from`, en haut de la ligne, vers le nœud (lane `to`). */
+"in" | 
+/**  Du nœud (lane `from`) vers la lane `to`, en bas de la ligne. */
+"out";
+
+export type EdgeView = {
+	kind: EdgeKindView,
+	from: number,
+	to: number,
+	color: number,
 };
 
 export type LaunchState = { screen: "history"; repository: RepositoryView } | { screen: "welcome" };

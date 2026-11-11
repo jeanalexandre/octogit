@@ -7,8 +7,8 @@ use octogit_store::Store;
 use serde::Serialize;
 use specta::Type;
 
-/// Nombre de commits lus pour la liste simple de S-1 (graphe virtualisé : S-4).
-pub const COMMIT_LIMIT: usize = 500;
+/// Nombre de commits lus pour le graphe (liste virtualisée : 10 000 commits tiennent).
+pub const COMMIT_LIMIT: usize = 10_000;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -18,6 +18,32 @@ pub struct CommitView {
     pub author: String,
     /// Secondes depuis l'epoch.
     pub timestamp: f64,
+    /// Colonne du nœud dans le graphe.
+    pub lane: u32,
+    /// Indice de couleur de lane, de 0 à 5 (`lane-1`…`lane-6`).
+    pub color: u32,
+    /// Tronçons de lignes à tracer dans la hauteur de la ligne.
+    pub edges: Vec<EdgeView>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum EdgeKindView {
+    /// La lane `from` traverse la ligne de haut en bas.
+    Through,
+    /// De la lane `from`, en haut de la ligne, vers le nœud (lane `to`).
+    In,
+    /// Du nœud (lane `from`) vers la lane `to`, en bas de la ligne.
+    Out,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct EdgeView {
+    pub kind: EdgeKindView,
+    pub from: u32,
+    pub to: u32,
+    pub color: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
@@ -38,16 +64,34 @@ pub enum LaunchState {
 /// Lit le dépôt `path` pour `History` ; `None` si ce n'est pas un dépôt Git lisible.
 pub fn repository_view(path: &Path) -> Option<RepositoryView> {
     let commits = octogit_git::read_commits(path, COMMIT_LIMIT).ok()?;
+    let rows = octogit_git::layout(&commits);
     Some(RepositoryView {
         name: folder_name(path),
         path: path.to_string_lossy().into_owned(),
         commits: commits
             .into_iter()
-            .map(|c| CommitView {
+            .zip(rows)
+            .map(|(c, row)| CommitView {
                 id: c.id,
                 summary: c.summary,
                 author: c.author,
                 timestamp: c.timestamp as f64,
+                lane: row.lane as u32,
+                color: row.color as u32,
+                edges: row
+                    .edges
+                    .into_iter()
+                    .map(|e| EdgeView {
+                        kind: match e.kind {
+                            octogit_git::EdgeKind::Through => EdgeKindView::Through,
+                            octogit_git::EdgeKind::In => EdgeKindView::In,
+                            octogit_git::EdgeKind::Out => EdgeKindView::Out,
+                        },
+                        from: e.from as u32,
+                        to: e.to as u32,
+                        color: e.color as u32,
+                    })
+                    .collect(),
             })
             .collect(),
     })
@@ -136,6 +180,26 @@ mod tests {
             }
             other => panic!("expected History, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn repository_view_carries_the_lanes_of_each_commit() {
+        let ws = Workspace::new();
+        let repo = ws.repo("branches.sh");
+        let view = repository_view(&repo).unwrap();
+        let by = |summary: &str| view.commits.iter().find(|c| c.summary == summary).unwrap();
+        let (main, feature) = (by("Main work"), by("Add profiles"));
+        assert_eq!((main.lane, feature.lane), (0, 1));
+        assert_ne!(main.color, feature.color);
+        assert!(view.commits.iter().all(|c| c.color < 6));
+        let merge = by("Merge feature/profiles");
+        let out: Vec<(u32, u32)> = merge
+            .edges
+            .iter()
+            .filter(|e| e.kind == EdgeKindView::Out)
+            .map(|e| (e.from, e.to))
+            .collect();
+        assert_eq!(out, [(0, 0), (0, 1)]);
     }
 
     #[test]

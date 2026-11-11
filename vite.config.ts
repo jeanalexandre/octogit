@@ -21,19 +21,24 @@ function bridge(): Plugin {
           const header = req.headers["x-octogit-data-dir"];
           const env = { ...process.env };
           if (typeof header === "string" && header) env.OCTOGIT_DATA_DIR = header;
-          const child = execFile(binary, [command], { env }, (error, stdout, stderr) => {
-            res.setHeader("content-type", "application/json");
-            if (error && "code" in error && error.code === 3) {
-              // Erreur métier de la commande : son JSON est transmis tel quel à l'interface.
-              res.statusCode = 422;
-              res.end(stdout);
-            } else if (error) {
-              res.statusCode = 500;
-              res.end(JSON.stringify(stderr || String(error)));
-            } else {
-              res.end(stdout);
-            }
-          });
+          const child = execFile(
+            binary,
+            [command],
+            { env, maxBuffer: 256 * 1024 * 1024 },
+            (error, stdout, stderr) => {
+              res.setHeader("content-type", "application/json");
+              if (error && "code" in error && error.code === 3) {
+                // Erreur métier de la commande : son JSON est transmis tel quel à l'interface.
+                res.statusCode = 422;
+                res.end(stdout);
+              } else if (error) {
+                res.statusCode = 500;
+                res.end(JSON.stringify(stderr || String(error)));
+              } else {
+                res.end(stdout);
+              }
+            },
+          );
           child.stdin?.end(body || "{}");
         });
       });

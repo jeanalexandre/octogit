@@ -1,27 +1,27 @@
 <script lang="ts">
-  import type { RecentView, RepositoryView } from "../bindings";
+  import type { Column, RecentView, RepositoryView } from "../bindings";
+  import CommitGraph from "../components/CommitGraph.svelte";
   import RepoPicker from "../components/RepoPicker.svelte";
 
   let {
     repository,
     recent,
     error,
+    hiddenColumns,
     onopen,
     onchoose,
+    onhidecolumns,
   }: {
     repository: RepositoryView;
     recent: RecentView[];
     /** Message du dernier dossier refusé, ou `null`. */
     error: string | null;
+    /** Colonnes du graphe masquées par l'utilisateur. */
+    hiddenColumns: Column[];
     onopen: (path: string) => void;
     onchoose: () => void;
+    onhidecolumns: (columns: Column[]) => void;
   } = $props();
-
-  const dateFormat = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" });
-
-  function formatDate(timestamp: number | null): string {
-    return timestamp === null ? "" : dateFormat.format(new Date(timestamp * 1000));
-  }
 </script>
 
 <main class="history">
@@ -38,21 +38,15 @@
   {#if repository.commits.length === 0}
     <p class="empty">No commits yet.</p>
   {:else}
-    <ul class="commits">
-      {#each repository.commits as commit (commit.id)}
-        <li>
-          <span class="summary">{commit.summary}</span>
-          <span class="author">{commit.author}</span>
-          <time>{formatDate(commit.timestamp)}</time>
-        </li>
-      {/each}
-    </ul>
+    <CommitGraph commits={repository.commits} {hiddenColumns} {onhidecolumns} />
   {/if}
 </main>
 
 <style>
   .history {
-    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
     background: var(--surface);
     color: var(--ink);
   }
@@ -82,12 +76,6 @@
     color: var(--danger);
   }
 
-  .author,
-  time {
-    color: var(--muted);
-    font-size: 12px;
-  }
-
   .path {
     color: var(--muted);
     font-family: ui-monospace, "SF Mono", monospace;
@@ -97,27 +85,5 @@
   .empty {
     margin: 16px;
     color: var(--muted);
-  }
-
-  .commits {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  li {
-    display: grid;
-    grid-template-columns: 1fr 200px 120px;
-    gap: 16px;
-    padding: 6px 16px;
-    border-bottom: 1px solid var(--border);
-    font-size: 13px;
-  }
-
-  .summary {
-    font-size: 14px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 </style>

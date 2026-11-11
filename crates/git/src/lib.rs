@@ -1,7 +1,11 @@
 //! Lecture de dépôts Git avec `gix` (graphe, refs). Aucune dépendance à Tauri.
 
+mod graph;
+
 use std::fmt;
 use std::path::Path;
+
+pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommitInfo {
@@ -10,6 +14,8 @@ pub struct CommitInfo {
     pub author: String,
     /// Secondes depuis l'epoch (date de l'auteur).
     pub timestamp: i64,
+    /// Identifiants des parents, le premier parent d'abord.
+    pub parents: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -61,6 +67,7 @@ pub fn read_commits(path: &Path, limit: usize) -> Result<Vec<CommitInfo>, GitErr
             summary: message.summary().to_string(),
             author: author.name.to_string(),
             timestamp: author.seconds(),
+            parents: info.parent_ids.iter().map(|id| id.to_string()).collect(),
         });
     }
     Ok(commits)
@@ -116,6 +123,109 @@ mod tests {
             ]
         );
         assert_eq!(commits[0].id.len(), 40);
+    }
+
+    fn by_summary(commits: &[CommitInfo], summary: &str) -> usize {
+        commits
+            .iter()
+            .position(|c| c.summary == summary)
+            .unwrap_or_else(|| panic!("no commit {summary}"))
+    }
+
+    #[test]
+    fn reads_the_parents_of_each_commit() {
+        let fixture = Fixture::new("branches.sh");
+        let commits = read_commits(&fixture.0, 100).unwrap();
+        let merge = &commits[by_summary(&commits, "Merge feature/profiles")];
+        assert_eq!(
+            merge.parents,
+            [
+                commits[by_summary(&commits, "Main work")].id.clone(),
+                commits[by_summary(&commits, "Add profiles")].id.clone()
+            ]
+        );
+        assert!(commits[by_summary(&commits, "Initial commit")]
+            .parents
+            .is_empty());
+    }
+
+    #[test]
+    fn lanes_of_the_branches_repository_split_and_rejoin_with_distinct_colors() {
+        let fixture = Fixture::new("branches.sh");
+        let commits = read_commits(&fixture.0, 100).unwrap();
+        let rows = layout(&commits);
+        assert_eq!(rows.len(), commits.len());
+        let row = |summary: &str| &rows[by_summary(&commits, summary)];
+        let (merge, main, feature, fix) = (
+            row("Merge feature/profiles"),
+            row("Main work"),
+            row("Add profiles"),
+            row("Fix parser bug"),
+        );
+        assert_eq!(
+            (merge.lane, main.lane, feature.lane, fix.lane),
+            (0, 0, 1, 0)
+        );
+        assert_ne!(
+            main.color, feature.color,
+            "neighbouring branches share a colour"
+        );
+        assert_eq!(merge.color, main.color);
+        assert_eq!(fix.color, main.color);
+        // Le merge ouvre une seconde lane vers « Add profiles » ; celle-ci rejoint la lane 0 en bas.
+        let out = |r: &GraphRow| -> Vec<(usize, usize)> {
+            r.edges
+                .iter()
+                .filter(|e| e.kind == EdgeKind::Out)
+                .map(|e| (e.from, e.to))
+                .collect()
+        };
+        assert_eq!(out(merge), [(0, 0), (0, 1)]);
+        // Coude de création : la lane de la branche reste ouverte jusqu'au parent (« Fix parser
+        // bug ») et ne le rejoint que sur la ligne de celui-ci.
+        assert_eq!(out(feature), [(1, 1)]);
+        assert!(fix.edges.iter().any(|e| e.kind == EdgeKind::In
+            && e.from == 1
+            && e.to == 0
+            && e.color == feature.color));
+        assert!(main
+            .edges
+            .iter()
+            .any(|e| e.kind == EdgeKind::Through && e.from == 1 && e.color == feature.color));
+        assert!(rows.iter().all(|r| r.color < LANE_COLORS));
+    }
+
+    #[test]
+    fn merge_elbow_to_a_second_parent_awaited_elsewhere_takes_the_colour_of_that_lane() {
+        let commit = |id: &str, parents: &[&str]| CommitInfo {
+            id: id.into(),
+            summary: id.into(),
+            author: "A".into(),
+            timestamp: 0,
+            parents: parents.iter().map(|p| p.to_string()).collect(),
+        };
+        // X attend B sur la lane 0 ; le merge M (lane 1) a pour second parent B.
+        let rows = layout(&[
+            commit("x", &["b"]),
+            commit("m", &["a", "b"]),
+            commit("a", &["b"]),
+            commit("b", &[]),
+        ]);
+        assert_eq!((rows[0].lane, rows[1].lane), (0, 1));
+        assert_ne!(rows[0].color, rows[1].color);
+        let elbow = rows[1]
+            .edges
+            .iter()
+            .find(|e| e.kind == EdgeKind::Out && e.to == 0)
+            .expect("elbow towards lane 0");
+        assert_eq!(elbow.color, rows[0].color);
+    }
+
+    #[test]
+    fn simple_history_stays_on_one_lane() {
+        let fixture = Fixture::new("simple.sh");
+        let rows = layout(&read_commits(&fixture.0, 100).unwrap());
+        assert!(rows.iter().all(|r| r.lane == 0 && r.color == rows[0].color));
     }
 
     #[test]

@@ -9,6 +9,11 @@ use std::io::Read;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
+struct ColumnsArgs {
+    columns: Vec<octogit_app::preferences::Column>,
+}
+
+#[derive(Deserialize)]
 struct OpenArgs {
     path: String,
 }
@@ -32,6 +37,15 @@ fn main() {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }
+        }
+        "get_hidden_columns" => (
+            serde_json::to_string(&octogit_app::commands::get_hidden_columns()),
+            0,
+        ),
+        "set_hidden_columns" => {
+            let args: ColumnsArgs = serde_json::from_str(&input).expect("arguments { columns }");
+            octogit_app::commands::set_hidden_columns(args.columns);
+            (serde_json::to_string(&()), 0)
         }
         other => {
             eprintln!("unknown command: {other}");

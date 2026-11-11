@@ -17,3 +17,19 @@ export function formatRelative(timestamp: number, now: number = Date.now() / 100
   }
   return "just now";
 }
+
+/** Comme `formatRelative`, avec les minutes abrégées (« 12 min ago ») : dates du graphe. */
+export function formatRelativeShort(timestamp: number, now: number = Date.now() / 1000): string {
+  const seconds = Math.max(0, now - timestamp);
+  if (seconds >= 60 && seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+  return formatRelative(timestamp, now);
+}
+
+const two = (n: number) => String(n).padStart(2, "0");
+
+/** Date et heure locales au format « 2026-11-04 14:32 » ; `timestamp` en secondes. */
+export function formatAbsolute(timestamp: number): string {
+  const d = new Date(timestamp * 1000);
+  const date = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+  return `${date} ${two(d.getHours())}:${two(d.getMinutes())}`;
+}

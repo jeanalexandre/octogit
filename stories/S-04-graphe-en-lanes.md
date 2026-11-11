@@ -21,6 +21,20 @@
 - **explorer-l-historique CA-16** : Étant donné un graphe affiché, alors une barre d'aide en pied du graphe indique en une ligne comment sélectionner une branche puis lancer une action par clic droit.
 - **explorer-l-historique CA-23** : Étant donné un dépôt de 10 000 commits, quand je l'ouvre, alors le graphe s'affiche en moins de 3 s ; quand je le fais défiler du premier au dernier commit, alors le défilement tient 60 images/s sans saut visible.
 
+## Décisions de l'humain
+### Passage 1, écarts (10/11/2026)
+1. Bouton « Columns » (⋯) ajouté dans l'en-tête : retiré. Le menu des colonnes s'ouvre au clavier par la touche menu ou Maj+F10 quand l'en-tête a le focus, comme un menu contextuel ; `ux.md` inchangé (option b).
+2. Seuil du test e2e de défilement à 50 images/s en moyenne : accepté par l'humain (60,0 mesuré).
+3. Coude de création de branche, à corriger : la maquette (`ux/maquettes/history.html`, ex. `M86 187 V349 Q86 357 78 357 H56`) prolonge la lane de la branche **verticalement jusqu'à la ligne du commit parent**, puis tourne vers le nœud parent (coude sur la ligne du parent : en remontant le temps, « droite puis haut »). Le code actuel (`crates/git/src/graph.rs`, `layout` : premier parent déjà attendu par une autre lane → arête `Out` sur la ligne de l'enfant) tourne sur la ligne du **premier commit de la branche** (« haut puis droite »). Attendu : quand le premier parent est déjà attendu ailleurs, la lane de l'enfant reste ouverte jusqu'au parent et le rejoint par une arête `In` sur la ligne du parent. Le second parent d'un merge garde son coude sur la ligne du merge (conforme à la maquette, ex. `M26 425 H48 Q56 425 56 433 V459`). Test de calcul de lanes à ajouter (rouge d'abord).
+
+### Après la revue 1 (11/11/2026)
+1. Mineur 3 (couleur du coude vers un second parent déjà attendu) : traiter (d'office).
+2. Mineur 4 (remplissage du nœud mélangé avec `on-brand` au lieu du blanc de `ux/tokens.md`) : traiter (d'office).
+3. Mineur 5 (date absolue au focus, lignes pas encore focalisables) : reporter vers S-56 (clavier sur les écrans complexes) (d'office).
+4. Mineur 6 (`role="toolbar"` vide sur l'en-tête) : traiter (d'office).
+5. Graphe tronqué sans signe au-delà de 10 000 commits : pris en compte (pour information).
+6. Échec d'écriture des préférences ignoré sans message : pris en compte (pour information).
+
 ## Contexte technique
 - Existant à étendre : `crates/git/src/lib.rs` (`read_commits`, `CommitInfo` : id, summary, author, timestamp ; lecture `gix`) ; `src-tauri/src/launch.rs` et `open.rs` (`RepositoryView` porte la liste des commits) ; `src/lib/screens/History.svelte` (liste simple à remplacer) ; `src/lib/relativeTime.ts` (date relative, à réutiliser ou compléter) ; `src/lib/styles/tokens.css` (tokens `lane-1`…`lane-6`, `node-ink`, `selection`, `border`, `muted`…, seule source des couleurs).
 - Il faut les parents de chaque commit pour calculer les lanes : enrichir `CommitInfo` (ou un type dédié) dans le crate `git` ; `src-tauri` n'expose que des commandes ; contrat par `pnpm gen:bindings` (`src/lib/bindings.ts` généré, jamais édité).
@@ -65,7 +79,11 @@
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : <à noter au début de la boucle>
+Référence du diff : `6234e98`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (complété après décisions 1 et 3 de « Passage 1, écarts ») : rouge constaté sur les tests rapides, 8 e2e de `graph.spec.ts` sans rouge ; vérifications relancées ✅ | — |
+| 1 | reviewer (opus) | 2 bloquants (initiales en 10 px, menu des colonnes sans « Commit message » ni note), 4 mineurs, 2 pour information — `stories/S-04-revue-1.md` | à corriger |
+| 2 | dev | terminé : bloquants 1 et 2, mineurs 3, 4 et 6 traités, rouge constaté sur les tests rapides, extension e2e CA-13 clavier sans rouge ; vérifications relancées ✅ | — |
+| 2 | reviewer (opus) | 0 bloquant, 0 mineur, RAS — `stories/S-04-revue-2.md` | validé |

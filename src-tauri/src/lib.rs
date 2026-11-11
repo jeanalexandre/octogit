@@ -4,6 +4,7 @@
 pub mod commands;
 pub mod launch;
 pub mod open;
+pub mod preferences;
 
 use std::path::PathBuf;
 
@@ -30,7 +31,9 @@ pub fn builder() -> Builder<tauri::Wry> {
         commands::get_launch_state,
         commands::list_recent_repositories,
         commands::open_repository,
-        commands::choose_folder
+        commands::choose_folder,
+        commands::get_hidden_columns,
+        commands::set_hidden_columns
     ])
 }
 

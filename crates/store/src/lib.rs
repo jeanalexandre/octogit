@@ -9,6 +9,17 @@ use serde::{Deserialize, Serialize};
 pub const REPOSITORIES_FILE: &str = "repositories.json";
 pub const REPOSITORIES_VERSION: u32 = 2;
 
+pub const PREFERENCES_FILE: &str = "preferences.json";
+pub const PREFERENCES_VERSION: u32 = 1;
+
+/// Préférences : colonnes masquées du graphe (thème, palette, Halo viendront ensuite).
+#[derive(Debug, Serialize, Deserialize)]
+struct PreferencesFile {
+    version: u32,
+    #[serde(default)]
+    hidden_columns: Vec<String>,
+}
+
 /// Dépôt récent : chemin et date de dernière ouverture (secondes depuis l'epoch).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecentRepository {
@@ -105,6 +116,27 @@ impl Store {
         };
         let json = serde_json::to_string_pretty(&file).map_err(io::Error::other)?;
         self.write_atomically(REPOSITORIES_FILE, json.as_bytes())
+    }
+
+    /// Colonnes masquées du graphe. Fichier absent, illisible ou d'une version inconnue : aucune.
+    pub fn hidden_columns(&self) -> Vec<String> {
+        let Ok(content) = fs::read_to_string(self.dir.join(PREFERENCES_FILE)) else {
+            return Vec::new();
+        };
+        match serde_json::from_str::<PreferencesFile>(&content) {
+            Ok(file) if file.version == PREFERENCES_VERSION => file.hidden_columns,
+            _ => Vec::new(),
+        }
+    }
+
+    /// Mémorise les colonnes masquées du graphe.
+    pub fn set_hidden_columns(&self, columns: &[String]) -> io::Result<()> {
+        let file = PreferencesFile {
+            version: PREFERENCES_VERSION,
+            hidden_columns: columns.to_vec(),
+        };
+        let json = serde_json::to_string_pretty(&file).map_err(io::Error::other)?;
+        self.write_atomically(PREFERENCES_FILE, json.as_bytes())
     }
 
     /// Écrit dans un fichier temporaire du même dossier, puis le renomme.
@@ -268,6 +300,70 @@ mod tests {
         )
         .unwrap();
         assert_eq!(store.last_repository(), None);
+    }
+
+    #[test]
+    fn hidden_columns_are_empty_by_default_and_survive_a_new_store() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        assert!(Store::new(&data).hidden_columns().is_empty());
+        let columns = vec!["date".to_string(), "sha".to_string()];
+        Store::new(&data).set_hidden_columns(&columns).unwrap();
+        assert_eq!(Store::new(&data).hidden_columns(), columns);
+        Store::new(&data).set_hidden_columns(&[]).unwrap();
+        assert!(Store::new(&data).hidden_columns().is_empty());
+    }
+
+    #[test]
+    fn preferences_file_has_a_version_and_leaves_no_temporary_file() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        let store = Store::new(&data);
+        store.set_hidden_columns(&["author".to_string()]).unwrap();
+        store.set_hidden_columns(&["sha".to_string()]).unwrap();
+        assert_eq!(names(&data), vec![PREFERENCES_FILE.to_string()]);
+        let json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(data.join(PREFERENCES_FILE)).unwrap())
+                .unwrap();
+        assert_eq!(json["version"], PREFERENCES_VERSION);
+        assert_eq!(json["hidden_columns"], serde_json::json!(["sha"]));
+    }
+
+    #[test]
+    fn version_1_preferences_example_file_is_read() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(PREFERENCES_FILE),
+            include_str!("../tests-data/preferences-v1.json"),
+        )
+        .unwrap();
+        assert_eq!(store.hidden_columns(), ["author", "sha"]);
+        store.set_hidden_columns(&["date".to_string()]).unwrap();
+        assert_eq!(store.hidden_columns(), ["date"]);
+    }
+
+    #[test]
+    fn unreadable_or_foreign_version_preferences_mean_no_hidden_column() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(tmp.0.join(PREFERENCES_FILE), "{ not json").unwrap();
+        assert!(store.hidden_columns().is_empty());
+        fs::write(
+            tmp.0.join(PREFERENCES_FILE),
+            r#"{"version": 999, "hidden_columns": ["author"]}"#,
+        )
+        .unwrap();
+        assert!(store.hidden_columns().is_empty());
+    }
+
+    #[test]
+    fn preferences_do_not_touch_the_repositories_file() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        store.record_opened(Path::new("/a"), 1).unwrap();
+        store.set_hidden_columns(&["sha".to_string()]).unwrap();
+        assert_eq!(store.last_repository(), Some(PathBuf::from("/a")));
     }
 
     #[test]

@@ -1,17 +1,30 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { commands, type LaunchState, type RecentView, type RepositoryView } from "./lib/bindings";
+  import {
+    commands,
+    type Column,
+    type LaunchState,
+    type RecentView,
+    type RepositoryView,
+  } from "./lib/bindings";
   import History from "./lib/screens/History.svelte";
   import Welcome from "./lib/screens/Welcome.svelte";
 
   let screen: LaunchState | null = $state(null);
   let recent: RecentView[] = $state([]);
   let error: string | null = $state(null);
+  let hiddenColumns: Column[] = $state([]);
 
   onMount(async () => {
     recent = await commands.listRecentRepositories();
+    hiddenColumns = await commands.getHiddenColumns();
     screen = await commands.getLaunchState();
   });
+
+  async function hideColumns(columns: Column[]) {
+    hiddenColumns = columns;
+    await commands.setHiddenColumns(columns);
+  }
 
   async function open(path: string) {
     const result = await commands.openRepository(path);
@@ -40,7 +53,15 @@
 <svelte:window {onkeydown} />
 
 {#if screen?.screen === "history"}
-  <History repository={screen.repository} {recent} {error} onopen={open} onchoose={chooseFolder} />
+  <History
+    repository={screen.repository}
+    {recent}
+    {error}
+    {hiddenColumns}
+    onopen={open}
+    onchoose={chooseFolder}
+    onhidecolumns={hideColumns}
+  />
 {:else if screen?.screen === "welcome"}
   <Welcome {recent} {error} onopen={open} onchoose={chooseFolder} />
 {/if}

@@ -18,6 +18,12 @@ struct OpenArgs {
     path: String,
 }
 
+#[derive(Deserialize)]
+struct DetailArgs {
+    path: String,
+    id: String,
+}
+
 fn main() {
     let command = std::env::args().nth(1).unwrap_or_default();
     let mut input = String::new();
@@ -46,6 +52,13 @@ fn main() {
             let args: ColumnsArgs = serde_json::from_str(&input).expect("arguments { columns }");
             octogit_app::commands::set_hidden_columns(args.columns);
             (serde_json::to_string(&()), 0)
+        }
+        "get_commit_detail" => {
+            let args: DetailArgs = serde_json::from_str(&input).expect("arguments { path, id }");
+            match octogit_app::commands::get_commit_detail(args.path, args.id) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
         }
         other => {
             eprintln!("unknown command: {other}");

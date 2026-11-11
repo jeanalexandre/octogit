@@ -23,6 +23,24 @@
 ### Fiche (10/11/2026)
 1. « Signé » = une signature est présente dans le commit (en-tête `gpgsig`, GPG ou SSH), sans vérification de sa validité ; le libellé dit « Signed » / « Not signed » et ne promet pas qu'elle est valide (option a).
 
+### Écarts du passage 1 (11/11/2026)
+1. Locale et distante sur le même commit : une seule `RefLabel` pleine au nom de la branche locale, avec l'icône ordinateur et l'icône nuage, comme dans `ux/maquettes/history.html`. `origin/x` n'a sa propre étiquette en pointillés, avec l'icône nuage, que lorsqu'elle est sur un autre commit que la locale ou qu'elle n'a pas de locale. Une branche locale sans distante sur son commit porte l'icône ordinateur (option a).
+2. Stash : variante « stash » distincte des pointillés, avec un contour plein et discret et une icône d'archive (option a). Elle sera reportée dans `ux.md` par `/ksm:ux` à la fin de la story, pas par `dev`.
+3. Tags : chaque `RefLabel` de tag porte une icône de tag, comme dans la maquette (demande de l'humain). Les icônes viennent de Lucide (`stack.md`, Icônes : paquet Svelte, trait de 1,8 px, 16 px, sans remplissage).
+4. Tri des branches dans `BranchSidebar` : l'ordre actuel est gardé tel quel dans cette story. C'est l'ordre des refs rendu par `gix`, alphabétique par octets. L'humain le reverra par `/ksm:ux`.
+
+### Après la revue 1
+1. Mineur 1, nom du stash tronqué dans `BranchSidebar` : traiter (d'office). Le nom de la ref reste lisible en entier, et seule la note est tronquée.
+2. Mineur 2, ref plus ancienne que la limite de 10 000 commits, sans nœud dans le graphe : traiter (d'office). Aucune story du plan ne prévoit ce point. Le traitement :
+   - un test couvre le cas au-delà de la limite et fixe le comportement : la ref reste dans `BranchSidebar`, le graphe ne la montre pas, rien ne plante ;
+   - un commentaire dans le code nomme cette limite.
+
+   La limite elle-même est gardée, et elle sera consignée dans `notes-production.md`.
+3. Les e2e de S-2 comptent une ligne de plus : pris en compte (pour information).
+
+### Après la revue 2
+1. La limite de 10 000 commits est consignée dans `notes-production.md` : pris en compte (pour information).
+
 ## Contexte technique
 - Dépend de S-4 : `CommitGraph` en lanes virtualisé, colonnes, `CommitNode` ; `crates/git/src/lib.rs` (lecture `gix`), `src-tauri/src/commands.rs`, contrat `pnpm gen:bindings`.
 - Graphe de tout le dépôt : aujourd'hui `read_commits` ne parcourt que depuis `HEAD`. Pour CA-7, le parcours part de toutes les refs (branches locales, `origin/…`, tags, stashes), triées du plus récent au plus ancien, pour que chaque ref ait son nœud dans le graphe et que les lanes de S-4 montrent toutes les branches. La limite de 10 000 commits et CA-23 (S-4) restent tenus.
@@ -61,7 +79,11 @@
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : <à noter au début de la boucle>
+Référence du diff : a370e1f
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (repris une fois avant la revue : écarts `ux.md` tranchés par l'humain, rouges manquants) ; vérifications relancées ✅ | — |
+| 1 | reviewer | `stories/S-05-revue-1.md` : 2 mineurs | validé |
+| 2 | dev | terminé (mineurs 1 et 2 traités, rouges des tests de limite constatés par mutation) ; vérifications relancées ✅ | — |
+| 2 | reviewer | `stories/S-05-revue-2.md` : aucun problème | validé |

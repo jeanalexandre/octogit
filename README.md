@@ -34,6 +34,9 @@ pnpm install
 
 - Le graphe est une liste virtualisée (seules les lignes visibles, plus quelques-unes de marge, existent dans le DOM) : lanes colorées tracées en SVG par ligne, nœuds aux initiales de l'auteur, dates relatives (heure absolue au survol), barre d'aide en pied. Jusqu'à 10 000 commits sont lus.
 - Un clic droit sur l'en-tête (au clavier : touche menu ou Maj+F10 depuis l'en-tête qui a le focus) masque ou réaffiche les colonnes auteur, date et SHA ; le choix est gardé dans `preferences.json` (`version` 1, champ `hidden_columns`) sous `OCTOGIT_DATA_DIR`.
+- Le graphe part de HEAD et de toutes les refs (branches locales, `origin/…`, tags, stashes) ; chaque ref est une étiquette (`RefLabel`) dans la colonne de gauche, reliée par un fil au nœud de son commit, et une entrée de `BranchSidebar`. Le stash est un nœud dont seul le premier parent est gardé. L'avance et le retard de la branche courante sur sa branche distante suivie (`branch.<nom>.remote` et `.merge`) s'affichent en en-tête ; sans suivi, rien.
+- Un clic sur un commit ouvre `CommitDetail` à droite : message, auteur, date, SHA, « Signed » (en-tête `gpgsig` présent, validité non vérifiée) ou « Not signed », fichiers modifiés en M / A / D (merge : par rapport au premier parent ; renommages non détectés).
+- Dépôt avec toutes les refs : `fixtures/refs.sh <dossier>` (tags, stash, `develop` en avance de 2 et en retard de 3 sur un `origin` bare, branche seulement distante, merge, commit signé).
 - Dépôt de 10 000 commits : `fixtures/large.sh <dossier>` le crée en moins d'une seconde (un seul `git fast-import`, déterministe). Il sert au test de performance de `e2e/graph.spec.ts` (ouverture en moins de 3 s, défilement du premier au dernier commit sans trou, 50 images/s au moins sur Chromium) ; ce test, d'une quinzaine de secondes, tourne avec les autres par `pnpm e2e`. Pour lui seul : `pnpm e2e -g CA-23`.
 
 ## Commandes de qualité

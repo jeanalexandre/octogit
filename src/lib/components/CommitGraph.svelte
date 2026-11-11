@@ -1,15 +1,24 @@
 <script lang="ts">
-  import type { Column, CommitView, EdgeView } from "../bindings";
+  import type { Column, CommitView, EdgeView, RefView } from "../bindings";
   import { formatAbsolute, formatRelativeShort } from "../relativeTime";
   import CommitNode from "./CommitNode.svelte";
+  import RefLabel from "./RefLabel.svelte";
 
   let {
     commits,
+    refs,
+    selected,
     hiddenColumns,
+    onselect,
     onhidecolumns,
   }: {
     commits: CommitView[];
+    /** Refs du dépôt : chacune s'affiche sur la ligne du commit qu'elle désigne. */
+    refs: RefView[];
+    /** Identifiant du commit sélectionné, ou `null`. */
+    selected: string | null;
     hiddenColumns: Column[];
+    onselect: (id: string) => void;
     onhidecolumns: (columns: Column[]) => void;
   } = $props();
 
@@ -27,6 +36,10 @@
     { id: "sha", label: "SHA" },
   ];
   const WIDTHS: Record<Column, string> = { author: "160px", date: "110px", sha: "76px" };
+  /** Largeur de la colonne des refs, à gauche du graphe. */
+  const REFS_WIDTH = "260px";
+  /** Ordre des étiquettes sur un commit : branches locales, distantes, tags, stashes. */
+  const KIND_ORDER = { branch: 0, remote: 1, tag: 2, stash: 3 };
 
   let scrollTop = $state(0);
   let viewport = $state(0);
@@ -58,8 +71,50 @@
     }
     return max * LANE + 32;
   });
+  type Label = {
+    name: string;
+    variant: "synced" | "ahead" | "remote" | "tag" | "stash";
+    published: boolean;
+  };
+  /**
+   * Étiquettes par commit. Une distante suivie qui désigne le même commit que sa locale ne
+   * s'affiche pas seule : la locale porte l'icône nuage en plus de l'icône ordinateur.
+   */
+  const labelsByCommit = $derived.by(() => {
+    const map: Record<string, Label[]> = {};
+    const sorted = [...refs].sort(
+      (a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.name.localeCompare(b.name),
+    );
+    const merged: string[] = [];
+    const published: string[] = [];
+    // Distante du même commit : la suivie, ou à défaut `<distante>/<nom de la locale>`.
+    const sameCommitRemote = (branch: RefView) =>
+      refs.find(
+        (r) =>
+          r.kind === "remote" &&
+          r.target === branch.target &&
+          (r.name === branch.upstream || r.name.slice(r.name.indexOf("/") + 1) === branch.name),
+      );
+    for (const ref of sorted) {
+      if (ref.kind !== "branch") continue;
+      const remote = sameCommitRemote(ref);
+      if (!remote) continue;
+      merged.push(remote.name);
+      published.push(ref.name);
+    }
+    for (const ref of sorted) {
+      if (ref.kind === "remote" && merged.includes(ref.name)) continue;
+      (map[ref.target] ??= []).push({
+        name: ref.name,
+        variant: ref.kind === "branch" ? (ref.ahead > 0 ? "ahead" : "synced") : ref.kind,
+        published: ref.kind === "branch" && published.includes(ref.name),
+      });
+    }
+    return map;
+  });
   const template = $derived(
     [
+      REFS_WIDTH,
       `${graphWidth}px`,
       "minmax(0, 1fr)",
       ...COLUMNS.filter((c) => shown(c.id)).map((c) => WIDTHS[c.id]),
@@ -152,6 +207,7 @@
       oncontextmenu={openMenu}
       onkeydown={onheadkeydown}
     >
+      <span>Branch / Tag</span>
       <span>Graph</span>
       <span>Commit message</span>
       {#each COLUMNS.filter((c) => shown(c.id)) as column (column.id)}
@@ -165,8 +221,23 @@
           role="listitem"
           style="--lane: var(--lane-{commit.color + 1}); top: {(first + i) * ROW}px"
         >
+          <div class="refs">
+            {#each labelsByCommit[commit.id] ?? [] as label (label.variant + label.name)}
+              <RefLabel
+                name={label.name}
+                variant={label.variant}
+                published={label.published}
+                color={commit.color}
+              />
+            {/each}
+            {#if commit.id in labelsByCommit}<span class="wire" data-wire aria-hidden="true"
+              ></span>{/if}
+          </div>
           <div class="lanes">
             <svg width={graphWidth} height={ROW} aria-hidden="true">
+              {#if commit.id in labelsByCommit}
+                <line class="wire-line" x1="0" x2={x(commit.lane) - 12} y1={ROW / 2} y2={ROW / 2} />
+              {/if}
               {#each commit.edges as edge, k (k)}
                 <path d={path(edge)} style="--lane: var(--lane-{edge.color + 1})" />
               {/each}
@@ -177,7 +248,12 @@
           </div>
           <div class="band">
             <span class="trait" data-trait aria-hidden="true"></span>
-            <span class="summary">{commit.summary}</span>
+            <button
+              type="button"
+              class="summary"
+              aria-current={selected === commit.id ? "true" : undefined}
+              onclick={() => onselect(commit.id)}>{commit.summary}</button
+            >
             {#if shown("author")}<span class="author muted">{commit.author}</span>{/if}
             {#if shown("date") && commit.timestamp !== null}
               <span class="date muted">
@@ -322,7 +398,7 @@
 
   .band {
     display: grid;
-    grid-column: 2 / -1;
+    grid-column: 3 / -1;
     grid-template-columns: subgrid;
     align-items: center;
     position: relative;
@@ -351,8 +427,51 @@
   }
 
   .summary {
-    padding-left: 13px;
+    padding: 0 0 0 13px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
     font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  /* Toute la bande est cliquable ; la date reste au-dessus pour garder son infobulle. */
+  .summary::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  .summary:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+  }
+
+  .band:has(.summary[aria-current="true"]) {
+    background: var(--selection);
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+  }
+
+  .refs {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+    padding-left: 8px;
+  }
+
+  .wire {
+    flex: 1 0 8px;
+    height: 1px;
+    background: var(--border-strong);
+  }
+
+  .wire-line {
+    stroke: var(--border-strong);
+    stroke-width: 1;
   }
 
   .muted {
@@ -362,6 +481,7 @@
 
   .date {
     position: relative;
+    z-index: 1;
     white-space: nowrap;
   }
 

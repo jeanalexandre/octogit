@@ -26,6 +26,13 @@
     await commands.setHiddenColumns(columns);
   }
 
+  async function loadDetail(id: string) {
+    if (screen?.screen !== "history") throw "No repository is open.";
+    const result = await commands.getCommitDetail(screen.repository.path, id);
+    if (result.status === "ok") return result.data;
+    throw result.error;
+  }
+
   async function open(path: string) {
     const result = await commands.openRepository(path);
     if (result.status === "ok") {
@@ -61,6 +68,7 @@
     onopen={open}
     onchoose={chooseFolder}
     onhidecolumns={hideColumns}
+    {loadDetail}
   />
 {:else if screen?.screen === "welcome"}
   <Welcome {recent} {error} onopen={open} onchoose={chooseFolder} />

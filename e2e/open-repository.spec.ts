@@ -43,7 +43,8 @@ for (const size of sizes) {
     await items.nth(2).getByRole("button").click();
     await expect(page.getByRole("heading", { name: "repo-b" })).toBeVisible();
     const rows = page.getByRole("listitem");
-    await expect(rows).toHaveCount(2);
+    // Le graphe montre toutes les branches : « Other side » (branche `other`) y est aussi.
+    await expect(rows).toHaveCount(3);
     await expect(rows.nth(0)).toContainText("Main side");
     await expect(page.getByRole("heading", { name: "Welcome to Octogit" })).toHaveCount(0);
   });
@@ -139,9 +140,11 @@ test("explorer-l-historique CA-2 : RepoPicker change de dépôt dans la même pa
 
   await expect(page.getByRole("heading", { name: "repo-b" })).toBeVisible();
   const rows = page.getByRole("listitem");
-  await expect(rows).toHaveCount(2);
+  // Le graphe montre toutes les branches : « Other side » (branche `other`) y est aussi.
+  await expect(rows).toHaveCount(3);
   await expect(rows.nth(0)).toContainText("Main side");
-  await expect(rows.nth(1)).toContainText("Initial commit");
+  await expect(rows.nth(1)).toContainText("Other side");
+  await expect(rows.nth(2)).toContainText("Initial commit");
   expect(
     await page.evaluate(() => (window as unknown as { __sameDocument?: boolean }).__sameDocument),
   ).toBe(true);

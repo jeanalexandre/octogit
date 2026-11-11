@@ -2,6 +2,7 @@
 //! ou dans des modules testables sans runtime (`launch`).
 
 pub mod commands;
+pub mod detail;
 pub mod launch;
 pub mod open;
 pub mod preferences;
@@ -33,7 +34,8 @@ pub fn builder() -> Builder<tauri::Wry> {
         commands::open_repository,
         commands::choose_folder,
         commands::get_hidden_columns,
-        commands::set_hidden_columns
+        commands::set_hidden_columns,
+        commands::get_commit_detail
     ])
 }
 

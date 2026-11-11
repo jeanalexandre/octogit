@@ -1,12 +1,33 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 import History from "./History.svelte";
-import type { RecentView, RepositoryView } from "../bindings";
+import type { CommitDetailView, RecentView, RefView, RepositoryView } from "../bindings";
 
 /** Graphe du dépôt `branches` : un merge, puis deux branches voisines (lanes 0 et 1). */
+const ref = (overrides: Partial<RefView>): RefView => ({
+  name: "main",
+  kind: "branch",
+  target: "a".repeat(40),
+  current: false,
+  upstream: null,
+  ahead: 0,
+  behind: 0,
+  ...overrides,
+});
+
+const refs: RefView[] = [
+  ref({ name: "develop", current: true, upstream: "origin/develop", ahead: 2, behind: 3 }),
+  ref({ name: "feature/profiles", target: "c".repeat(40), upstream: "origin/feature/profiles" }),
+  ref({ name: "origin/develop", kind: "remote", target: "b".repeat(40) }),
+  ref({ name: "origin/spike/gix", kind: "remote", target: "c".repeat(40) }),
+  ref({ name: "v1.1.0", kind: "tag", target: "a".repeat(40) }),
+  ref({ name: "stash@{0}", kind: "stash", target: "b".repeat(40) }),
+];
+
 const repository: RepositoryView = {
   name: "my-repo",
   path: "/work/my-repo",
+  refs,
   commits: [
     {
       id: "a".repeat(40),
@@ -49,6 +70,18 @@ const repository: RepositoryView = {
   ],
 };
 
+const detail = (overrides: Partial<CommitDetailView> = {}): CommitDetailView => ({
+  id: "b".repeat(40),
+  message: "Main work\n",
+  author: "Bob Durand",
+  email: "bob@example.com",
+  timestamp: 1705222800,
+  signed: true,
+  parents: ["c".repeat(40)],
+  files: [{ path: "main.txt", status: "added" }],
+  ...overrides,
+});
+
 const recent: RecentView[] = [
   { name: "my-repo", path: "/work/my-repo", lastOpened: 1_700_000_000 },
   { name: "other", path: "/work/other", lastOpened: 1_690_000_000 },
@@ -63,6 +96,7 @@ function props(overrides = {}) {
     onopen: vi.fn(),
     onchoose: vi.fn(),
     onhidecolumns: vi.fn(),
+    loadDetail: vi.fn(async () => detail()),
     ...overrides,
   };
 }
@@ -196,5 +230,114 @@ describe("History", () => {
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.length).toBeLessThan(100);
     expect(rows[0]).toHaveTextContent("Commit 0");
+  });
+
+  it("explorer-l-historique CA-7: every ref is in BranchSidebar and in a RefLabel wired to its commit", () => {
+    render(History, props());
+    const sidebar = screen.getByRole("navigation", { name: "Branches" });
+    expect(within(sidebar).getByText("Local · 2")).toBeInTheDocument();
+    expect(within(sidebar).getByText("origin · 2")).toBeInTheDocument();
+    expect(within(sidebar).getByText("Tags · 1")).toBeInTheDocument();
+    expect(within(sidebar).getByText("Stashes · 1")).toBeInTheDocument();
+    for (const name of ["develop", "feature/profiles", "spike/gix", "v1.1.0", "stash@{0}"])
+      expect(within(sidebar).getAllByText(name).length).toBeGreaterThan(0);
+    expect(within(sidebar).getAllByText("develop")[0].closest(".item")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    const rows = screen.getAllByRole("listitem");
+    const labels = (row: HTMLElement) =>
+      [...row.querySelectorAll("[data-ref]")].map(
+        (l) => `${l.textContent?.trim()}:${(l as HTMLElement).dataset.variant}`,
+      );
+    expect(labels(rows[0])).toEqual(["develop:ahead", "v1.1.0:tag"]);
+    expect(labels(rows[1])).toEqual(["origin/develop:remote", "stash@{0}:stash"]);
+    expect(labels(rows[2])).toEqual(["feature/profiles:synced", "origin/spike/gix:remote"]);
+    for (const row of rows.slice(0, 3)) expect(row.querySelector("[data-wire]")).not.toBeNull();
+  });
+
+  it("explorer-l-historique CA-8: a local branch and its remote on the same commit make one label with both icons", () => {
+    const withRemote = [
+      ...refs,
+      ref({ name: "origin/feature/profiles", kind: "remote", target: "c".repeat(40) }),
+    ];
+    render(History, props({ repository: { ...repository, refs: withRemote } }));
+    const row = screen.getAllByRole("listitem")[2];
+    const labels = [...row.querySelectorAll<HTMLElement>("[data-ref]")];
+    expect(labels.map((l) => l.textContent?.trim())).toEqual([
+      "feature/profiles",
+      "origin/spike/gix",
+    ]);
+    const icons = (l: HTMLElement) =>
+      [...l.querySelectorAll<HTMLElement>("[data-icon]")].map((i) => i.dataset.icon);
+    expect(icons(labels[0])).toEqual(["local", "remote"]);
+    expect(icons(labels[1])).toEqual(["remote"]);
+  });
+
+  it("explorer-l-historique CA-8: an untracked local branch and the remote of the same name on its commit make one label", () => {
+    const withRemote = [
+      ref({ name: "feature/profiles", target: "c".repeat(40) }),
+      ref({ name: "origin/feature/profiles", kind: "remote", target: "c".repeat(40) }),
+    ];
+    render(History, props({ repository: { ...repository, refs: withRemote } }));
+    const labels = [
+      ...screen.getAllByRole("listitem")[2].querySelectorAll<HTMLElement>("[data-ref]"),
+    ];
+    expect(labels.map((l) => l.textContent?.trim())).toEqual(["feature/profiles"]);
+    expect(labels[0].querySelectorAll("[data-icon]")).toHaveLength(2);
+  });
+
+  it("explorer-l-historique CA-7: a ref older than the commit limit stays in BranchSidebar and has no label in the graph", () => {
+    // Au-delà de la limite de 10 000 commits, la ref désigne un commit absent de `commits`.
+    const older = [...refs, ref({ name: "ancient", target: "f".repeat(40) })];
+    render(History, props({ repository: { ...repository, refs: older } }));
+    const sidebar = screen.getByRole("navigation", { name: "Branches" });
+    expect(within(sidebar).getByText("ancient")).toBeInTheDocument();
+    expect(within(sidebar).getByText("Local · 3")).toBeInTheDocument();
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(3);
+    const labels = rows.flatMap((r) => [...r.querySelectorAll("[data-ref]")]);
+    expect(labels.some((l) => l.textContent?.includes("ancient"))).toBe(false);
+  });
+
+  it("explorer-l-historique CA-10: the ahead and behind numbers of the current branch are in the page", () => {
+    render(History, props());
+    const group = screen.getByRole("group", { name: "Ahead and behind" });
+    expect(group).toHaveTextContent("2");
+    expect(group).toHaveTextContent("3");
+    expect(within(group).getByLabelText("2 commits ahead")).toBeInTheDocument();
+    expect(within(group).getByLabelText("3 commits behind")).toBeInTheDocument();
+  });
+
+  it("explorer-l-historique CA-10: a current branch without tracking shows no counters", () => {
+    const untracked = refs.map((r) =>
+      r.current ? { ...r, upstream: null, ahead: 0, behind: 0 } : r,
+    );
+    render(History, props({ repository: { ...repository, refs: untracked } }));
+    expect(screen.queryByRole("group", { name: "Ahead and behind" })).toBeNull();
+  });
+
+  it("explorer-l-historique CA-24: clicking a commit opens CommitDetail on its data", async () => {
+    const p = props();
+    render(History, p);
+    expect(screen.queryByRole("region", { name: "Commit detail" })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: /Main work/ }));
+    const panel = await screen.findByRole("region", { name: "Commit detail" });
+    expect(p.loadDetail).toHaveBeenCalledWith("b".repeat(40));
+    expect(panel).toHaveTextContent("Bob Durand");
+    expect(panel).toHaveTextContent("Signed");
+    expect(panel).toHaveTextContent("main.txt");
+    expect(screen.getByRole("button", { name: /Main work/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
+  it("explorer-l-historique CA-25: a merge commit opens the merge variant", async () => {
+    const loadDetail = vi.fn(async () => detail({ parents: ["b".repeat(40), "c".repeat(40)] }));
+    render(History, props({ loadDetail }));
+    await fireEvent.click(screen.getByRole("button", { name: /Merge feature\/profiles/ }));
+    const panel = await screen.findByRole("region", { name: "Commit detail" });
+    await vi.waitFor(() => expect(panel).toHaveAttribute("data-variant", "merge"));
   });
 });

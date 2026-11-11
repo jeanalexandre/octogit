@@ -4,18 +4,38 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
-	getLaunchState: () => __TAURI_INVOKE<LaunchState>("get_launch_state"),
+	getLaunchState: () => __TAURI_INVOKE<LaunchState_Serialize>("get_launch_state"),
 	listRecentRepositories: () => __TAURI_INVOKE<RecentView[]>("list_recent_repositories"),
-	openRepository: (path: string) => typedError<RepositoryView, OpenError>(__TAURI_INVOKE("open_repository", { path })),
+	openRepository: (path: string) => typedError<RepositoryView_Serialize, OpenError>(__TAURI_INVOKE("open_repository", { path })),
 	/**  Sélecteur de dossier natif ; `None` si annulé. En mode test, le pont d'interface répond à sa place. */
 	chooseFolder: () => __TAURI_INVOKE<string | null>("choose_folder"),
 	getHiddenColumns: () => __TAURI_INVOKE<Column[]>("get_hidden_columns"),
 	setHiddenColumns: (columns: Column[]) => __TAURI_INVOKE<void>("set_hidden_columns", { columns }),
+	/**  Détail d'un commit du dépôt `path` (message, auteur, date, signature, fichiers modifiés). */
+	getCommitDetail: (path: string, id: string) => typedError<CommitDetailView, string>(__TAURI_INVOKE("get_commit_detail", { path, id })),
 };
 
 /* Types */
+export type ChangeStatusView = "modified" | "added" | "deleted";
+
 /**  Colonnes du graphe que l'on peut masquer. */
 export type Column = "author" | "date" | "sha";
+
+export type CommitDetailView = {
+	id: string,
+	/**  Message complet. */
+	message: string,
+	author: string,
+	email: string,
+	/**  Secondes depuis l'epoch. */
+	timestamp: number | null,
+	/**  Une signature est présente (GPG ou SSH) ; sa validité n'est pas vérifiée. */
+	signed: boolean,
+	/**  Identifiants des parents : plusieurs pour un commit de merge. */
+	parents: string[],
+	/**  Fichiers modifiés (pour un merge : par rapport au premier parent). */
+	files: FileChangeView[],
+};
 
 export type CommitView = {
 	id: string,
@@ -46,7 +66,16 @@ export type EdgeView = {
 	color: number,
 };
 
-export type LaunchState = { screen: "history"; repository: RepositoryView } | { screen: "welcome" };
+export type FileChangeView = {
+	path: string,
+	status: ChangeStatusView,
+};
+
+export type LaunchState = LaunchState_Serialize | LaunchState_Deserialize;
+
+export type LaunchState_Deserialize = { screen: "history"; repository: RepositoryView_Deserialize } | { screen: "welcome" };
+
+export type LaunchState_Serialize = { screen: "history"; repository: RepositoryView_Serialize } | { screen: "welcome" };
 
 export type OpenError = 
 /**  Le dossier n'est pas un dépôt Git lisible ; `name` est le nom du dossier. */
@@ -59,10 +88,58 @@ export type RecentView = {
 	lastOpened: number | null,
 };
 
-export type RepositoryView = {
+export type RefKindView = "branch" | "remote" | "tag" | "stash";
+
+export type RefView = RefView_Serialize | RefView_Deserialize;
+
+export type RefView_Deserialize = {
+	/**  Nom court : `main`, `origin/main`, `v1.0.0`, `stash@{0}`. */
+	name: string,
+	kind: RefKindView,
+	/**  Identifiant du commit désigné. */
+	target: string,
+	/**  Branche locale courante. */
+	current: boolean,
+	/**  Branche distante suivie, s'il y en a une. */
+	upstream?: string | null,
+	/**  Commits en avance sur la branche distante suivie. */
+	ahead: number,
+	/**  Commits en retard sur la branche distante suivie. */
+	behind: number,
+};
+
+export type RefView_Serialize = {
+	/**  Nom court : `main`, `origin/main`, `v1.0.0`, `stash@{0}`. */
+	name: string,
+	kind: RefKindView,
+	/**  Identifiant du commit désigné. */
+	target: string,
+	/**  Branche locale courante. */
+	current: boolean,
+	/**  Branche distante suivie, s'il y en a une. */
+	upstream: string | null,
+	/**  Commits en avance sur la branche distante suivie. */
+	ahead: number,
+	/**  Commits en retard sur la branche distante suivie. */
+	behind: number,
+};
+
+export type RepositoryView = RepositoryView_Serialize | RepositoryView_Deserialize;
+
+export type RepositoryView_Deserialize = {
 	name: string,
 	path: string,
 	commits: CommitView[],
+	/**  Branches locales, `origin/…`, tags et stashes ; chacune désigne un commit de `commits`. */
+	refs: RefView_Deserialize[],
+};
+
+export type RepositoryView_Serialize = {
+	name: string,
+	path: string,
+	commits: CommitView[],
+	/**  Branches locales, `origin/…`, tags et stashes ; chacune désigne un commit de `commits`. */
+	refs: RefView_Serialize[],
 };
 
 /* Tauri Specta runtime */

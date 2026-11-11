@@ -14,7 +14,7 @@ export class Workspace {
 
   /** Fabrique un dépôt d'exemple avec un script de `fixtures/` ; rend son chemin. */
   repo(
-    script: "simple" | "empty" | "branches" | "conflict" | "identity" | "large",
+    script: "simple" | "empty" | "branches" | "refs" | "conflict" | "identity" | "large",
     name = "my-repo",
   ): string {
     const path = join(this.root, name);

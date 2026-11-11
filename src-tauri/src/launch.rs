@@ -8,6 +8,10 @@ use serde::Serialize;
 use specta::Type;
 
 /// Nombre de commits lus pour le graphe (liste virtualisée : 10 000 commits tiennent).
+///
+/// Limite connue : une ref plus ancienne que ces 10 000 commits (du plus récent au plus ancien)
+/// reste dans `refs`, donc dans `BranchSidebar`, mais n'a ni nœud ni `RefLabel` dans le graphe.
+/// Rien ne plante ; la limite est gardée et sera consignée dans `notes-production.md`.
 pub const COMMIT_LIMIT: usize = 10_000;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
@@ -52,6 +56,35 @@ pub struct RepositoryView {
     pub name: String,
     pub path: String,
     pub commits: Vec<CommitView>,
+    /// Branches locales, `origin/…`, tags et stashes ; chacune désigne un commit de `commits`.
+    pub refs: Vec<RefView>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum RefKindView {
+    Branch,
+    Remote,
+    Tag,
+    Stash,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RefView {
+    /// Nom court : `main`, `origin/main`, `v1.0.0`, `stash@{0}`.
+    pub name: String,
+    pub kind: RefKindView,
+    /// Identifiant du commit désigné.
+    pub target: String,
+    /// Branche locale courante.
+    pub current: bool,
+    /// Branche distante suivie, s'il y en a une.
+    pub upstream: Option<String>,
+    /// Commits en avance sur la branche distante suivie.
+    pub ahead: u32,
+    /// Commits en retard sur la branche distante suivie.
+    pub behind: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
@@ -63,7 +96,13 @@ pub enum LaunchState {
 
 /// Lit le dépôt `path` pour `History` ; `None` si ce n'est pas un dépôt Git lisible.
 pub fn repository_view(path: &Path) -> Option<RepositoryView> {
-    let commits = octogit_git::read_commits(path, COMMIT_LIMIT).ok()?;
+    repository_view_with_limit(path, COMMIT_LIMIT)
+}
+
+/// Comme `repository_view`, avec au plus `limit` commits (voir `COMMIT_LIMIT` pour les refs au-delà).
+fn repository_view_with_limit(path: &Path, limit: usize) -> Option<RepositoryView> {
+    let commits = octogit_git::read_commits(path, limit).ok()?;
+    let refs = octogit_git::read_refs(path).ok()?;
     let rows = octogit_git::layout(&commits);
     Some(RepositoryView {
         name: folder_name(path),
@@ -92,6 +131,23 @@ pub fn repository_view(path: &Path) -> Option<RepositoryView> {
                         color: e.color as u32,
                     })
                     .collect(),
+            })
+            .collect(),
+        refs: refs
+            .into_iter()
+            .map(|r| RefView {
+                name: r.name,
+                kind: match r.kind {
+                    octogit_git::RefKind::Branch => RefKindView::Branch,
+                    octogit_git::RefKind::Remote => RefKindView::Remote,
+                    octogit_git::RefKind::Tag => RefKindView::Tag,
+                    octogit_git::RefKind::Stash => RefKindView::Stash,
+                },
+                target: r.target,
+                current: r.current,
+                upstream: r.upstream,
+                ahead: r.ahead,
+                behind: r.behind,
             })
             .collect(),
     })
@@ -200,6 +256,44 @@ mod tests {
             .map(|e| (e.from, e.to))
             .collect();
         assert_eq!(out, [(0, 0), (0, 1)]);
+    }
+
+    #[test]
+    fn explorer_l_historique_ca_7_and_ca_10_repository_view_carries_the_refs_and_the_counters() {
+        let ws = Workspace::new();
+        let repo = ws.repo("refs.sh");
+        let view = repository_view(&repo).unwrap();
+        let by = |kind, name: &str| {
+            view.refs
+                .iter()
+                .find(|r| r.kind == kind && r.name == name)
+                .unwrap_or_else(|| panic!("no ref {name}"))
+        };
+        let develop = by(RefKindView::Branch, "develop");
+        assert!(develop.current);
+        assert_eq!(develop.upstream.as_deref(), Some("origin/develop"));
+        assert_eq!((develop.ahead, develop.behind), (2, 3));
+        by(RefKindView::Remote, "origin/spike/gix");
+        by(RefKindView::Tag, "v1.1.0");
+        let stash = by(RefKindView::Stash, "stash@{0}");
+        assert!(view.commits.iter().any(|c| c.id == stash.target));
+        assert!(view
+            .refs
+            .iter()
+            .all(|r| view.commits.iter().any(|c| c.id == r.target)));
+    }
+
+    #[test]
+    fn explorer_l_historique_ca_7_a_ref_beyond_the_commit_limit_stays_in_refs_without_a_node() {
+        let ws = Workspace::new();
+        let repo = ws.repo("refs.sh");
+        let view = repository_view_with_limit(&repo, 3).unwrap();
+        assert_eq!(view.commits.len(), 3);
+        assert_eq!(view.refs.len(), 10);
+        assert!(view
+            .refs
+            .iter()
+            .any(|r| !view.commits.iter().any(|c| c.id == r.target)));
     }
 
     #[test]

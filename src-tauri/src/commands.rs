@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use octogit_store::Store;
 
 use crate::data_dir;
+use crate::detail::{self, CommitDetailView};
 use crate::launch::{self, LaunchState, RepositoryView};
 use crate::open::{self, OpenError, RecentView};
 use crate::preferences::{self, Column};
@@ -48,4 +49,11 @@ pub fn get_hidden_columns() -> Vec<Column> {
 #[specta::specta]
 pub fn set_hidden_columns(columns: Vec<Column>) {
     preferences::set_hidden_columns(&Store::new(data_dir()), &columns);
+}
+
+/// Détail d'un commit du dépôt `path` (message, auteur, date, signature, fichiers modifiés).
+#[tauri::command]
+#[specta::specta]
+pub fn get_commit_detail(path: String, id: String) -> Result<CommitDetailView, String> {
+    detail::commit_detail(Path::new(&path), &id)
 }

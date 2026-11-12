@@ -11,18 +11,20 @@
 > Révisions : 07/11/2026, « À reporter → Vers `ux.md` » retiré : la variante « Not published » de l'indicateur d'avance / retard (CA-11) et le format de la date relative / absolue au survol (CA-15) figurent dans `ux/ecrans/history.md` (ligne « Avance / retard » et composant `CommitGraph`) ; aucun critère modifié. Validé par l'humain le 07/11/2026.
 > Révisions : 08/11/2026, report de `specs/demarrer-un-depot.md` (J-17) : CA-1 précédé de « Git installé » (Git absent au lancement → `Welcome` à l'état « Git not found », même si un dernier dépôt existe, `ux.md` J-17) ; exclusion « Git absent au lancement (J-17) » ajoutée vers `specs/demarrer-un-depot.md` (CA-20) ; CA-1 modifié, aucun autre critère modifié. Validé par l'humain le 08/11/2026.
 > Révisions : 11/11/2026, révision du 11/11/2026 de `ux.md` (principe 6, `BranchSidebar`, `CommitGraph` / `RefLabel` dans `ux/ecrans/history.md`, section 7 de `ux/maquettes/history.html`) : CA-7 modifié (la colonne des refs ne montre plus une `RefLabel` par ref mais au moins une par commit désigné, voir « +n ») ; organisation de `BranchSidebar`, largeur du graphe, colonne des refs et infobulle de l'auteur portées par `specs/organiser-l-espace.md` (décision de l'humain du 11/11/2026), exclusion ajoutée ; aucun autre critère modifié. Validé par l'humain le 11/11/2026.
+> Révisions : 12/11/2026, révision du 12/11/2026 de `ux.md` (« Direction visuelle », puce « Nœuds du graphe » ; `ux/ecrans/history.md`, `CommitGraph`, variante « stash »), validée par l'humain le 12/11/2026 : le nœud d'une ligne de stash devient un carré à icône d'archive ; CA-12 modifié (limité aux lignes qui ne sont pas des stashes), CA-30 ajouté ; l'icône d'application (`assets/icons/`, hors écrans) n'est pas un critère de ce parcours ; aucun autre critère modifié. Validé par l'humain le 12/11/2026.
 
 ## Objectif
 J'ouvre Octogit : le dernier dépôt s'affiche dans `History`. Le graphe en lanes montre les branches locales et distantes à jour, sans geste de ma part. Je lis l'état du projet d'un coup d'œil. Je retrouve un commit passé par son message, son auteur ou son SHA, puis j'en consulte le détail et le diff de ses fichiers, et je reviens au même endroit du graphe.
 - Jobs servis : J-1, J-4, J-5
 
 ## Périmètre
-- **Inclus :** ouverture du dernier dépôt au lancement ; changement de dépôt par `RepoPicker` ; fetch automatique à l'ouverture puis toutes les minutes, et son état (`FetchStatus`) ; graphe en lanes avec branches locales, `origin/…` (même jamais récupérées), tags et stashes ; avance / retard de la branche courante ; refs en colonne à gauche reliées aux nœuds, lignes teintées par branche (de `ux.md`) ; colonnes auteur, date relative, SHA, masquables par colonne (de `ux.md`) ; initiales d'auteur au lieu d'avatars (de `ux.md`) ; barre d'aide en pied du graphe (de `ux.md`) ; recherche par message, auteur ou SHA (de `ux.md`, ligne « Pas de Welcome, clone, recherche, bandeau d'opération » : seule la recherche est reprise ici) ; détail d'un commit (`CommitDetail`) et diff d'un fichier de ce commit (`DiffView`, mode commit).
+- **Inclus :** ouverture du dernier dépôt au lancement ; changement de dépôt par `RepoPicker` ; fetch automatique à l'ouverture puis toutes les minutes, et son état (`FetchStatus`) ; graphe en lanes avec branches locales, `origin/…` (même jamais récupérées), tags et stashes ; avance / retard de la branche courante ; refs en colonne à gauche reliées aux nœuds, lignes teintées par branche (de `ux.md`) ; colonnes auteur, date relative, SHA, masquables par colonne (de `ux.md`) ; initiales d'auteur au lieu d'avatars (de `ux.md`) ; nœud d'une ligne de stash en carré à icône d'archive (de `ux.md`, révision du 12/11/2026) ; barre d'aide en pied du graphe (de `ux.md`) ; recherche par message, auteur ou SHA (de `ux.md`, ligne « Pas de Welcome, clone, recherche, bandeau d'opération » : seule la recherche est reprise ici) ; détail d'un commit (`CommitDetail`) et diff d'un fichier de ce commit (`DiffView`, mode commit).
 - **Exclu :**
   - Historique d'un fichier et blame, onglets Blame et Historique du fichier (non-objectif, de `ux.md`).
   - Avatars GitHub (non-objectif).
   - Onglets multi-dépôts (non-objectif).
   - Filtre « Whole repo / Local » (écarté dans `ux.md`).
+  - Icône d'application (Dock, Cmd+Tab, Finder, « À propos » ; absente des écrans, `ux.md` « Direction visuelle ») : hors parcours, relève du plan.
   - Organisation de `BranchSidebar` (ordre, tri, groupement par chemin, hauteur et repli des sections, repli du panneau), largeur du graphe, colonne des refs (180 px, troncature, « +n », étiquettes flottantes, saisie en ligne élargie) et infobulle de l'auteur → `specs/organiser-l-espace.md`
   - Tags : création, push, suppression → `specs/synchroniser.md`
   - Démarrer un dépôt (`Welcome`, état « dépôt introuvable », clone par URL) → `specs/demarrer-un-depot.md`
@@ -47,7 +49,7 @@ J'ouvre Octogit : le dernier dépôt s'affiche dans `History`. Le graphe en lane
 - **CA-9** : Étant donné un graphe affiché, alors chaque ligne de commit est teintée de la couleur de sa lane et ouverte par un trait de cette couleur ; deux branches voisines n'ont pas la même couleur de lane.
 - **CA-10** : Étant donné la branche courante en avance de 2 et en retard de 3 sur sa branche distante suivie, quand `History` s'affiche, alors les deux nombres 2 et 3 sont lisibles sans survol ni clic.
 - **CA-11** : Étant donné une branche courante sans branche distante suivie, alors l'indicateur affiche « Not published » à la place du compteur et `PushButton` reste actif.
-- **CA-12** : Étant donné un commit d'auteur « Jean-Alexandre Gautreau », alors son nœud affiche des initiales cerclées de la couleur de sa branche et aucune image d'avatar n'est chargée.
+- **CA-12** (modifié le 12/11/2026) : Étant donné un commit d'auteur « Jean-Alexandre Gautreau » dont la ligne n'est pas un stash, alors son nœud affiche des initiales cerclées de la couleur de sa branche et aucune image d'avatar n'est chargée.
 - **CA-13** : Étant donné un graphe affiché, alors les colonnes auteur, date et SHA abrégé sont visibles ; un clic droit sur l'en-tête de colonnes masque ou réaffiche chacune séparément.
 - **CA-14** : Étant donné une colonne masquée, quand je ferme puis rouvre Octogit, alors elle est toujours masquée.
 - **CA-15** : Étant donné un commit, alors sa date est toujours relative (« 12 min ago », « yesterday », « 3 weeks ago ») ; au survol, la date et l'heure absolues s'affichent au format « 2026-11-04 14:32 ».
@@ -65,10 +67,11 @@ J'ouvre Octogit : le dernier dépôt s'affiche dans `History`. Le graphe en lane
 - **CA-27** : Étant donné `DiffView` en mode commit, quand je passe au fichier suivant ou précédent, alors le diff du fichier voisin dans la liste du commit s'affiche.
 - **CA-28** : Étant donné un fichier ajouté ou supprimé, alors `DiffView` n'affiche qu'un seul côté ; étant donné un fichier binaire, alors `DiffView` affiche l'état binaire au lieu du contenu.
 - **CA-29** : Étant donné `DiffView` ouvert depuis un commit, quand je fais Échap, alors `History` revient avec le même commit sélectionné et la même position de défilement du graphe.
+- **CA-30** (ajouté le 12/11/2026) : Étant donné un dépôt avec un stash, quand `History` s'affiche, alors le nœud de la ligne du stash est un carré de 24 px aux coins arrondis de 5 px, au contour plein (pas en pointillés) de la couleur de sa lane, avec une icône d'archive au centre et sans initiales ; sur le même graphe, le nœud d'un commit qui n'est pas un stash reste un cercle aux initiales (CA-12).
 
 ## Interface
 - Écrans concernés (`ux.md`) : `History` (`ux/ecrans/history.md`, maquette `ux/maquettes/history.html`, sections 1 à 3), états vide, attente, erreur, hors ligne ; `DiffView` en mode commit (`ux/ecrans/diff-view.md`, maquette `ux/maquettes/diff-view.html`).
-- Composants utilisés (`ux.md`) : `Toolbar`, `RepoPicker`, `ProfileBadge` (affiché, non modifié), `FetchStatus`, `BranchSidebar`, `CommitGraph`, `CommitNode`, `RefLabel`, `SearchBox`, `CommitDetail`, `DiffView`, `PushButton` (état actif seulement).
+- Composants utilisés (`ux.md`) : `Toolbar`, `RepoPicker`, `ProfileBadge` (affiché, non modifié), `FetchStatus`, `BranchSidebar`, `CommitGraph`, `CommitNode` (dont la variante « stash »), `RefLabel`, `SearchBox`, `CommitDetail`, `DiffView`, `PushButton` (état actif seulement).
 - Composants à ajouter : aucun.
 
 ## À reporter

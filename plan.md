@@ -1,7 +1,8 @@
 # Plan : Octogit
 
-> Produit par `/plan` à partir de `brief.md` et des specs. Fichier : `plan.md`. Validé par l'humain le 08/11/2026, révision du 11/11/2026 validée le 11/11/2026.
+> Produit par `/plan` à partir de `brief.md` et des specs. Fichier : `plan.md`. Validé par l'humain le 08/11/2026, révision du 11/11/2026 validée le 11/11/2026, révision du 12/11/2026 validée le 12/11/2026.
 > Révisions : 11/11/2026 — `explorer-l-historique` CA-7 modifié (évolution de S-5) et nouvelle spec `organiser-l-espace` (révisions du 11/11/2026 de `ux.md` et `stack.md`) : stories S-57 à S-61 ajoutées en tranche « valeur 1 bis » ; `organiser-l-espace` CA-17 ajouté à S-26 ; CA-10 scindé entre S-59 et S-25 (fermeture au checkout) ; jobs J-1 et J-16 servis aussi par `organiser-l-espace`.
+> Révisions : 12/11/2026 — amendement de `stack.md` (méthode 0.25.0, isolement d'un worktree par `.env.local`) : story d'outillage S-62 ajoutée, à faire avant S-59.
 
 ## Jobs du brief
 | Job | Résumé | Specs |
@@ -37,6 +38,7 @@ La table « Réorganisation proposée » de `ux.md` n'est pas découpée : aucun
 | S-6 | Fetch automatique à l'ouverture puis chaque minute, `FetchStatus`, sans pull implicite | `explorer-l-historique` CA-3, CA-4, CA-6 | J-1 | valeur 1 | S-5 |
 | S-57 | `BranchSidebar` : sections dans l'ordre fixe et triées, noms groupés par chemin en dossiers dépliables, état des dossiers mémorisé par dépôt | `organiser-l-espace` CA-1, CA-2, CA-3 | J-1, J-16 | valeur 1 bis | S-5 |
 | S-58 | Sections de `BranchSidebar` à hauteur ajustée (8 lignes au plus, défilement interne), redimensionnables et repliables, mémorisées globalement ; refs toujours dans le graphe | `organiser-l-espace` CA-4, CA-5, CA-6, CA-7, CA-8 | J-1, J-16 | valeur 1 bis | S-57 |
+| S-62 | Outillage : créneau d'un worktree lu dans `.env.local` (Node natif, `--env-file-if-exists` ou `process.loadEnvFile`) par les scripts pnpm qui lancent l'interface ou les tests (`dev:web`, `e2e`) ; `webServer` de `playwright.config.ts` sans préfixe de commande ; `pnpm tauri dev` reste sur 1420, non isolé (`devUrl` inchangé, décision de l'humain du 12/11/2026) ; valeurs par défaut sans `.env.local` (1420, `.dev-data/`) ; `.env.local` ignoré par Git ; README (lancement en worktree, `.env.local`) et `.env.example` à jour. Aucun changement de comportement de l'application | `stack.md` Environnement local (révision du 12/11/2026) | J-1 | valeur 1 bis | S-58 |
 | S-59 | Replier `BranchSidebar` en bande d'icônes, volet flottant d'une section par-dessus le graphe, fermé par Échap ou un clic ailleurs. Scinde `organiser-l-espace` CA-10 : la fermeture au checkout est en S-25 | `organiser-l-espace` CA-9, CA-10 (sauf checkout) | J-1, J-16 | valeur 1 bis | S-58 |
 | S-60 | Largeur du graphe : toutes les lanes au plus 40 %, fondu des lanes coupées, séparateur à glisser mémorisé par dépôt, figée jusqu'à la réouverture | `organiser-l-espace` CA-11, CA-12, CA-13 | J-1 | valeur 1 bis | S-4 |
 | S-61 | Évolution de S-5 : colonne des refs à 180 px, une `RefLabel` par commit tronquée en fin avec « +n », étiquettes entières flottantes au survol ou au focus ; infobulle nom et adresse de l'auteur | `explorer-l-historique` CA-7 (évolution) ; `organiser-l-espace` CA-14, CA-15, CA-16, CA-18 | J-1 | valeur 1 bis | S-5 |
@@ -94,7 +96,7 @@ La table « Réorganisation proposée » de `ux.md` n'est pas découpée : aucun
 ### Pourquoi cet ordre
 - **socle** : ouvrir un vrai dépôt dans une application installée depuis un `.dmg`, avec les outils de test qui serviront à toutes les stories. Question pour l'humain : `tokens.css` est posé dès S-1 avec le thème par défaut, plutôt qu'une story d'habillage séparée ; le choix de thème, de palette et de Halo reste la tranche valeur 14.
 - **valeur 1** : lire mes dépôts réels en graphe, branches distantes à jour sans geste, et vérifier tout de suite la fluidité sur 10 000 commits (hypothèse risquée n°5).
-- **valeur 1 bis** : tant que `History` vient d'être construit, le rendre lisible sur un dépôt chargé (panneau rangé, graphe à la bonne largeur, noms longs qui ne poussent rien) avant d'y empiler les tranches suivantes ; S-61 reprend la colonne des refs de S-5.
+- **valeur 1 bis** : tant que `History` vient d'être construit, le rendre lisible sur un dépôt chargé (panneau rangé, graphe à la bonne largeur, noms longs qui ne poussent rien) avant d'y empiler les tranches suivantes ; S-61 reprend la colonne des refs de S-5. S-62 (outillage) passe avant S-59 pour que les stories suivantes se lancent en worktree avec `.env.local`.
 - **valeur 2** : définir mes profils pro et perso et voir chaque dépôt écrire la bonne identité et la bonne clé dans son `.git/config`, vérifiable au terminal (hypothèses risquées n°1 et n°4).
 - **valeur 3** : committer depuis Octogit avec la certitude d'être bloqué sur la mauvaise identité.
 - **valeur 4** : échanger avec github.com (fetch, pull, push, force push) sans jamais pousser un commit fait avec le mauvais compte, même depuis le terminal.

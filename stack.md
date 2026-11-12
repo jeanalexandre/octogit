@@ -2,11 +2,12 @@
 
 > Aucun profil de type : hérite du seul `profil-stack.md` (commun). Ce fichier documente tous les choix du projet.
 > `/story` refuse de démarrer tant qu'un champ reste à renseigner.
-> Version du profil de stack utilisée : `0.22.5`
+> Version du profil de stack utilisée : `0.25.0`
 > Validé par l'humain le 08/11/2026.
 > Révisions : 08/11/2026 — reports des specs : J-17 (`specs/demarrer-un-depot.md` : `xcode-select --install`, revérification, reprise en 5 s) ; icônes Lucide ; détection des changements par `notify` ; graphe en liste virtualisée HTML et lanes SVG ; intégrations macOS par plugins Tauri et `keyring` (`platform` dépend désormais de Tauri).
 > Révisions : 08/11/2026 — amendement de S-1 (décisions de l'humain) : Node 26.13.0 et pnpm 12.18.0 fixés ; dépendances d'outillage acceptées (voir Commandes de qualité) ; exception d'audit GHSA-gcqx-w48m-w2h4.
 > Révisions : 11/11/2026 — report de `specs/organiser-l-espace.md` : mémorisations de mise en page dans les fichiers existants (préférences : hauteurs et repli des sections, repli du panneau ; dépôts : état des dossiers, largeur du graphe), écrites à la fin du glisser.
+> Révisions : 12/11/2026 — méthode 0.25.0 : variables du créneau d'un worktree passées par `.env.local` (lu par Node natif) au lieu d'un préfixe de commande ; commandes qui ont besoin du créneau lancées seulement par un script pnpm ; `pnpm tauri dev` non isolé (port 1420).
 
 ## Type
 - Type de projet : application de bureau, macOS seulement pour la première version (d'autres systèmes ne sont pas exclus ensuite)
@@ -46,7 +47,7 @@
 ## Environnement local
 - Lancement de l'application en développement : `pnpm tauri dev` ; données d'Octogit dans `OCTOGIT_DATA_DIR` (par défaut un dossier `.dev-data/` du repo, ignoré par Git), jamais dans `~/Library/Application Support/Octogit/`.
 - Affichage de l'interface pour les captures de revue (choix de l'humain) : `pnpm dev:web`, interface sur `http://localhost:1420` dans le navigateur, avec le pont de test (vraies commandes du crate `app`) et un jeu de dépôts d'exemple versionné (branches, conflit en cours, identité non conforme), données dans un dossier temporaire.
-- Isolement d'un worktree : créneau n (1 à 3) → `OCTOGIT_PORT=142n` (1421, 1422, 1423) et `OCTOGIT_DATA_DIR=.dev-data/slot-n` ; installation `pnpm install` dans le worktree ; aucun fichier local à copier ; arrêt : `Ctrl+C` puis `rm -rf .dev-data/slot-n` (pas de volume).
+- Isolement d'un worktree : créneau n (1 à 3) → `OCTOGIT_PORT=142n` (1421, 1422, 1423) et `OCTOGIT_DATA_DIR=.dev-data/slot-n`, écrits dans `.env.local` à la racine du worktree (non versionné, ignoré par Git), jamais en préfixe de commande ; lecture par Node natif (choix de l'humain, 12/11/2026) : les scripts pnpm qui lancent l'interface ou les tests passent par `node --env-file-if-exists=.env.local` (ou `process.loadEnvFile`), sans dépendance, et leurs sous-processus (vite, cargo, pont de test) héritent des variables ; `pnpm tauri dev` n'est pas isolé : il sert toujours sur le port 1420, un seul à la fois (choix de l'humain, 12/11/2026, aucune commande de qualité ni preuve de revue ne l'utilise) ; toute commande qui a besoin du créneau passe par un script pnpm (`pnpm dev:web`, `pnpm e2e`…), jamais par `npx playwright`, `cargo run` ou un autre lancement direct, qui ne lirait pas `.env.local` (choix de l'humain, 12/11/2026) ; sans `.env.local`, valeurs par défaut (port 1420, `.dev-data/`). Installation `pnpm install` dans le worktree ; aucun autre fichier local à copier ; arrêt : `Ctrl+C` puis `rm -rf .dev-data/slot-n .env.local` (pas de volume).
 
 ## Commandes de qualité (porte de sortie du dev)
 - Installation : gestionnaire JavaScript pnpm (choix de l'humain) ; `pnpm install` (chaîne Rust fixée par `rust-toolchain.toml`). Node 26.13.0 fixé par `.nvmrc` (nvm), pnpm 12.18.0 installé par `npm i -g pnpm@12` et fixé par `packageManager` (corepack ne lance pas pnpm 12) (choix de l'humain, 08/11/2026).

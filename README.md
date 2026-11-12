@@ -83,7 +83,7 @@ Octogit est livré en `.dmg` pour puces Apple, signé ad hoc (sans compte Apple 
 
 ```sh
 pnpm tauri build
-scripts/check-bundle.sh   # monte le .dmg (lecture seule) et vérifie Octogit.app : signature ad hoc, arm64, macOS 13 minimum
+scripts/check-bundle.sh   # monte le .dmg (lecture seule) et vérifie Octogit.app : signature ad hoc, arm64, macOS 13 minimum, icône fournie
 ```
 
 Le `.dmg` est dans `target/release/bundle/dmg/` (`Octogit_<version>_aarch64.dmg`), l'application dans `target/release/bundle/macos/Octogit.app`.
@@ -120,5 +120,6 @@ Octogit écrit ses fichiers JSON dans `OCTOGIT_DATA_DIR`. En développement et e
 - `crates/platform` (`octogit-platform`) : intégrations propres à macOS
 - `src-tauri/` (crate `octogit-app`) : commandes et événements Tauri, sans logique
 - `src/lib/screens/`, `src/lib/components/` : écrans et composants Svelte ; `src/lib/styles/tokens.css` : tokens de couleur ; `src/lib/bindings.ts` : généré
+- `assets/icons/` : icônes fournies, source de `src-tauri/icons/` (`octogit.icns` copié tel quel en `icon.icns` ; `octogit.ico` n'est pas embarqué, macOS seul). Régénérer les PNG : `pnpm tauri icon assets/icons/octogit-original-1024.png --output <dossier temporaire>`, ne garder que `32x32.png`, `128x128.png`, `128x128@2x.png` et `icon.png` dans `src-tauri/icons/`
 - `e2e/` : tests Playwright ; `fixtures/` : scripts qui fabriquent les dépôts d'exemple et le faux `ssh` de test
 - `brief.md`, `ux.md`, `stack.md`, `specs/`, `ux/`, `plan.md`, `stories/` : livrables de méthode

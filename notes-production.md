@@ -8,6 +8,8 @@
 
 <!-- Actions hors code : configuration de l'hébergement, secrets, vérifications sur l'environnement réel. Une source par story qui a relevé le point. -->
 
+- [ ] Vérifier à l'œil l'icône d'Octogit installée depuis le `.dmg` : Dock, Cmd+Tab, Finder et « À propos » (le contenu du bundle est vérifié par `scripts/check-bundle.sh`, pas l'affichage) (S-64, revue 1 et revue 2)
+
 ## Limites et risques acceptés
 
 <!-- Limites visibles par un utilisateur ou un exploitant, risques acceptés en tri, mineurs conservés qui décrivent une limite. -->

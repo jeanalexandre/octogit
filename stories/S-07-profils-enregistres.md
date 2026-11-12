@@ -25,6 +25,14 @@ Ouvrir `ProfileSettings`, créer un premier profil, modifier et enregistrer des 
 1. Champ « SSH key » de CA-2 (option a) : S-7 l'affiche comme un chemin de clé privée saisi au clavier, obligatoire pour Create profile ; S-8 le remplace par Choose… et Generate ed25519….
 2. Accès à `ProfileSettings` (option a) : S-7 livre Cmd+, seul, depuis `History` et `Welcome`, avec retour à l'écran d'origine par Échap. Le bouton Profiles de `Welcome`, l'entrée « Edit profiles… » du menu du badge et l'ouverture sur le profil actif restent à S-17.
 
+### Écarts du passage 1 de dev (12/11/2026)
+3. Nom vide (option a) : Save reste désactivé si le nom du profil est vide, comme pour `user.name` et `user.email`.
+4. Changer de profil dans la liste avec des modifications non enregistrées (option a) : même dialogue qu'à l'Échap, « Discard changes to profile Work? » avec Save, Discard et Cancel ; Save enregistre puis sélectionne le profil choisi, Discard abandonne puis le sélectionne, Cancel reste sur le profil en cours avec ses modifications.
+
+### Après la revue 1
+5. Problème 2 (pastille et couleur dans l'en-tête du profil, comme la maquette) : traiter (d'office).
+6. Problème 3 (focus piégé dans le dialogue « Discard changes to profile X? ») : traiter (d'office).
+
 ## Contexte technique
 - Dépend de S-1 (socle, `tokens.css`, `tauri-specta`, pont de test, fixtures). Premier code des profils : le crate `identity` est vide (`crates/identity/src/lib.rs`).
 - `stack.md` « Données » : fichier JSON `profiles.json` (profils, ordre ; les règles arrivent en S-10) sous `OCTOGIT_DATA_DIR`, champ `version`, écriture atomique, géré par le crate `store` ; suivre le modèle de `crates/store/src/lib.rs` (migrations à la lecture, fichier d'exemple versionné dans `crates/store/tests-data/`, tests de non-écriture hors du dossier de données). Types de profil (nom, couleur, `user.name`, `user.email`, signature, chemin de clé) dans `identity` ; `app` (`src-tauri/src/commands.rs`) n'expose que des commandes, sans logique ; régénérer `src/lib/bindings.ts` par `pnpm gen:bindings`.
@@ -63,7 +71,11 @@ Ouvrir `ProfileSettings`, créer un premier profil, modifier et enregistrer des 
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : à noter au lancement de la boucle
+Référence du diff : 3886a5c
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (suite pour les décisions 3 et 4), vérifications relancées ✅ | — |
+| 1 | reviewer | `stories/S-07-revue-1.md` : 1 bloquant (New profile perd le brouillon), 2 mineurs | à corriger |
+| 2 | dev | terminé, vérifications relancées ✅ | — |
+| 2 | reviewer | `stories/S-07-revue-2.md` : bloquant levé, mineurs traités, aucun problème | validé |

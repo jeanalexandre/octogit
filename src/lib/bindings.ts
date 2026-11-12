@@ -15,6 +15,12 @@ export const commands = {
 	getCommitDetail: (path: string, id: string) => typedError<CommitDetailView, string>(__TAURI_INVOKE("get_commit_detail", { path, id })),
 	/**  Fetch automatique de `path` en tâche de fond (sans bloquer l'interface), puis relecture du dépôt s'il a changé. */
 	fetchRepository: (path: string) => typedError<RepositoryView_Serialize | null, string>(__TAURI_INVOKE("fetch_repository", { path })),
+	/**  Profils dans l'ordre de `ProfileSettings`. */
+	listProfiles: () => __TAURI_INVOKE<ProfileView[]>("list_profiles"),
+	/**  Crée (`id` vide) ou met à jour un profil ; rend le profil enregistré. */
+	saveProfile: (profile: ProfileView) => typedError<ProfileView, string>(__TAURI_INVOKE("save_profile", { profile })),
+	/**  Déplace un profil d'un rang (`delta` négatif : vers le haut) ; rend la liste dans le nouvel ordre. */
+	moveProfile: (id: string, delta: number) => typedError<ProfileView[], string>(__TAURI_INVOKE("move_profile", { id, delta })),
 };
 
 /* Types */
@@ -82,6 +88,18 @@ export type LaunchState_Serialize = { screen: "history"; repository: RepositoryV
 export type OpenError = 
 /**  Le dossier n'est pas un dépôt Git lisible ; `name` est le nom du dossier. */
 { kind: "notARepository"; name: string };
+
+/**  Profil tel que l'interface le manipule. `id` vide : profil pas encore créé. */
+export type ProfileView = {
+	id: string,
+	name: string,
+	/**  Indice de couleur de lane, de 0 à 5 (`lane-1`…`lane-6`). */
+	color: number,
+	userName: string,
+	userEmail: string,
+	signCommits: boolean,
+	sshKeyPath: string,
+};
 
 export type RecentView = {
 	name: string,

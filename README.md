@@ -46,6 +46,14 @@ pnpm install
 - `FetchStatus`, dans l'en-tête de `History`, affiche « fetched n min ago » : l'âge du dernier fetch réussi, mis à jour sans geste. Un échec garde le dernier âge (états hors ligne et erreur : à venir).
 - En test, l'intervalle de 60 s se règle par `?fetch_interval_ms=<ms>` dans l'adresse de `pnpm dev:web` (lu par `src/web-bridge.ts`, sans effet dans l'application livrée).
 
+## Profils
+
+- **Cmd+,** ouvre `ProfileSettings` depuis `History` ou `Welcome` ; Échap revient à l'écran d'origine. Sans profil, seul « Create a first profile » s'affiche (Name, `user.name`, `user.email`, SSH key saisie comme chemin de clé privée ; `user.name` vide par défaut, rien repris de `~/.gitconfig`). Ensuite : liste des profils (pastille de couleur, nom, `user.email`), **New profile**, et pour le profil sélectionné nom, couleur (une des 6 couleurs de lanes), `user.name`, `user.email`, signature des commits et chemin de la clé, enregistrés par **Save** (désactivé si `user.name` ou `user.email` est vide).
+- **Alt+↑ / Alt+↓** montent ou descendent le profil sélectionné ; l'ordre est mémorisé.
+- Échap avec des modifications non enregistrées ouvre « Discard changes to profile … ? » : Save (enregistre puis ferme), Discard (ferme sans enregistrer), Cancel (reste avec les modifications).
+- Les profils vivent dans `profiles.json` (`version` 1, champ `profiles` dans l'ordre de la liste) sous `OCTOGIT_DATA_DIR`, écrit atomiquement. Octogit ne lit ni n'écrit jamais `~/.gitconfig`.
+- Pas encore livrés : choix et génération de clé (S-8), test de connexion (S-9), règles de rattachement (S-10), suppression (S-13), accès par `Welcome` et par le badge (S-17).
+
 ## Commandes de qualité
 
 | Commande            | Rôle                                                                 |
@@ -98,7 +106,7 @@ Octogit écrit ses fichiers JSON dans `OCTOGIT_DATA_DIR`. En développement et e
 ## Organisation du repo
 
 - `crates/git` (`octogit-git`) : lecture des dépôts avec `gix`
-- `crates/identity` (`octogit-identity`) : profils et règles d'identité (vide pour l'instant)
+- `crates/identity` (`octogit-identity`) : profils d'identité (type `Profile`, ordre) ; les règles, la conformité et SSH viendront ensuite
 - `crates/store` (`octogit-store`) : persistance JSON versionnée, écriture atomique
 - `crates/platform` (`octogit-platform`) : intégrations propres à macOS
 - `src-tauri/` (crate `octogit-app`) : commandes et événements Tauri, sans logique

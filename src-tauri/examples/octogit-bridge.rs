@@ -24,6 +24,17 @@ struct DetailArgs {
     id: String,
 }
 
+#[derive(Deserialize)]
+struct SaveProfileArgs {
+    profile: octogit_app::profiles::ProfileView,
+}
+
+#[derive(Deserialize)]
+struct MoveProfileArgs {
+    id: String,
+    delta: i32,
+}
+
 fn main() {
     let command = std::env::args().nth(1).unwrap_or_default();
     let mut input = String::new();
@@ -64,6 +75,26 @@ fn main() {
             let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
             match octogit_app::fetch::fetch_repository(std::path::Path::new(&args.path)) {
                 Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "list_profiles" => (
+            serde_json::to_string(&octogit_app::commands::list_profiles()),
+            0,
+        ),
+        "save_profile" => {
+            let args: SaveProfileArgs =
+                serde_json::from_str(&input).expect("arguments { profile }");
+            match octogit_app::commands::save_profile(args.profile) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "move_profile" => {
+            let args: MoveProfileArgs =
+                serde_json::from_str(&input).expect("arguments { id, delta }");
+            match octogit_app::commands::move_profile(args.id, args.delta) {
+                Ok(views) => (serde_json::to_string(&views), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }
         }

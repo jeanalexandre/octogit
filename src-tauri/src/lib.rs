@@ -7,6 +7,7 @@ pub mod fetch;
 pub mod launch;
 pub mod open;
 pub mod preferences;
+pub mod profiles;
 
 use std::path::PathBuf;
 
@@ -37,7 +38,10 @@ pub fn builder() -> Builder<tauri::Wry> {
         commands::get_hidden_columns,
         commands::set_hidden_columns,
         commands::get_commit_detail,
-        commands::fetch_repository
+        commands::fetch_repository,
+        commands::list_profiles,
+        commands::save_profile,
+        commands::move_profile
     ])
 }
 

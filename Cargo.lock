@@ -2920,6 +2920,7 @@ name = "octogit-app"
 version = "0.1.0"
 dependencies = [
  "octogit-git",
+ "octogit-identity",
  "octogit-platform",
  "octogit-store",
  "serde",
@@ -2941,6 +2942,9 @@ dependencies = [
 [[package]]
 name = "octogit-identity"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "octogit-platform"
@@ -2954,6 +2958,7 @@ dependencies = [
 name = "octogit-store"
 version = "0.1.0"
 dependencies = [
+ "octogit-identity",
  "serde",
  "serde_json",
 ]

@@ -4,6 +4,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use octogit_identity::Profile;
 use serde::{Deserialize, Serialize};
 
 pub const REPOSITORIES_FILE: &str = "repositories.json";
@@ -11,6 +12,17 @@ pub const REPOSITORIES_VERSION: u32 = 2;
 
 pub const PREFERENCES_FILE: &str = "preferences.json";
 pub const PREFERENCES_VERSION: u32 = 1;
+
+pub const PROFILES_FILE: &str = "profiles.json";
+pub const PROFILES_VERSION: u32 = 1;
+
+/// Profils dans l'ordre de `ProfileSettings` (les règles arrivent avec S-10).
+#[derive(Debug, Serialize, Deserialize)]
+struct ProfilesFile {
+    version: u32,
+    #[serde(default)]
+    profiles: Vec<Profile>,
+}
 
 /// Préférences : colonnes masquées du graphe (thème, palette, Halo viendront ensuite).
 #[derive(Debug, Serialize, Deserialize)]
@@ -137,6 +149,27 @@ impl Store {
         };
         let json = serde_json::to_string_pretty(&file).map_err(io::Error::other)?;
         self.write_atomically(PREFERENCES_FILE, json.as_bytes())
+    }
+
+    /// Profils dans leur ordre. Fichier absent, illisible ou d'une version inconnue : aucun.
+    pub fn profiles(&self) -> Vec<Profile> {
+        let Ok(content) = fs::read_to_string(self.dir.join(PROFILES_FILE)) else {
+            return Vec::new();
+        };
+        match serde_json::from_str::<ProfilesFile>(&content) {
+            Ok(file) if file.version == PROFILES_VERSION => file.profiles,
+            _ => Vec::new(),
+        }
+    }
+
+    /// Remplace la liste des profils (l'ordre donné est l'ordre mémorisé).
+    pub fn set_profiles(&self, profiles: &[Profile]) -> io::Result<()> {
+        let file = ProfilesFile {
+            version: PROFILES_VERSION,
+            profiles: profiles.to_vec(),
+        };
+        let json = serde_json::to_string_pretty(&file).map_err(io::Error::other)?;
+        self.write_atomically(PROFILES_FILE, json.as_bytes())
     }
 
     /// Écrit dans un fichier temporaire du même dossier, puis le renomme.
@@ -364,6 +397,99 @@ mod tests {
         store.record_opened(Path::new("/a"), 1).unwrap();
         store.set_hidden_columns(&["sha".to_string()]).unwrap();
         assert_eq!(store.last_repository(), Some(PathBuf::from("/a")));
+    }
+
+    fn sample(id: &str, name: &str) -> octogit_identity::Profile {
+        octogit_identity::Profile {
+            id: id.into(),
+            name: name.into(),
+            color: 3,
+            user_name: "Jean-Alexandre Gautreau".into(),
+            user_email: format!("{id}@pro-company.fr"),
+            sign_commits: true,
+            ssh_key_path: "~/.ssh/id_ed25519_pro".into(),
+        }
+    }
+
+    #[test]
+    fn profiles_are_empty_by_default_and_survive_a_new_store_exactly_and_in_order() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        assert!(Store::new(&data).profiles().is_empty());
+        let mut unsigned = sample("p2", "Perso");
+        unsigned.sign_commits = false;
+        unsigned.color = 5;
+        let profiles = vec![sample("p1", "Pro"), unsigned, sample("p3", "Client X")];
+        Store::new(&data).set_profiles(&profiles).unwrap();
+        assert_eq!(Store::new(&data).profiles(), profiles);
+        let reordered = vec![
+            profiles[0].clone(),
+            profiles[2].clone(),
+            profiles[1].clone(),
+        ];
+        Store::new(&data).set_profiles(&reordered).unwrap();
+        assert_eq!(Store::new(&data).profiles(), reordered);
+    }
+
+    #[test]
+    fn profiles_file_has_a_version_and_leaves_no_temporary_file() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        let store = Store::new(&data);
+        store.set_profiles(&[sample("p1", "Pro")]).unwrap();
+        store
+            .set_profiles(&[sample("p1", "Pro"), sample("p2", "Perso")])
+            .unwrap();
+        assert_eq!(names(&data), vec![PROFILES_FILE.to_string()]);
+        let json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(data.join(PROFILES_FILE)).unwrap()).unwrap();
+        assert_eq!(json["version"], PROFILES_VERSION);
+        assert_eq!(json["profiles"][1]["id"], "p2");
+        assert_eq!(json["profiles"][0]["user_email"], "p1@pro-company.fr");
+    }
+
+    #[test]
+    fn version_1_profiles_example_file_is_read() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(PROFILES_FILE),
+            include_str!("../tests-data/profiles-v1.json"),
+        )
+        .unwrap();
+        let profiles = store.profiles();
+        assert_eq!(profiles.len(), 2);
+        assert_eq!(profiles[0].name, "Pro");
+        assert_eq!(profiles[0].color, 2);
+        assert!(profiles[0].sign_commits);
+        assert_eq!(profiles[1].user_email, "jag@perso.dev");
+        assert!(!profiles[1].sign_commits);
+    }
+
+    #[test]
+    fn unreadable_or_foreign_version_profiles_mean_no_profile() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(tmp.0.join(PROFILES_FILE), "{ not json").unwrap();
+        assert!(store.profiles().is_empty());
+        fs::write(
+            tmp.0.join(PROFILES_FILE),
+            r#"{"version": 999, "profiles": []}"#,
+        )
+        .unwrap();
+        assert!(store.profiles().is_empty());
+    }
+
+    #[test]
+    fn profiles_do_not_touch_the_other_files() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        store.record_opened(Path::new("/a"), 1).unwrap();
+        store.set_hidden_columns(&["sha".to_string()]).unwrap();
+        store.set_profiles(&[sample("p1", "Pro")]).unwrap();
+        assert_eq!(store.last_repository(), Some(PathBuf::from("/a")));
+        assert_eq!(store.hidden_columns(), ["sha"]);
+        assert_eq!(store.profiles().len(), 1);
     }
 
     #[test]

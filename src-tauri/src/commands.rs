@@ -11,6 +11,7 @@ use crate::fetch;
 use crate::launch::{self, LaunchState, RepositoryView};
 use crate::open::{self, OpenError, RecentView};
 use crate::preferences::{self, Column};
+use crate::profiles::{self, ProfileView};
 
 #[tauri::command]
 #[specta::specta]
@@ -50,6 +51,27 @@ pub fn get_hidden_columns() -> Vec<Column> {
 #[specta::specta]
 pub fn set_hidden_columns(columns: Vec<Column>) {
     preferences::set_hidden_columns(&Store::new(data_dir()), &columns);
+}
+
+/// Profils dans l'ordre de `ProfileSettings`.
+#[tauri::command]
+#[specta::specta]
+pub fn list_profiles() -> Vec<ProfileView> {
+    profiles::list(&Store::new(data_dir()))
+}
+
+/// Crée (`id` vide) ou met à jour un profil ; rend le profil enregistré.
+#[tauri::command]
+#[specta::specta]
+pub fn save_profile(profile: ProfileView) -> Result<ProfileView, String> {
+    profiles::save(&Store::new(data_dir()), profile)
+}
+
+/// Déplace un profil d'un rang (`delta` négatif : vers le haut) ; rend la liste dans le nouvel ordre.
+#[tauri::command]
+#[specta::specta]
+pub fn move_profile(id: String, delta: i32) -> Result<Vec<ProfileView>, String> {
+    profiles::move_by(&Store::new(data_dir()), &id, delta)
 }
 
 /// Détail d'un commit du dépôt `path` (message, auteur, date, signature, fichiers modifiés).

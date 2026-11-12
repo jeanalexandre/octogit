@@ -13,6 +13,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 octogit-git = { path = "../crates/git" }
+octogit-identity = { path = "../crates/identity" }
 octogit-platform = { path = "../crates/platform" }
 octogit-store = { path = "../crates/store" }
 tauri = { version = "2", features = [] }

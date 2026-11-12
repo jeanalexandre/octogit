@@ -4,17 +4,22 @@
     commands,
     type Column,
     type LaunchState,
+    type ProfileView,
     type RecentView,
     type RepositoryView,
   } from "./lib/bindings";
   import { scheduleFetch } from "./lib/fetchScheduler";
   import History from "./lib/screens/History.svelte";
+  import ProfileSettings from "./lib/screens/ProfileSettings.svelte";
   import Welcome from "./lib/screens/Welcome.svelte";
 
   let screen: LaunchState | null = $state(null);
   let recent: RecentView[] = $state([]);
   let error: string | null = $state(null);
   let hiddenColumns: Column[] = $state([]);
+  let profiles: ProfileView[] = $state([]);
+  /** `ProfileSettings` ouvert (Cmd+,) par-dessus l'écran d'origine, où Échap ramène. */
+  let settingsOpen = $state(false);
   /** Dernier fetch automatique réussi du dépôt ouvert (secondes depuis l'epoch). */
   let lastFetched: number | null = $state(null);
   /** Incrémenté à chaque ouverture explicite : rouvrir le dépôt déjà ouvert relance son fetch d'ouverture. */
@@ -48,8 +53,21 @@
   onMount(async () => {
     recent = await commands.listRecentRepositories();
     hiddenColumns = await commands.getHiddenColumns();
+    profiles = await commands.listProfiles();
     screen = await commands.getLaunchState();
   });
+
+  async function saveProfile(profile: ProfileView): Promise<ProfileView> {
+    const result = await commands.saveProfile(profile);
+    if (result.status !== "ok") throw result.error;
+    profiles = await commands.listProfiles();
+    return result.data;
+  }
+
+  async function moveProfile(id: string, delta: number) {
+    const result = await commands.moveProfile(id, delta);
+    if (result.status === "ok") profiles = result.data;
+  }
 
   async function hideColumns(columns: Column[]) {
     hiddenColumns = columns;
@@ -67,6 +85,7 @@
     const result = await commands.openRepository(path);
     if (result.status === "ok") {
       error = null;
+      settingsOpen = false;
       openCount++;
       screen = { screen: "history", repository: result.data satisfies RepositoryView };
       recent = await commands.listRecentRepositories();
@@ -81,7 +100,15 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.metaKey && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "o") {
+    if (event.metaKey && !event.shiftKey && !event.altKey && event.key === ",") {
+      event.preventDefault();
+      if (screen !== null) settingsOpen = true;
+    } else if (
+      event.metaKey &&
+      !event.shiftKey &&
+      !event.altKey &&
+      event.key.toLowerCase() === "o"
+    ) {
       event.preventDefault();
       void chooseFolder();
     }
@@ -90,7 +117,15 @@
 
 <svelte:window {onkeydown} />
 
-{#if screen?.screen === "history"}
+{#if settingsOpen}
+  <ProfileSettings
+    {profiles}
+    origin={screen?.screen === "history" ? "History" : "Welcome"}
+    onsave={saveProfile}
+    onmove={moveProfile}
+    onclose={() => (settingsOpen = false)}
+  />
+{:else if screen?.screen === "history"}
   <History
     repository={screen.repository}
     {recent}

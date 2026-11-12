@@ -42,6 +42,30 @@ export class Workspace {
     );
   }
 
+  /** Enregistre des profils complets (dans l'ordre donné), comme le ferait une session précédente. */
+  rememberProfiles(names: string[]): void {
+    writeFileSync(
+      join(this.dataDir, "profiles.json"),
+      JSON.stringify({
+        version: 1,
+        profiles: names.map((name, i) => ({
+          id: `p${i + 1}`,
+          name,
+          color: i % 6,
+          user_name: `${name} User`,
+          user_email: `${name.toLowerCase().replace(/\W+/g, "-")}@example.org`,
+          sign_commits: false,
+          ssh_key_path: `~/.ssh/id_ed25519_${i + 1}`,
+        })),
+      }),
+    );
+  }
+
+  /** Contenu décodé de `profiles.json`. */
+  readProfilesFile(): { version: number; profiles: { name: string }[] } {
+    return JSON.parse(readFileSync(join(this.dataDir, "profiles.json"), "utf8"));
+  }
+
   /** Dossier ordinaire (pas un dépôt Git) avec un fichier et un sous-dossier ; rend son chemin. */
   plainFolder(name = "notes"): string {
     const path = join(this.root, name);

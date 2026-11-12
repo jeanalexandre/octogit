@@ -19,6 +19,10 @@ La colonne des refs garde 180 px : une seule `RefLabel` par commit, tronquée en
 - **organiser-l-espace CA-16** : Étant donné une `RefLabel` tronquée ou suivie de « +n », quand je la survole ou lui donne le focus clavier, alors toutes les `RefLabel` de la ligne s'affichent entières, empilées par-dessus le graphe, dans leur variante (`specs/explorer-l-historique.md` CA-8) ; un double-clic ou un clic droit sur l'une d'elles agit sur cette ref comme sur sa `RefLabel`.
 - **organiser-l-espace CA-18** : Étant donné un commit de « Valérie Olivier » (`v.olivier@pro-company.fr`), quand je survole son nom d'auteur ou lui donne le focus clavier, alors une infobulle affiche « Valérie Olivier <v.olivier@pro-company.fr> ».
 
+## Décisions de l'humain
+### Fiche (12/11/2026)
+1. `specs/explorer-l-historique.md` révisée le 12/11/2026 (CA-12 modifié, CA-30 ajouté) après la création de cette fiche : continuer selon la fiche, aucun critère de S-61 n'a changé.
+
 ## Contexte technique
 - Dépend de S-5 (refs reliées aux nœuds). Fichiers : `src/lib/components/RefLabel.svelte` (+ `RefLabel.test.ts`), `CommitGraph.svelte`, `CommitNode.svelte` ; `specs/explorer-l-historique.md` CA-7 et CA-8 (variantes de `RefLabel` : synchronisée, en avance, distante seule, tag).
 - Priorité d'affichage : courante, sinon locale, sinon distante seule, sinon tag. Une locale et son `origin/…` sur le même commit restent une étiquette à deux icônes (déjà le cas depuis S-5 : ne pas le casser).

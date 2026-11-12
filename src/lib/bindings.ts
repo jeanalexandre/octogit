@@ -67,6 +67,8 @@ export type CommitView = {
 	id: string,
 	summary: string,
 	author: string,
+	/**  Adresse de l'auteur, pour l'infobulle de son nom. */
+	authorEmail: string,
 	/**  Secondes depuis l'epoch. */
 	timestamp: number | null,
 	/**  Colonne du nœud dans le graphe. */

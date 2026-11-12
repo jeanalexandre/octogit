@@ -196,8 +196,8 @@ test("organiser-l-espace CA-8 : replier une section ou un dossier laisse toutes 
   const labels = page.locator("[data-ref]");
   await expect(labels.first()).toBeVisible();
   const before = await labels.allTextContents();
-  expect(before.length).toBeGreaterThan(10);
-  expect(before.join(" ")).toContain("feat/graph");
+  // Une seule étiquette par commit (S-61) : 7 commits portent des refs ; les autres sont dans « +n ».
+  expect(before.length).toBe(7);
 
   await sidebar(page).getByRole("button", { name: "feat · 3" }).click();
   await expect(sidebar(page).getByRole("button", { name: "feat · 3" })).toHaveAttribute(

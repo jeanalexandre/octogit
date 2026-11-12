@@ -22,6 +22,10 @@ La colonne des refs garde 180 px : une seule `RefLabel` par commit, tronquée en
 ## Décisions de l'humain
 ### Fiche (12/11/2026)
 1. `specs/explorer-l-historique.md` révisée le 12/11/2026 (CA-12 modifié, CA-30 ajouté) après la création de cette fiche : continuer selon la fiche, aucun critère de S-61 n'a changé.
+### Passage 1 (12/11/2026)
+1. `dev` bloqué : `pnpm test`, `pnpm e2e` hors bac à sable, demandes écartées entre `dev` parallèles. Décision : relancer les `dev` un par un (S-64 puis S-61), l'humain approuve chaque demande à la main.
+### Après la revue 1
+1. Mineur 1 (`fixtures/refcolumn.sh` en 644, contourné par `sh <script>` dans `e2e/helpers.ts` pour toutes les fixtures) : traiter (d'office), puis `dev` bloqué au passage 2 (`chmod` refusé par le hook ksm, qui demande de lancer un script par son interpréteur). Décision de l'humain : garder `sh <script>` pour toutes les fixtures, mineur clos sans traitement (conforme à la règle du hook).
 
 ## Contexte technique
 - Dépend de S-5 (refs reliées aux nœuds). Fichiers : `src/lib/components/RefLabel.svelte` (+ `RefLabel.test.ts`), `CommitGraph.svelte`, `CommitNode.svelte` ; `specs/explorer-l-historique.md` CA-7 et CA-8 (variantes de `RefLabel` : synchronisée, en avance, distante seule, tag).
@@ -35,7 +39,7 @@ La colonne des refs garde 180 px : une seule `RefLabel` par commit, tronquée en
 ## Interface à vérifier
 - **Écrans et états** : `History` : colonne des refs (nom tronqué, « +n », locale + `origin/…` à deux icônes, tag), étiquettes flottantes au survol et au focus, infobulle d'auteur
 - **Tailles d'écran** : 1500×900, 1920×1080, 1280×720
-- **Adresse** : `http://localhost:1420` (`pnpm dev:web`)
+- **Adresse** : `http://localhost:1421` (`pnpm dev:web`, port du créneau 1)
 
 ## Tests à écrire d'abord
 - [ ] organiser-l-espace CA-14 → test Vitest de `RefLabel` (troncature en fin avec « … ») + e2e : la colonne mesure 180 px avec la ref `feature/very-long-branch-name-for-sso`
@@ -58,8 +62,16 @@ La colonne des refs garde 180 px : une seule `RefLabel` par commit, tronquée en
 - [ ] Documentation listée ci-dessus à jour
 - [ ] Verdict du reviewer : **validé**
 
+## Worktree
+- Chemin : `/Users/jaja/Dev/Perso/octogit-wt/S-61` ; branche `story/S-61` ; base `main` (`c82ae0f`)
+- Fichier d'environnement local : `.env.local` (créneau 1 : `OCTOGIT_PORT=1421`, `OCTOGIT_DATA_DIR=.dev-data/slot-1`)
+
 ## Journal
-Référence du diff : (notée au démarrage de la boucle)
+Référence du diff : `c82ae0f` (calculée par `git merge-base main HEAD` à chaque revue)
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | bloqué : code et tests en place, lint et format verts ; `pnpm test` (cargo, `livraison.test.ts`), `pnpm e2e`, `pnpm audit:deps`, `pnpm tauri build` non lancés jusqu'au bout (bac à sable, demande de permission écartée) ; README à faire | — |
+| 1 | dev (reprise) | terminé : `e2e/sections.spec.ts` (CA-8) adapté à l'étiquette unique, README ; tests (vitest 144, e2e 80), lint, audit et build verts ; rouge non constaté | — |
+| 1 | reviewer | 5 critères couverts, interface conforme aux 3 tailles ; 1 mineur (fixture non exécutable, `sh <script>` dans `helpers.ts`) | validé |
+| 2 | dev | bloqué : `chmod +x fixtures/refcolumn.sh` refusé par le hook ksm (« lance le script par son interpréteur (bash <chemin>) ») ; rien modifié | — |

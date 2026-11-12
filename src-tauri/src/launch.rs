@@ -20,6 +20,8 @@ pub struct CommitView {
     pub id: String,
     pub summary: String,
     pub author: String,
+    /// Adresse de l'auteur, pour l'infobulle de son nom.
+    pub author_email: String,
     /// Secondes depuis l'epoch.
     pub timestamp: f64,
     /// Colonne du nœud dans le graphe.
@@ -114,6 +116,7 @@ fn repository_view_with_limit(path: &Path, limit: usize) -> Option<RepositoryVie
                 id: c.id,
                 summary: c.summary,
                 author: c.author,
+                author_email: c.author_email,
                 timestamp: c.timestamp as f64,
                 lane: row.lane as u32,
                 color: row.color as u32,

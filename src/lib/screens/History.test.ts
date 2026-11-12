@@ -33,6 +33,7 @@ const repository: RepositoryView = {
       id: "a".repeat(40),
       summary: "Merge feature/profiles",
       author: "Alice Martin",
+      authorEmail: "alice@example.com",
       timestamp: 1705310400,
       lane: 0,
       color: 0,
@@ -45,6 +46,7 @@ const repository: RepositoryView = {
       id: "b".repeat(40),
       summary: "Main work",
       author: "Bob Durand",
+      authorEmail: "bob@example.com",
       timestamp: 1705222800,
       lane: 0,
       color: 0,
@@ -58,6 +60,7 @@ const repository: RepositoryView = {
       id: "c".repeat(40),
       summary: "Add profiles",
       author: "Jean-Alexandre Gautreau",
+      authorEmail: "jag@example.com",
       timestamp: 1705136400,
       lane: 1,
       color: 1,
@@ -259,10 +262,83 @@ describe("History", () => {
       [...row.querySelectorAll("[data-ref]")].map(
         (l) => `${l.textContent?.trim()}:${(l as HTMLElement).dataset.variant}`,
       );
-    expect(labels(rows[0])).toEqual(["develop:ahead", "v1.1.0:tag"]);
-    expect(labels(rows[1])).toEqual(["origin/develop:remote", "stash@{0}:stash"]);
-    expect(labels(rows[2])).toEqual(["feature/profiles:synced", "origin/spike/gix:remote"]);
-    for (const row of rows.slice(0, 3)) expect(row.querySelector("[data-wire]")).not.toBeNull();
+    // Une seule étiquette par ligne (la prioritaire), suivie de « +n » (organiser-l-espace CA-15).
+    expect(labels(rows[0])).toEqual(["develop:ahead"]);
+    expect(labels(rows[1])).toEqual(["origin/develop:remote"]);
+    expect(labels(rows[2])).toEqual(["feature/profiles:synced"]);
+    for (const row of rows.slice(0, 3)) {
+      expect(row.querySelector("[data-more]")).toHaveTextContent("+1");
+      expect(row.querySelector("[data-wire]")).not.toBeNull();
+    }
+  });
+
+  it("organiser-l-espace CA-15: a row with a single ref shows no +n", () => {
+    render(
+      History,
+      props({
+        repository: { ...repository, refs: [ref({ name: "main", target: "b".repeat(40) })] },
+      }),
+    );
+    const row = screen.getAllByRole("listitem")[1];
+    expect(row.querySelectorAll("[data-ref]")).toHaveLength(1);
+    expect(row.querySelector("[data-more]")).toBeNull();
+  });
+
+  it("organiser-l-espace CA-16: hovering or focusing the refs cell floats every label of the row, whole, over the graph", async () => {
+    render(History, props());
+    const row = screen.getAllByRole("listitem")[0];
+    const cell = row.querySelector("[data-labels]") as HTMLElement;
+    expect(row.querySelector("[data-floating]")).toBeNull();
+    await fireEvent.mouseEnter(cell);
+    const floating = row.querySelector("[data-floating]") as HTMLElement;
+    expect(
+      [...floating.querySelectorAll("[data-ref]")].map(
+        (l) => `${l.textContent?.trim()}:${(l as HTMLElement).dataset.variant}`,
+      ),
+    ).toEqual(["develop:ahead", "v1.1.0:tag"]);
+    await fireEvent.mouseLeave(cell);
+    expect(row.querySelector("[data-floating]")).toBeNull();
+    await fireEvent.focusIn(cell);
+    expect(row.querySelector("[data-floating]")).not.toBeNull();
+    await fireEvent.focusOut(cell);
+    expect(row.querySelector("[data-floating]")).toBeNull();
+  });
+
+  it("organiser-l-espace CA-16: a floating label reports a double-click and a right-click on its own ref", async () => {
+    const onrefdblclick = vi.fn();
+    const onrefcontextmenu = vi.fn();
+    render(History, props({ onrefdblclick, onrefcontextmenu }));
+    const row = screen.getAllByRole("listitem")[0];
+    await fireEvent.mouseEnter(row.querySelector("[data-labels]") as HTMLElement);
+    const tag = within(row.querySelector("[data-floating]") as HTMLElement).getByText("v1.1.0");
+    await fireEvent.dblClick(tag);
+    await fireEvent.contextMenu(tag);
+    expect(onrefdblclick).toHaveBeenCalledWith("v1.1.0");
+    expect(onrefcontextmenu).toHaveBeenCalledWith("v1.1.0", expect.any(MouseEvent));
+  });
+
+  it("organiser-l-espace CA-18: the author name has a tooltip with the address, on hover and on keyboard focus", async () => {
+    const olivier = {
+      ...repository.commits[0],
+      author: "Valérie Olivier",
+      authorEmail: "v.olivier@pro-company.fr",
+    };
+    render(History, props({ repository: { ...repository, commits: [olivier] } }));
+    const author = screen.getByText("Valérie Olivier");
+    expect(author).toHaveAttribute("tabindex", "0");
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    await fireEvent.mouseEnter(author);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Valérie Olivier <v.olivier@pro-company.fr>",
+    );
+    await fireEvent.mouseLeave(author);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    await fireEvent.focus(author);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Valérie Olivier <v.olivier@pro-company.fr>",
+    );
+    await fireEvent.blur(author);
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
   it("explorer-l-historique CA-8: a local branch and its remote on the same commit make one label with both icons", () => {
@@ -273,14 +349,11 @@ describe("History", () => {
     render(History, props({ repository: { ...repository, refs: withRemote } }));
     const row = screen.getAllByRole("listitem")[2];
     const labels = [...row.querySelectorAll<HTMLElement>("[data-ref]")];
-    expect(labels.map((l) => l.textContent?.trim())).toEqual([
-      "feature/profiles",
-      "origin/spike/gix",
-    ]);
+    expect(labels.map((l) => l.textContent?.trim())).toEqual(["feature/profiles"]);
     const icons = (l: HTMLElement) =>
       [...l.querySelectorAll<HTMLElement>("[data-icon]")].map((i) => i.dataset.icon);
     expect(icons(labels[0])).toEqual(["local", "remote"]);
-    expect(icons(labels[1])).toEqual(["remote"]);
+    expect(row.querySelector("[data-more]")).toHaveTextContent("+1");
   });
 
   it("explorer-l-historique CA-8: an untracked local branch and the remote of the same name on its commit make one label", () => {

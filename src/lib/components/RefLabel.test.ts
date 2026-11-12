@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/svelte";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/svelte";
+import { describe, expect, it, vi } from "vitest";
 import RefLabel from "./RefLabel.svelte";
 
 describe("RefLabel", () => {
@@ -25,6 +25,28 @@ describe("RefLabel", () => {
       unmount();
     }
     expect(seen.size).toBe(5);
+  });
+
+  it("organiser-l-espace CA-14: the full name stays in the text and the title, the cut is the stylesheet's ellipsis; a floating label is not cut", () => {
+    const name = "feature/very-long-branch-name-for-sso";
+    const { container, rerender } = render(RefLabel, { name, variant: "synced" });
+    const label = container.querySelector("[data-ref]") as HTMLElement;
+    expect(label).toHaveAttribute("title", name);
+    expect(label.querySelector(".name")).toHaveTextContent(name);
+    expect(label).not.toHaveAttribute("data-full");
+    rerender({ name, variant: "synced", full: true });
+    expect(label).toHaveAttribute("data-full");
+  });
+
+  it("organiser-l-espace CA-16: a label reports a double-click and a right-click on its own name", async () => {
+    const ondblclick = vi.fn();
+    const oncontextmenu = vi.fn();
+    render(RefLabel, { name: "v1", variant: "tag", ondblclick, oncontextmenu });
+    const label = screen.getByText("v1").closest("[data-ref]") as HTMLElement;
+    await fireEvent.dblClick(label);
+    await fireEvent.contextMenu(label);
+    expect(ondblclick).toHaveBeenCalledWith("v1");
+    expect(oncontextmenu).toHaveBeenCalledWith("v1", expect.any(MouseEvent));
   });
 
   const icons = (props: { variant: (typeof variants)[number]; published?: boolean }) => {

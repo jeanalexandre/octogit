@@ -56,7 +56,9 @@ for (const size of sizes) {
     await expect(labelsOf("Signed work")).toHaveText(["develop"]);
     await expect(labelsOf("Remote three")).toHaveText(["origin/develop"]);
     await expect(labelsOf("Spike gix")).toHaveText(["origin/spike/gix"]);
-    await expect(labelsOf("Merge feature/profiles")).toHaveText(["main", "v1.1.0"]);
+    // Une étiquette par ligne : la prioritaire, `v1.1.0` est le « +1 » (organiser-l-espace CA-15).
+    await expect(labelsOf("Merge feature/profiles")).toHaveText(["main"]);
+    await expect(row(page, "Merge feature/profiles").locator("[data-more]")).toHaveText("+1");
     await expect(labelsOf("Add profiles")).toHaveText(["feature/profiles"]);
     // Locale et distante sur le même commit : une seule étiquette, avec l'ordinateur et le nuage.
     await expect(labelsOf("Add profiles").first().locator("[data-icon]")).toHaveCount(2);
@@ -65,7 +67,7 @@ for (const size of sizes) {
     await expect(labelsOf("Fix parser bug").first().locator("[data-icon=tag]")).toHaveCount(1);
     await expect(page.locator("[data-variant=stash] [data-icon=stash]")).toHaveCount(1);
     await expect(labelsOf("Fix parser bug")).toHaveText(["v1.0.0"]);
-    await expect(page.locator("[data-ref]")).toHaveCount(8);
+    await expect(page.locator("[data-ref]")).toHaveCount(7);
     await expect(page.locator("[data-variant=stash]")).toHaveText("stash@{0}");
     for (const summary of [
       "Signed work",

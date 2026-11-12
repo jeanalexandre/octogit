@@ -8,6 +8,7 @@
     defaultGraphWidth,
     lanesWidth,
   } from "../graphWidth";
+  import { labelsByCommit } from "../refLabels";
   import { formatAbsolute, formatRelativeShort } from "../relativeTime";
   import CommitNode from "./CommitNode.svelte";
   import RefLabel from "./RefLabel.svelte";
@@ -22,7 +23,13 @@
     onselect,
     onhidecolumns,
     onwidth,
+    onrefdblclick,
+    onrefcontextmenu,
   }: {
+    /** Double-clic sur une étiquette de ref (celle de la colonne ou une flottante) : le nom de la ref. */
+    onrefdblclick?: (name: string) => void;
+    /** Clic droit sur une étiquette de ref : le nom de la ref. */
+    onrefcontextmenu?: (name: string, event: MouseEvent) => void;
     commits: CommitView[];
     /** Refs du dépôt : chacune s'affiche sur la ligne du commit qu'elle désigne. */
     refs: RefView[];
@@ -54,13 +61,18 @@
   ];
   const WIDTHS: Record<Column, string> = { author: "160px", date: "110px", sha: "76px" };
   /** Largeur de la colonne des refs, à gauche du graphe. */
-  const REFS_WIDTH = "260px";
-  /** Ordre des étiquettes sur un commit : branches locales, distantes, tags, stashes. */
-  const KIND_ORDER = { branch: 0, remote: 1, tag: 2, stash: 3 };
+  const REFS_WIDTH = "180px";
 
   let scrollTop = $state(0);
   let viewport = $state(0);
   let hovered: string | null = $state(null);
+  /** Nom d'auteur survolé ou focalisé (infobulle avec l'adresse), par commit. */
+  let hoveredAuthor: string | null = $state(null);
+  let focusedAuthor: string | null = $state(null);
+  /** Cellule des étiquettes survolée ou focalisée, par commit : ses étiquettes flottent entières. */
+  let hoveredRefs: string | null = $state(null);
+  let focusedRefs: string | null = $state(null);
+  const floatingId = $derived(hoveredRefs ?? focusedRefs);
   let menu: { x: number; y: number } | null = $state(null);
   let menuElement: HTMLElement | undefined = $state();
   let rowsElement: HTMLElement | undefined = $state();
@@ -159,47 +171,23 @@
     adjusted = next;
     onwidth?.(next);
   }
-  type Label = {
-    name: string;
-    variant: "synced" | "ahead" | "remote" | "tag" | "stash";
-    published: boolean;
-  };
+  /** Étiquettes par commit, la prioritaire d'abord (voir `refLabels.ts`). */
+  const labelMap = $derived(labelsByCommit(refs));
+
   /**
-   * Étiquettes par commit. Une distante suivie qui désigne le même commit que sa locale ne
-   * s'affiche pas seule : la locale porte l'icône nuage en plus de l'icône ordinateur.
+   * Les étiquettes flottent si la ligne en porte plusieurs (« +n ») ou si le nom de l'unique
+   * étiquette est coupé ; sinon elles s'afficheraient en double, au même endroit.
    */
-  const labelsByCommit = $derived.by(() => {
-    const map: Record<string, Label[]> = {};
-    const sorted = [...refs].sort(
-      (a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.name.localeCompare(b.name),
-    );
-    const merged: string[] = [];
-    const published: string[] = [];
-    // Distante du même commit : la suivie, ou à défaut `<distante>/<nom de la locale>`.
-    const sameCommitRemote = (branch: RefView) =>
-      refs.find(
-        (r) =>
-          r.kind === "remote" &&
-          r.target === branch.target &&
-          (r.name === branch.upstream || r.name.slice(r.name.indexOf("/") + 1) === branch.name),
-      );
-    for (const ref of sorted) {
-      if (ref.kind !== "branch") continue;
-      const remote = sameCommitRemote(ref);
-      if (!remote) continue;
-      merged.push(remote.name);
-      published.push(ref.name);
-    }
-    for (const ref of sorted) {
-      if (ref.kind === "remote" && merged.includes(ref.name)) continue;
-      (map[ref.target] ??= []).push({
-        name: ref.name,
-        variant: ref.kind === "branch" ? (ref.ahead > 0 ? "ahead" : "synced") : ref.kind,
-        published: ref.kind === "branch" && published.includes(ref.name),
-      });
-    }
-    return map;
-  });
+  function needsFloating(cell: HTMLElement, count: number): boolean {
+    const name = cell.querySelector<HTMLElement>(".name");
+    return count > 1 || (name !== null && name.scrollWidth > name.clientWidth);
+  }
+  function enterRefs(event: Event, id: string, count: number) {
+    if (needsFloating(event.currentTarget as HTMLElement, count)) hoveredRefs = id;
+  }
+  function focusRefs(event: Event, id: string, count: number) {
+    if (needsFloating(event.currentTarget as HTMLElement, count)) focusedRefs = id;
+  }
   const template = $derived(
     [
       REFS_WIDTH,
@@ -305,26 +293,60 @@
       </div>
       <div class="spacer" role="list" style="height: {commits.length * ROW}px">
         {#each visible as commit, i (commit.id)}
+          {@const labels = labelMap[commit.id] ?? []}
           <div
             class="row"
             role="listitem"
             style="--lane: var(--lane-{commit.color + 1}); top: {(first + i) * ROW}px"
           >
-            <div class="refs">
-              {#each labelsByCommit[commit.id] ?? [] as label (label.variant + label.name)}
-                <RefLabel
-                  name={label.name}
-                  variant={label.variant}
-                  published={label.published}
-                  color={commit.color}
-                />
-              {/each}
-              {#if commit.id in labelsByCommit}<span class="wire" data-wire aria-hidden="true"
-                ></span>{/if}
+            <div class="refs" data-refs>
+              {#if labels.length > 0}
+                <!-- Un groupe focusable (nom des refs en étiquette accessible) : au survol ou au focus, ses étiquettes flottent entières. -->
+                <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+                <div
+                  class="labels"
+                  data-labels
+                  role="group"
+                  tabindex="0"
+                  aria-label="Refs: {labels.map((l) => l.name).join(', ')}"
+                  onmouseenter={(e) => enterRefs(e, commit.id, labels.length)}
+                  onmouseleave={() => (hoveredRefs = null)}
+                  onfocusin={(e) => focusRefs(e, commit.id, labels.length)}
+                  onfocusout={() => (focusedRefs = null)}
+                  onkeydown={(e) => e.key === "Escape" && (focusedRefs = null)}
+                >
+                  <RefLabel
+                    name={labels[0].name}
+                    variant={labels[0].variant}
+                    published={labels[0].published}
+                    color={commit.color}
+                    ondblclick={onrefdblclick}
+                    oncontextmenu={onrefcontextmenu}
+                  />
+                  {#if labels.length > 1}<span class="more" data-more>+{labels.length - 1}</span
+                    >{/if}
+                  {#if floatingId === commit.id}
+                    <div class="floating" data-floating>
+                      {#each labels as label (label.variant + label.name)}
+                        <RefLabel
+                          name={label.name}
+                          variant={label.variant}
+                          published={label.published}
+                          color={commit.color}
+                          full
+                          ondblclick={onrefdblclick}
+                          oncontextmenu={onrefcontextmenu}
+                        />
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+                <span class="wire" data-wire aria-hidden="true"></span>
+              {/if}
             </div>
             <div class="lanes" data-lanes>
               <svg width={graphWidth} height={ROW} aria-hidden="true">
-                {#if commit.id in labelsByCommit}
+                {#if labels.length > 0}
                   <line
                     class="wire-line"
                     x1="0"
@@ -354,7 +376,28 @@
                 aria-current={selected === commit.id ? "true" : undefined}
                 onclick={() => onselect(commit.id)}>{commit.summary}</button
               >
-              {#if shown("author")}<span class="author muted">{commit.author}</span>{/if}
+              {#if shown("author")}
+                <span class="who">
+                  <!-- Le nom d'auteur prend le focus clavier : son infobulle donne l'adresse. -->
+                  <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_static_element_interactions -->
+                  <span
+                    class="author muted"
+                    tabindex="0"
+                    aria-describedby={hoveredAuthor === commit.id || focusedAuthor === commit.id
+                      ? `author-tip-${commit.id}`
+                      : undefined}
+                    onmouseenter={() => (hoveredAuthor = commit.id)}
+                    onmouseleave={() => (hoveredAuthor = null)}
+                    onfocus={() => (focusedAuthor = commit.id)}
+                    onblur={() => (focusedAuthor = null)}>{commit.author}</span
+                  >
+                  {#if hoveredAuthor === commit.id || focusedAuthor === commit.id}
+                    <span role="tooltip" class="tooltip" id="author-tip-{commit.id}"
+                      >{commit.author} &lt;{commit.authorEmail}&gt;</span
+                    >
+                  {/if}
+                </span>
+              {/if}
               {#if shown("date") && commit.timestamp !== null}
                 <span class="date muted">
                   <time
@@ -632,6 +675,48 @@
     padding-left: 8px;
   }
 
+  /* Étiquette prioritaire et « +n » : la cellule se rétrécit, le nom de l'étiquette est coupé en fin par « … ». */
+  .labels {
+    position: relative;
+    display: flex;
+    flex: 0 1 auto;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+    border-radius: 5px;
+  }
+
+  .labels:focus-visible,
+  .author:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .more {
+    flex: none;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+  }
+
+  /* Étiquettes entières, empilées par-dessus le graphe ; la première recouvre exactement l'étiquette de la colonne. */
+  .floating {
+    position: absolute;
+    top: -5px;
+    left: -5px;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+    padding: 4px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface-raised);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--surface) 60%, transparent);
+  }
+
   .wire {
     flex: 1 0 8px;
     height: 1px;
@@ -648,10 +733,19 @@
     font-size: 12px;
   }
 
-  .date {
+  .date,
+  .who {
     position: relative;
     z-index: 1;
     white-space: nowrap;
+  }
+
+  .who {
+    min-width: 0;
+  }
+
+  .author {
+    display: block;
   }
 
   .tooltip {

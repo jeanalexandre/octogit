@@ -15,6 +15,9 @@
     variant,
     color = 0,
     published = false,
+    full = false,
+    ondblclick,
+    oncontextmenu,
   }: {
     name: string;
     variant: "synced" | "ahead" | "remote" | "tag" | "stash";
@@ -22,17 +25,29 @@
     color?: number;
     /** Branche locale dont la distante suivie désigne le même commit. */
     published?: boolean;
+    /** Étiquette entière (flottante) : le nom n'est jamais coupé. Sinon il l'est en fin, par « … ». */
+    full?: boolean;
+    /** Double-clic sur l'étiquette : rappel avec le nom de sa ref (le geste lui-même vient avec S-25). */
+    ondblclick?: (name: string) => void;
+    /** Clic droit sur l'étiquette : rappel avec le nom de sa ref (le menu vient avec S-36). */
+    oncontextmenu?: (name: string, event: MouseEvent) => void;
   } = $props();
 
   const local = $derived(variant === "synced" || variant === "ahead");
 </script>
 
+<!-- Les gestes sont ceux d'une ref, rappelés par ref ; le focus clavier est porté par la cellule des refs. -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <span
   class="ref {variant}"
+  class:full
   data-ref
   data-variant={variant}
+  data-full={full ? "" : undefined}
   title={name}
   style="--lane: var(--lane-{color + 1})"
+  ondblclick={() => ondblclick?.(name)}
+  oncontextmenu={(event) => oncontextmenu?.(name, event)}
   ><span class="name">{name}</span>
   {#if local}<span class="icon" data-icon="local"><Monitor size={14} strokeWidth={1.8} /></span
     >{/if}
@@ -63,6 +78,17 @@
     font-weight: 600;
     line-height: 16px;
     white-space: nowrap;
+  }
+
+  /* Étiquette flottante : entière, rien n'est coupé. */
+  .full {
+    flex: none;
+    overflow: visible;
+  }
+
+  .full .name {
+    overflow: visible;
+    text-overflow: clip;
   }
 
   .name {

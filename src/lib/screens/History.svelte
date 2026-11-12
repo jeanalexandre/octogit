@@ -26,8 +26,14 @@
     ontogglefolder,
     onsectionheight,
     onsectiontoggle,
+    onrefdblclick,
+    onrefcontextmenu,
     loadDetail,
   }: {
+    /** Double-clic sur l'étiquette d'une ref du graphe (checkout : S-25). */
+    onrefdblclick?: (name: string) => void;
+    /** Clic droit sur l'étiquette d'une ref du graphe (`RefContextMenu` : S-36). */
+    onrefcontextmenu?: (name: string, event: MouseEvent) => void;
     repository: RepositoryView;
     recent: RecentView[];
     /** Message du dernier dossier refusé, ou `null`. */
@@ -141,6 +147,8 @@
         onwidth={ongraphwidth}
         onselect={select}
         {onhidecolumns}
+        {onrefdblclick}
+        {onrefcontextmenu}
       />
       {#if detail}
         <aside class="panel"><CommitDetail {detail} /></aside>

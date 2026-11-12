@@ -14,6 +14,7 @@ pub struct CommitInfo {
     pub id: String,
     pub summary: String,
     pub author: String,
+    pub author_email: String,
     /// Secondes depuis l'epoch (date de l'auteur).
     pub timestamp: i64,
     /// Identifiants des parents, le premier parent d'abord.
@@ -286,6 +287,7 @@ pub fn read_commits(path: &Path, limit: usize) -> Result<Vec<CommitInfo>, GitErr
             id: info.id.to_string(),
             summary: message.summary().to_string(),
             author: author.name.to_string(),
+            author_email: author.email.to_string(),
             timestamp: author.seconds(),
             parents: info
                 .parent_ids
@@ -567,6 +569,7 @@ mod tests {
             id: id.into(),
             summary: id.into(),
             author: "A".into(),
+            author_email: "a@example.com".into(),
             timestamp: 0,
             parents: parents.iter().map(|p| p.to_string()).collect(),
         };

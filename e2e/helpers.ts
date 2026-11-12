@@ -19,6 +19,7 @@ export class Workspace {
       | "empty"
       | "branches"
       | "refs"
+      | "refcolumn"
       | "sidebar"
       | "layout"
       | "conflict"
@@ -28,7 +29,7 @@ export class Workspace {
     name = "my-repo",
   ): string {
     const path = join(this.root, name);
-    execFileSync(resolve("fixtures", `${script}.sh`), [path]);
+    execFileSync("sh", [resolve("fixtures", `${script}.sh`), path]);
     return path;
   }
 

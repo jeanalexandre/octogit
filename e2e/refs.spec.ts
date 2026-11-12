@@ -89,6 +89,41 @@ for (const size of sizes) {
   });
 }
 
+test("explorer-l-historique CA-30 : le nœud du stash est un carré plein à icône d'archive, les autres commits restent des cercles aux initiales", async ({
+  page,
+}) => {
+  await openRefs(page);
+  const stashRow = page.locator('[role="listitem"]:has([data-variant=stash])');
+  await expect(stashRow).toHaveCount(1);
+  const node = stashRow.locator("[data-node]");
+  await expect(node.locator("[data-icon=stash]")).toHaveCount(1);
+  await expect(node).toHaveText("");
+  const box = await node.boundingBox();
+  expect(box!.width).toBe(24);
+  expect(box!.height).toBe(24);
+  const style = await node.evaluate((el) => {
+    const s = getComputedStyle(el);
+    const trait = el.closest("[role=listitem]")!.querySelector("[data-trait]")!;
+    return {
+      radius: s.borderTopLeftRadius,
+      border: s.borderTopStyle,
+      width: s.borderTopWidth,
+      color: s.borderTopColor,
+      trait: getComputedStyle(trait).backgroundColor,
+    };
+  });
+  expect(style.radius).toBe("5px");
+  expect(style.border).toBe("solid");
+  expect(style.width).toBe("2px");
+  expect(style.color).toBe(style.trait);
+  // Un commit sans stash : cercle aux initiales, sans icône.
+  const other = row(page, "Signed work").locator("[data-node]");
+  await expect(other).not.toHaveText("");
+  await expect(other.locator("[data-icon]")).toHaveCount(0);
+  expect(await other.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).toBe("50%");
+  await expect(page.locator("[data-node] [data-icon=stash]")).toHaveCount(1);
+});
+
 test("explorer-l-historique CA-7 : le nom du stash reste lisible en entier dans BranchSidebar", async ({
   page,
 }) => {

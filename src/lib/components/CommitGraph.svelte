@@ -173,6 +173,10 @@
   }
   /** Étiquettes par commit, la prioritaire d'abord (voir `refLabels.ts`). */
   const labelMap = $derived(labelsByCommit(refs));
+  /** Commits que désigne une ref de type stash : leur nœud est un carré à icône d'archive. */
+  const stashTargets = $derived(
+    new Set(refs.filter((r) => r.kind === "stash").map((r) => r.target)),
+  );
 
   /**
    * Les étiquettes flottent si la ligne en porte plusieurs (« +n ») ou si le nom de l'unique
@@ -363,7 +367,11 @@
               </svg>
               {#if x(commit.lane) - 12 < graphWidth}
                 <span class="node-slot" style="left: {x(commit.lane) - 12}px">
-                  <CommitNode author={commit.author} color={commit.color} />
+                  <CommitNode
+                    author={commit.author}
+                    color={commit.color}
+                    stash={stashTargets.has(commit.id)}
+                  />
                 </span>
               {/if}
               {#if cut}<span class="fade" data-fade aria-hidden="true"></span>{/if}

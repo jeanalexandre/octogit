@@ -29,7 +29,7 @@ Le nœud d'une ligne de stash est un carré plein de 24 px (rayon 5 px, contour 
 ## Interface à vérifier
 - **Écrans et états** : `History` : nœud d'un stash (carré, icône d'archive, sans initiales) à côté de nœuds de commits (cercles aux initiales), sur un dépôt `fixtures/refs.sh`, dans les deux thèmes
 - **Tailles d'écran** : 1500×900, 1920×1080, 1280×720
-- **Adresse** : `http://localhost:1420` (`pnpm dev:web`)
+- **Adresse** : `http://localhost:1421` (`pnpm dev:web`, port du créneau 1)
 
 ## Tests à écrire d'abord
 - [ ] explorer-l-historique CA-30 → test Vitest de `CommitNode` (variante stash : carré, icône d'archive, aucun texte d'initiales ; variante commit : cercle et initiales) + e2e `e2e/refs.spec.ts` : sur `fixtures/refs.sh`, le nœud de la ligne du stash mesure 24 px, `border-radius` 5 px, contient une icône d'archive et aucun texte ; le nœud d'un autre commit est un cercle aux initiales
@@ -49,8 +49,14 @@ Le nœud d'une ligne de stash est un carré plein de 24 px (rayon 5 px, contour 
 - [ ] Documentation listée ci-dessus à jour
 - [ ] Verdict du reviewer : **validé**
 
+## Worktree
+- Chemin : `/Users/jaja/Dev/Perso/octogit-wt/S-63` ; branche `story/S-63` ; base `main` (`1f5afd5`)
+- Fichier d'environnement local : `.env.local` (créneau 1 : `OCTOGIT_PORT=1421`, `OCTOGIT_DATA_DIR=.dev-data/slot-1`)
+
 ## Journal
-Référence du diff : (notée au démarrage de la boucle)
+Référence du diff : `1f5afd5` (calculée par `git merge-base main HEAD` à chaque revue)
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : `CommitNode` carré à icône d'archive pour la ligne d'un stash ; vitest 151, e2e 81, lint, audit et build verts ; rouge constaté en Vitest, non constaté en e2e CA-30 | — |
+| 1 | reviewer | CA-30 et CA-12 couverts, rouge de l'e2e CA-30 jugé probant, interface conforme dans les deux thèmes et aux 3 tailles ; aucun problème | validé |

@@ -13,10 +13,15 @@
     hiddenColumns,
     lastFetched = null,
     collapsedFolders = [],
+    sectionHeights = {},
+    collapsedSections = [],
+    openId = 0,
     onopen,
     onchoose,
     onhidecolumns,
     ontogglefolder,
+    onsectionheight,
+    onsectiontoggle,
     loadDetail,
   }: {
     repository: RepositoryView;
@@ -34,6 +39,16 @@
     collapsedFolders?: string[];
     /** Un dossier de `BranchSidebar` se replie ou se déplie : à mémoriser. */
     ontogglefolder?: (key: string, collapsed: boolean) => void;
+    /** Hauteurs réglées des sections de `BranchSidebar` (pixels, par section), communes à tous les dépôts. */
+    sectionHeights?: Record<string, number>;
+    /** Sections de `BranchSidebar` repliées, communes à tous les dépôts. */
+    collapsedSections?: string[];
+    /** Change à chaque ouverture de dépôt : les hauteurs par défaut sont recalculées alors. */
+    openId?: number;
+    /** Fin d'un réglage de hauteur : la hauteur, ou `null` pour le défaut. */
+    onsectionheight?: (section: string, height: number | null) => void;
+    /** Une section de `BranchSidebar` se replie ou se déplie : à mémoriser. */
+    onsectiontoggle?: (section: string, collapsed: boolean) => void;
     /** Lit le détail d'un commit du dépôt affiché ; rejette si la lecture échoue. */
     loadDetail: (id: string) => Promise<CommitDetailView>;
   } = $props();
@@ -96,6 +111,11 @@
         {stashTitles}
         collapsed={collapsedFolders}
         ontoggle={ontogglefolder}
+        {sectionHeights}
+        {collapsedSections}
+        {openId}
+        onheight={onsectionheight}
+        {onsectiontoggle}
       />
       <CommitGraph
         commits={repository.commits}

@@ -19,6 +19,10 @@ Chaque section de `BranchSidebar` prend la hauteur de ses lignes (8 au plus, dé
 - **organiser-l-espace CA-7** : Étant donné une section de `BranchSidebar`, quand je clique sur son en-tête, alors elle se replie (en-tête seul) ou se déplie ; l'état est gardé à la fermeture d'Octogit et dans tous les dépôts.
 - **organiser-l-espace CA-8** : Étant donné une section ou un dossier replié dans `BranchSidebar`, alors toutes les refs qu'il contient restent dans le graphe et la colonne des refs.
 
+## Décisions de l'humain
+### Après la revue 1 (12/11/2026)
+1. Test de performance `explorer-l-historique CA-23` instable dans un `pnpm e2e` complet (117 ms pour un seuil de 50 ms, puis vert seul) : pris en compte (pour information).
+
 ## Contexte technique
 - Dépend de S-57 (sections ordonnées, dossiers). `src/lib/components/BranchSidebar.svelte` et `src/lib/screens/History.svelte`.
 - Hauteur par défaut : `min(nombre de lignes visibles, 8)` lignes, calculée à l'ouverture du dépôt puis figée (un fetch ne la recalcule pas) ; un double-clic sur le bord bas la recalcule sur les lignes présentes à ce moment. Une ligne de dossier compte comme une ligne. La branche courante est amenée en vue à l'ouverture. Section vide : en-tête seul, sans bord à glisser.
@@ -54,7 +58,9 @@ Chaque section de `BranchSidebar` prend la hauteur de ses lignes (8 au plus, dé
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : (notée au démarrage de la boucle)
+Référence du diff : 99dacd6
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé, vérifications relancées ✅ (`pnpm e2e` 58/58) | — |
+| 1 | reviewer | `stories/S-58-revue-1.md` : aucun problème, 1 point pour information (CA-23 instable) | validé |

@@ -44,9 +44,47 @@ pub fn set_hidden_columns(store: &Store, columns: &[Column]) {
     let _ = store.set_hidden_columns(&names);
 }
 
+/// Hauteurs (pixels, par identifiant de section) et sections repliées de `BranchSidebar`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct SectionLayoutView {
+    pub heights: std::collections::HashMap<String, u32>,
+    pub collapsed: Vec<String>,
+}
+
+pub fn section_layout(store: &Store) -> SectionLayoutView {
+    let layout = store.section_layout();
+    SectionLayoutView {
+        heights: layout.heights.into_iter().collect(),
+        collapsed: layout.collapsed,
+    }
+}
+
+/// Mémorise la hauteur d'une section (`None` : retour au défaut). Un échec d'écriture est ignoré.
+pub fn set_section_height(store: &Store, section: &str, height: Option<u32>) {
+    let _ = store.set_section_height(section, height);
+}
+
+/// Replie ou déplie une section. Un échec d'écriture est ignoré.
+pub fn set_section_collapsed(store: &Store, section: &str, collapsed: bool) {
+    let _ = store.set_section_collapsed(section, collapsed);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn section_layout_is_exposed_and_written_through_the_store() {
+        let (store, dir) = store("layout");
+        set_section_height(&store, "local", Some(192));
+        set_section_collapsed(&store, "tags", true);
+        let layout = section_layout(&Store::new(store.dir()));
+        assert_eq!(layout.heights["local"], 192);
+        assert_eq!(layout.collapsed, ["tags"]);
+        set_section_height(&store, "local", None);
+        assert!(section_layout(&store).heights.is_empty());
+        let _ = std::fs::remove_dir_all(dir);
+    }
 
     fn store(name: &str) -> (Store, std::path::PathBuf) {
         let dir =

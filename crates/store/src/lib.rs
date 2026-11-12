@@ -12,7 +12,7 @@ pub const REPOSITORIES_FILE: &str = "repositories.json";
 pub const REPOSITORIES_VERSION: u32 = 3;
 
 pub const PREFERENCES_FILE: &str = "preferences.json";
-pub const PREFERENCES_VERSION: u32 = 1;
+pub const PREFERENCES_VERSION: u32 = 2;
 
 pub const PROFILES_FILE: &str = "profiles.json";
 pub const PROFILES_VERSION: u32 = 1;
@@ -25,12 +25,26 @@ struct ProfilesFile {
     profiles: Vec<Profile>,
 }
 
-/// Préférences : colonnes masquées du graphe (thème, palette, Halo viendront ensuite).
-#[derive(Debug, Serialize, Deserialize)]
+/// Préférences : colonnes masquées du graphe, hauteurs et repli des sections de `BranchSidebar`
+/// (thème, palette, Halo viendront ensuite). La version 1 n'a que les colonnes.
+#[derive(Debug, Default, Serialize, Deserialize)]
 struct PreferencesFile {
     version: u32,
     #[serde(default)]
     hidden_columns: Vec<String>,
+    #[serde(default)]
+    section_heights: BTreeMap<String, u32>,
+    #[serde(default)]
+    collapsed_sections: Vec<String>,
+}
+
+/// Mise en page mémorisée des sections de `BranchSidebar`, commune à tous les dépôts.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct SectionLayout {
+    /// Hauteur en pixels réglée par l'utilisateur, par identifiant de section (absente : défaut).
+    pub heights: BTreeMap<String, u32>,
+    /// Identifiants des sections repliées.
+    pub collapsed: Vec<String>,
 }
 
 /// Dépôt récent : chemin et date de dernière ouverture (secondes depuis l'epoch).
@@ -184,25 +198,63 @@ impl Store {
         self.write_repositories(file)
     }
 
-    /// Colonnes masquées du graphe. Fichier absent, illisible ou d'une version inconnue : aucune.
-    pub fn hidden_columns(&self) -> Vec<String> {
+    /// Préférences au format courant. Fichier absent, illisible ou d'une version inconnue : vides.
+    /// La version 1 est migrée à la lecture (sans hauteurs ni sections repliées).
+    fn read_preferences(&self) -> PreferencesFile {
         let Ok(content) = fs::read_to_string(self.dir.join(PREFERENCES_FILE)) else {
-            return Vec::new();
+            return PreferencesFile::default();
         };
         match serde_json::from_str::<PreferencesFile>(&content) {
-            Ok(file) if file.version == PREFERENCES_VERSION => file.hidden_columns,
-            _ => Vec::new(),
+            Ok(file) if matches!(file.version, 1 | 2) => file,
+            _ => PreferencesFile::default(),
         }
+    }
+
+    fn write_preferences(&self, mut file: PreferencesFile) -> io::Result<()> {
+        file.version = PREFERENCES_VERSION;
+        let json = serde_json::to_string_pretty(&file).map_err(io::Error::other)?;
+        self.write_atomically(PREFERENCES_FILE, json.as_bytes())
+    }
+
+    /// Colonnes masquées du graphe. Fichier absent, illisible ou d'une version inconnue : aucune.
+    pub fn hidden_columns(&self) -> Vec<String> {
+        self.read_preferences().hidden_columns
     }
 
     /// Mémorise les colonnes masquées du graphe.
     pub fn set_hidden_columns(&self, columns: &[String]) -> io::Result<()> {
-        let file = PreferencesFile {
-            version: PREFERENCES_VERSION,
-            hidden_columns: columns.to_vec(),
+        let mut file = self.read_preferences();
+        file.hidden_columns = columns.to_vec();
+        self.write_preferences(file)
+    }
+
+    /// Hauteurs et repli des sections de `BranchSidebar`.
+    pub fn section_layout(&self) -> SectionLayout {
+        let file = self.read_preferences();
+        SectionLayout {
+            heights: file.section_heights,
+            collapsed: file.collapsed_sections,
+        }
+    }
+
+    /// Mémorise la hauteur de `section` ; `None` la remet à son défaut calculé.
+    pub fn set_section_height(&self, section: &str, height: Option<u32>) -> io::Result<()> {
+        let mut file = self.read_preferences();
+        match height {
+            Some(h) => file.section_heights.insert(section.to_string(), h),
+            None => file.section_heights.remove(section),
         };
-        let json = serde_json::to_string_pretty(&file).map_err(io::Error::other)?;
-        self.write_atomically(PREFERENCES_FILE, json.as_bytes())
+        self.write_preferences(file)
+    }
+
+    /// Replie (`collapsed`) ou déplie `section`.
+    pub fn set_section_collapsed(&self, section: &str, collapsed: bool) -> io::Result<()> {
+        let mut file = self.read_preferences();
+        file.collapsed_sections.retain(|s| s != section);
+        if collapsed {
+            file.collapsed_sections.push(section.to_string());
+        }
+        self.write_preferences(file)
     }
 
     /// Profils dans leur ordre. Fichier absent, illisible ou d'une version inconnue : aucun.
@@ -428,6 +480,68 @@ mod tests {
         assert_eq!(store.hidden_columns(), ["author", "sha"]);
         store.set_hidden_columns(&["date".to_string()]).unwrap();
         assert_eq!(store.hidden_columns(), ["date"]);
+    }
+
+    #[test]
+    fn section_heights_and_collapse_survive_a_new_store_and_keep_hidden_columns() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        assert_eq!(Store::new(&data).section_layout(), SectionLayout::default());
+        let store = Store::new(&data);
+        store.set_hidden_columns(&["sha".to_string()]).unwrap();
+        store.set_section_height("local", Some(192)).unwrap();
+        store.set_section_height("remote:origin", Some(72)).unwrap();
+        store.set_section_collapsed("tags", true).unwrap();
+        store.set_section_collapsed("stashes", true).unwrap();
+        store.set_section_collapsed("tags", true).unwrap();
+        let again = Store::new(&data).section_layout();
+        assert_eq!(again.heights["local"], 192);
+        assert_eq!(again.heights["remote:origin"], 72);
+        assert_eq!(again.collapsed, ["stashes", "tags"]);
+        assert_eq!(Store::new(&data).hidden_columns(), ["sha"]);
+        let store = Store::new(&data);
+        store.set_section_height("local", None).unwrap();
+        store.set_section_collapsed("tags", false).unwrap();
+        store.set_hidden_columns(&[]).unwrap();
+        let layout = Store::new(&data).section_layout();
+        assert!(!layout.heights.contains_key("local"));
+        assert_eq!(layout.heights["remote:origin"], 72);
+        assert_eq!(layout.collapsed, ["stashes"]);
+    }
+
+    #[test]
+    fn version_1_preferences_are_migrated_then_written_as_version_2() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(PREFERENCES_FILE),
+            include_str!("../tests-data/preferences-v1.json"),
+        )
+        .unwrap();
+        assert_eq!(store.section_layout(), SectionLayout::default());
+        store.set_section_height("local", Some(120)).unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(tmp.0.join(PREFERENCES_FILE)).unwrap())
+                .unwrap();
+        assert_eq!(json["version"], 2);
+        assert_eq!(store.hidden_columns(), ["author", "sha"]);
+        assert_eq!(store.section_layout().heights["local"], 120);
+    }
+
+    #[test]
+    fn version_2_preferences_example_file_is_read() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(PREFERENCES_FILE),
+            include_str!("../tests-data/preferences-v2.json"),
+        )
+        .unwrap();
+        assert_eq!(store.hidden_columns(), ["date"]);
+        let layout = store.section_layout();
+        assert_eq!(layout.heights["local"], 192);
+        assert_eq!(layout.heights["remote:origin"], 72);
+        assert_eq!(layout.collapsed, ["tags"]);
     }
 
     #[test]

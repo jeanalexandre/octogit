@@ -15,7 +15,15 @@ export class Workspace {
   /** Fabrique un dépôt d'exemple avec un script de `fixtures/` ; rend son chemin. */
   repo(
     script:
-      "simple" | "empty" | "branches" | "refs" | "sidebar" | "conflict" | "identity" | "large",
+      | "simple"
+      | "empty"
+      | "branches"
+      | "refs"
+      | "sidebar"
+      | "layout"
+      | "conflict"
+      | "identity"
+      | "large",
     name = "my-repo",
   ): string {
     const path = join(this.root, name);

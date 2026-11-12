@@ -10,7 +10,7 @@ use crate::detail::{self, CommitDetailView};
 use crate::fetch;
 use crate::launch::{self, LaunchState, RepositoryView};
 use crate::open::{self, OpenError, RecentView};
-use crate::preferences::{self, Column};
+use crate::preferences::{self, Column, SectionLayoutView};
 use crate::profiles::{self, ProfileView};
 
 #[tauri::command]
@@ -51,6 +51,27 @@ pub fn get_hidden_columns() -> Vec<Column> {
 #[specta::specta]
 pub fn set_hidden_columns(columns: Vec<Column>) {
     preferences::set_hidden_columns(&Store::new(data_dir()), &columns);
+}
+
+/// Hauteurs et repli des sections de `BranchSidebar`, communs à tous les dépôts.
+#[tauri::command]
+#[specta::specta]
+pub fn get_section_layout() -> SectionLayoutView {
+    preferences::section_layout(&Store::new(data_dir()))
+}
+
+/// Mémorise la hauteur (pixels) d'une section ; `None` la remet à son défaut calculé.
+#[tauri::command]
+#[specta::specta]
+pub fn set_section_height(section: String, height: Option<u32>) {
+    preferences::set_section_height(&Store::new(data_dir()), &section, height);
+}
+
+/// Replie ou déplie une section de `BranchSidebar`.
+#[tauri::command]
+#[specta::specta]
+pub fn set_section_collapsed(section: String, collapsed: bool) {
+    preferences::set_section_collapsed(&Store::new(data_dir()), &section, collapsed);
 }
 
 /// Dossiers repliés de `BranchSidebar` pour le dépôt `path`.

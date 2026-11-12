@@ -11,6 +11,12 @@ export const commands = {
 	chooseFolder: () => __TAURI_INVOKE<string | null>("choose_folder"),
 	getHiddenColumns: () => __TAURI_INVOKE<Column[]>("get_hidden_columns"),
 	setHiddenColumns: (columns: Column[]) => __TAURI_INVOKE<void>("set_hidden_columns", { columns }),
+	/**  Hauteurs et repli des sections de `BranchSidebar`, communs à tous les dépôts. */
+	getSectionLayout: () => __TAURI_INVOKE<SectionLayoutView>("get_section_layout"),
+	/**  Mémorise la hauteur (pixels) d'une section ; `None` la remet à son défaut calculé. */
+	setSectionHeight: (section: string, height: number | null) => __TAURI_INVOKE<void>("set_section_height", { section, height }),
+	/**  Replie ou déplie une section de `BranchSidebar`. */
+	setSectionCollapsed: (section: string, collapsed: boolean) => __TAURI_INVOKE<void>("set_section_collapsed", { section, collapsed }),
 	/**  Dossiers repliés de `BranchSidebar` pour le dépôt `path`. */
 	getCollapsedFolders: (path: string) => __TAURI_INVOKE<string[]>("get_collapsed_folders", { path }),
 	/**  Replie ou déplie un dossier de `BranchSidebar`. Une préférence est une aide : un échec d'écriture est ignoré. */
@@ -164,6 +170,12 @@ export type RepositoryView_Serialize = {
 	commits: CommitView[],
 	/**  Branches locales, `origin/…`, tags et stashes ; chacune désigne un commit de `commits`. */
 	refs: RefView_Serialize[],
+};
+
+/**  Hauteurs (pixels, par identifiant de section) et sections repliées de `BranchSidebar`. */
+export type SectionLayoutView = {
+	heights: { [key in string]: number },
+	collapsed: string[],
 };
 
 /* Tauri Specta runtime */

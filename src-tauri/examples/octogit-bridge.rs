@@ -26,6 +26,18 @@ struct FolderArgs {
 }
 
 #[derive(Deserialize)]
+struct SectionHeightArgs {
+    section: String,
+    height: Option<u32>,
+}
+
+#[derive(Deserialize)]
+struct SectionCollapsedArgs {
+    section: String,
+    collapsed: bool,
+}
+
+#[derive(Deserialize)]
 struct DetailArgs {
     path: String,
     id: String,
@@ -69,6 +81,22 @@ fn main() {
         "set_hidden_columns" => {
             let args: ColumnsArgs = serde_json::from_str(&input).expect("arguments { columns }");
             octogit_app::commands::set_hidden_columns(args.columns);
+            (serde_json::to_string(&()), 0)
+        }
+        "get_section_layout" => (
+            serde_json::to_string(&octogit_app::commands::get_section_layout()),
+            0,
+        ),
+        "set_section_height" => {
+            let args: SectionHeightArgs =
+                serde_json::from_str(&input).expect("arguments { section, height }");
+            octogit_app::commands::set_section_height(args.section, args.height);
+            (serde_json::to_string(&()), 0)
+        }
+        "set_section_collapsed" => {
+            let args: SectionCollapsedArgs =
+                serde_json::from_str(&input).expect("arguments { section, collapsed }");
+            octogit_app::commands::set_section_collapsed(args.section, args.collapsed);
             (serde_json::to_string(&()), 0)
         }
         "get_collapsed_folders" => {

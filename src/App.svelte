@@ -6,6 +6,7 @@
     type LaunchState,
     type ProfileView,
     type RecentView,
+    type SectionLayoutView,
     type RepositoryView,
   } from "./lib/bindings";
   import { scheduleFetch } from "./lib/fetchScheduler";
@@ -66,6 +67,23 @@
     };
   });
 
+  /** Hauteurs et repli des sections de `BranchSidebar`, globaux : lus au lancement, mis à jour à chaque geste. */
+  let sectionLayout: SectionLayoutView = $state({ heights: {}, collapsed: [] });
+
+  async function setSectionHeight(section: string, height: number | null) {
+    const heights = { ...sectionLayout.heights };
+    if (height === null) delete heights[section];
+    else heights[section] = height;
+    sectionLayout = { ...sectionLayout, heights };
+    await commands.setSectionHeight(section, height);
+  }
+
+  async function toggleSection(section: string, collapsed: boolean) {
+    const others = sectionLayout.collapsed.filter((s) => s !== section);
+    sectionLayout = { ...sectionLayout, collapsed: collapsed ? [...others, section] : others };
+    await commands.setSectionCollapsed(section, collapsed);
+  }
+
   async function toggleFolder(key: string, collapsed: boolean) {
     if (openPath !== null) await commands.setFolderCollapsed(openPath, key, collapsed);
   }
@@ -73,6 +91,7 @@
   onMount(async () => {
     recent = await commands.listRecentRepositories();
     hiddenColumns = await commands.getHiddenColumns();
+    sectionLayout = await commands.getSectionLayout();
     profiles = await commands.listProfiles();
     screen = await commands.getLaunchState();
   });
@@ -154,6 +173,11 @@
     {lastFetched}
     {collapsedFolders}
     ontogglefolder={toggleFolder}
+    sectionHeights={sectionLayout.heights}
+    collapsedSections={sectionLayout.collapsed}
+    openId={openCount}
+    onsectionheight={setSectionHeight}
+    onsectiontoggle={toggleSection}
     onopen={open}
     onchoose={chooseFolder}
     onhidecolumns={hideColumns}

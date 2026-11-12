@@ -12,7 +12,7 @@ pub const REPOSITORIES_FILE: &str = "repositories.json";
 pub const REPOSITORIES_VERSION: u32 = 3;
 
 pub const PREFERENCES_FILE: &str = "preferences.json";
-pub const PREFERENCES_VERSION: u32 = 2;
+pub const PREFERENCES_VERSION: u32 = 3;
 
 pub const PROFILES_FILE: &str = "profiles.json";
 pub const PROFILES_VERSION: u32 = 1;
@@ -36,6 +36,9 @@ struct PreferencesFile {
     section_heights: BTreeMap<String, u32>,
     #[serde(default)]
     collapsed_sections: Vec<String>,
+    /// `BranchSidebar` replié en bande d'icônes (version 3 ; absent avant : déplié).
+    #[serde(default)]
+    panel_collapsed: bool,
 }
 
 /// Mise en page mémorisée des sections de `BranchSidebar`, commune à tous les dépôts.
@@ -199,13 +202,13 @@ impl Store {
     }
 
     /// Préférences au format courant. Fichier absent, illisible ou d'une version inconnue : vides.
-    /// La version 1 est migrée à la lecture (sans hauteurs ni sections repliées).
+    /// Les versions 1 et 2 sont migrées à la lecture (sans hauteurs ni repli, puis sans repli du panneau).
     fn read_preferences(&self) -> PreferencesFile {
         let Ok(content) = fs::read_to_string(self.dir.join(PREFERENCES_FILE)) else {
             return PreferencesFile::default();
         };
         match serde_json::from_str::<PreferencesFile>(&content) {
-            Ok(file) if matches!(file.version, 1 | 2) => file,
+            Ok(file) if matches!(file.version, 1..=3) => file,
             _ => PreferencesFile::default(),
         }
     }
@@ -254,6 +257,18 @@ impl Store {
         if collapsed {
             file.collapsed_sections.push(section.to_string());
         }
+        self.write_preferences(file)
+    }
+
+    /// `BranchSidebar` est-il replié en bande d'icônes ? Commun à tous les dépôts ; absent : non.
+    pub fn panel_collapsed(&self) -> bool {
+        self.read_preferences().panel_collapsed
+    }
+
+    /// Mémorise le repli (`true`) ou le dépliage du panneau `BranchSidebar`.
+    pub fn set_panel_collapsed(&self, collapsed: bool) -> io::Result<()> {
+        let mut file = self.read_preferences();
+        file.panel_collapsed = collapsed;
         self.write_preferences(file)
     }
 
@@ -510,7 +525,56 @@ mod tests {
     }
 
     #[test]
-    fn version_1_preferences_are_migrated_then_written_as_version_2() {
+    fn panel_collapse_survives_a_new_store_and_keeps_the_other_preferences() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        assert!(!Store::new(&data).panel_collapsed());
+        let store = Store::new(&data);
+        store.set_hidden_columns(&["sha".to_string()]).unwrap();
+        store.set_section_collapsed("tags", true).unwrap();
+        store.set_panel_collapsed(true).unwrap();
+        assert!(Store::new(&data).panel_collapsed());
+        assert_eq!(Store::new(&data).hidden_columns(), ["sha"]);
+        assert_eq!(Store::new(&data).section_layout().collapsed, ["tags"]);
+        Store::new(&data).set_panel_collapsed(false).unwrap();
+        assert!(!Store::new(&data).panel_collapsed());
+    }
+
+    #[test]
+    fn version_2_preferences_are_migrated_then_written_as_version_3() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(PREFERENCES_FILE),
+            include_str!("../tests-data/preferences-v2.json"),
+        )
+        .unwrap();
+        assert!(!store.panel_collapsed());
+        store.set_panel_collapsed(true).unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(tmp.0.join(PREFERENCES_FILE)).unwrap())
+                .unwrap();
+        assert_eq!(json["version"], 3);
+        assert_eq!(store.hidden_columns(), ["date"]);
+        assert_eq!(store.section_layout().heights["local"], 192);
+    }
+
+    #[test]
+    fn version_3_preferences_example_file_is_read() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(PREFERENCES_FILE),
+            include_str!("../tests-data/preferences-v3.json"),
+        )
+        .unwrap();
+        assert!(store.panel_collapsed());
+        assert_eq!(store.hidden_columns(), ["date"]);
+        assert_eq!(store.section_layout().collapsed, ["tags"]);
+    }
+
+    #[test]
+    fn version_1_preferences_are_migrated_then_written_as_the_current_version() {
         let tmp = TempDir::new();
         let store = Store::new(&tmp.0);
         fs::write(
@@ -523,7 +587,7 @@ mod tests {
         let json: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(tmp.0.join(PREFERENCES_FILE)).unwrap())
                 .unwrap();
-        assert_eq!(json["version"], 2);
+        assert_eq!(json["version"], PREFERENCES_VERSION);
         assert_eq!(store.hidden_columns(), ["author", "sha"]);
         assert_eq!(store.section_layout().heights["local"], 120);
     }

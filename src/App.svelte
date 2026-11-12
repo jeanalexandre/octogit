@@ -84,6 +84,14 @@
     await commands.setSectionCollapsed(section, collapsed);
   }
 
+  /** Panneau `BranchSidebar` replié en bande d'icônes, global : lu au lancement, écrit au clic. */
+  let panelCollapsed = $state(false);
+
+  async function togglePanel(collapsed: boolean) {
+    panelCollapsed = collapsed;
+    await commands.setPanelCollapsed(collapsed);
+  }
+
   async function toggleFolder(key: string, collapsed: boolean) {
     if (openPath !== null) await commands.setFolderCollapsed(openPath, key, collapsed);
   }
@@ -92,6 +100,7 @@
     recent = await commands.listRecentRepositories();
     hiddenColumns = await commands.getHiddenColumns();
     sectionLayout = await commands.getSectionLayout();
+    panelCollapsed = await commands.getPanelCollapsed();
     profiles = await commands.listProfiles();
     screen = await commands.getLaunchState();
   });
@@ -176,6 +185,8 @@
     sectionHeights={sectionLayout.heights}
     collapsedSections={sectionLayout.collapsed}
     openId={openCount}
+    {panelCollapsed}
+    onpaneltoggle={togglePanel}
     onsectionheight={setSectionHeight}
     onsectiontoggle={toggleSection}
     onopen={open}

@@ -169,7 +169,7 @@ test("organiser-l-espace CA-7 : un clic sur l'en-tête replie ou déplie la sect
   await expect(heading(page, "Local")).toHaveText("Local · 23");
   // Écrit tout de suite, pas à la fin d'une session.
   await expect.poll(() => stored().collapsed_sections).toEqual(["local"]);
-  expect(stored().version).toBe(2);
+  expect(stored().version).toBe(3);
 
   await page.reload();
   await expect(heading(page, "Local")).toHaveText("Local · 23");

@@ -17,6 +17,10 @@ export const commands = {
 	setSectionHeight: (section: string, height: number | null) => __TAURI_INVOKE<void>("set_section_height", { section, height }),
 	/**  Replie ou déplie une section de `BranchSidebar`. */
 	setSectionCollapsed: (section: string, collapsed: boolean) => __TAURI_INVOKE<void>("set_section_collapsed", { section, collapsed }),
+	/**  `BranchSidebar` est-il replié en bande d'icônes ? Commun à tous les dépôts. */
+	getPanelCollapsed: () => __TAURI_INVOKE<boolean>("get_panel_collapsed"),
+	/**  Replie ou déplie `BranchSidebar`. Une préférence est une aide : un échec d'écriture est ignoré. */
+	setPanelCollapsed: (collapsed: boolean) => __TAURI_INVOKE<void>("set_panel_collapsed", { collapsed }),
 	/**  Dossiers repliés de `BranchSidebar` pour le dépôt `path`. */
 	getCollapsedFolders: (path: string) => __TAURI_INVOKE<string[]>("get_collapsed_folders", { path }),
 	/**  Replie ou déplie un dossier de `BranchSidebar`. Une préférence est une aide : un échec d'écriture est ignoré. */

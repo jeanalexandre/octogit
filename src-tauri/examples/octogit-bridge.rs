@@ -38,6 +38,11 @@ struct SectionCollapsedArgs {
 }
 
 #[derive(Deserialize)]
+struct PanelCollapsedArgs {
+    collapsed: bool,
+}
+
+#[derive(Deserialize)]
 struct DetailArgs {
     path: String,
     id: String,
@@ -97,6 +102,16 @@ fn main() {
             let args: SectionCollapsedArgs =
                 serde_json::from_str(&input).expect("arguments { section, collapsed }");
             octogit_app::commands::set_section_collapsed(args.section, args.collapsed);
+            (serde_json::to_string(&()), 0)
+        }
+        "get_panel_collapsed" => (
+            serde_json::to_string(&octogit_app::commands::get_panel_collapsed()),
+            0,
+        ),
+        "set_panel_collapsed" => {
+            let args: PanelCollapsedArgs =
+                serde_json::from_str(&input).expect("arguments { collapsed }");
+            octogit_app::commands::set_panel_collapsed(args.collapsed);
             (serde_json::to_string(&()), 0)
         }
         "get_collapsed_folders" => {

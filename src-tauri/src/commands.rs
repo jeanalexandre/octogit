@@ -74,6 +74,20 @@ pub fn set_section_collapsed(section: String, collapsed: bool) {
     preferences::set_section_collapsed(&Store::new(data_dir()), &section, collapsed);
 }
 
+/// `BranchSidebar` est-il replié en bande d'icônes ? Commun à tous les dépôts.
+#[tauri::command]
+#[specta::specta]
+pub fn get_panel_collapsed() -> bool {
+    Store::new(data_dir()).panel_collapsed()
+}
+
+/// Replie ou déplie `BranchSidebar`. Une préférence est une aide : un échec d'écriture est ignoré.
+#[tauri::command]
+#[specta::specta]
+pub fn set_panel_collapsed(collapsed: bool) {
+    let _ = Store::new(data_dir()).set_panel_collapsed(collapsed);
+}
+
 /// Dossiers repliés de `BranchSidebar` pour le dépôt `path`.
 #[tauri::command]
 #[specta::specta]

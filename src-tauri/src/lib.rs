@@ -40,6 +40,8 @@ pub fn builder() -> Builder<tauri::Wry> {
         commands::get_section_layout,
         commands::set_section_height,
         commands::set_section_collapsed,
+        commands::get_panel_collapsed,
+        commands::set_panel_collapsed,
         commands::get_collapsed_folders,
         commands::set_folder_collapsed,
         commands::get_commit_detail,

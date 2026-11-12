@@ -1,6 +1,12 @@
 <script lang="ts">
   import ChevronDown from "@lucide/svelte/icons/chevron-down";
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import Archive from "@lucide/svelte/icons/archive";
+  import Cloud from "@lucide/svelte/icons/cloud";
+  import GitBranch from "@lucide/svelte/icons/git-branch";
+  import PanelLeftClose from "@lucide/svelte/icons/panel-left-close";
+  import PanelLeftOpen from "@lucide/svelte/icons/panel-left-open";
+  import Tag from "@lucide/svelte/icons/tag";
   import { untrack } from "svelte";
   import type { CommitView, RefView } from "../bindings";
   import { ROW_HEIGHT, clampHeight, defaultHeight, visibleRows } from "../sectionHeight";
@@ -14,9 +20,11 @@
     sectionHeights = {},
     collapsedSections = [],
     openId = 0,
+    panelCollapsed = false,
     ontoggle,
     onheight,
     onsectiontoggle,
+    onpaneltoggle,
   }: {
     refs: RefView[];
     /** Commits du graphe : leurs dates ordonnent les tags et les stashes. */
@@ -37,9 +45,47 @@
     onheight?: (section: string, height: number | null) => void;
     /** Un clic sur l'en-tête d'une section : son identifiant et son nouvel état. */
     onsectiontoggle?: (section: string, collapsed: boolean) => void;
+    /** Le panneau est replié en bande d'icônes (commun à tous les dépôts). */
+    panelCollapsed?: boolean;
+    /** Un clic sur le bouton en tête du panneau ou de la bande : son nouvel état. */
+    onpaneltoggle?: (collapsed: boolean) => void;
   } = $props();
 
   const sections = $derived(buildSections(refs, commits));
+
+  /** Repart de la préférence, puis suit les clics (le parent la mémorise aussi). */
+  let panelFolded = $derived(panelCollapsed);
+  /** Section ouverte dans le volet flottant de la bande, ou `null`. */
+  let flyId: string | null = $state(null);
+  const flySection = $derived(sections.find((s) => s.id === flyId));
+  let host: HTMLElement | undefined = $state();
+
+  function setPanelFolded(next: boolean) {
+    panelFolded = next;
+    flyId = null;
+    onpaneltoggle?.(next);
+  }
+
+  function iconOf(id: string) {
+    if (id === "local") return GitBranch;
+    if (id === "tags") return Tag;
+    if (id === "stashes") return Archive;
+    return Cloud;
+  }
+
+  /** Échap ferme le volet et rend le focus à l'icône de sa section. */
+  function onkeydown(event: KeyboardEvent) {
+    if (event.key !== "Escape" || flyId === null) return;
+    const id = flyId;
+    flyId = null;
+    const icons = Array.from(host?.querySelectorAll<HTMLElement>("[data-section]") ?? []);
+    icons.find((el) => el.dataset.section === id)?.focus();
+  }
+
+  /** Un appui hors de la bande et du volet ferme le volet. */
+  function onpointerdown(event: PointerEvent) {
+    if (flyId !== null && !host?.contains(event.target as Node)) flyId = null;
+  }
 
   /** Repart de `collapsed` à chaque changement de dépôt, puis suit les clics. */
   let closed: string[] = $derived([...collapsed]);
@@ -159,52 +205,18 @@
   }
 </script>
 
-<nav class="sidebar" aria-label="Branches" bind:this={nav}>
-  {#snippet nodes(list: TreeNode[], depth: number)}
-    {#each list as node (node.type === "folder" ? `d:${node.key}` : `r:${node.ref.name}`)}
-      {#if node.type === "folder"}
-        {@const open = !closed.includes(node.key)}
-        <button
-          type="button"
-          class="folder"
-          aria-expanded={open}
-          style="padding-left: {6 + depth * 12}px"
-          onclick={() => toggle(node.key)}
-        >
-          <span class="chevron" aria-hidden="true">
-            {#if open}<ChevronDown size={16} strokeWidth={1.8} />{:else}<ChevronRight
-                size={16}
-                strokeWidth={1.8}
-              />{/if}
-          </span>
-          <span class="name">{node.name} · {node.count}</span>
-        </button>
-        {#if open}{@render nodes(node.children, depth + 1)}{/if}
-      {:else}
-        <div
-          class="item"
-          aria-current={node.ref.current ? "true" : undefined}
-          class:current={node.ref.current}
-          style="padding-left: {6 + depth * 12}px"
-        >
-          <span class="mark" aria-hidden="true">{node.ref.current ? "●" : ""}</span>
-          <span class="name">{node.text}</span>
-          {#if node.ref.kind === "stash" && stashTitles[node.ref.name]}
-            <span class="note">{stashTitles[node.ref.name]}</span>
-          {/if}
-        </div>
-      {/if}
-    {/each}
-  {/snippet}
+<svelte:window {onkeydown} {onpointerdown} />
 
-  {#each sections as section (section.id)}
-    {@const open = !folded.includes(section.id)}
-    <h2>
+{#snippet nodes(list: TreeNode[], depth: number)}
+  {#each list as node (node.type === "folder" ? `d:${node.key}` : `r:${node.ref.name}`)}
+    {#if node.type === "folder"}
+      {@const open = !closed.includes(node.key)}
       <button
         type="button"
-        class="section-toggle"
+        class="folder"
         aria-expanded={open}
-        onclick={() => toggleSection(section.id)}
+        style="padding-left: {6 + depth * 12}px"
+        onclick={() => toggle(node.key)}
       >
         <span class="chevron" aria-hidden="true">
           {#if open}<ChevronDown size={16} strokeWidth={1.8} />{:else}<ChevronRight
@@ -212,35 +224,122 @@
               strokeWidth={1.8}
             />{/if}
         </span>
-        <span>{section.title} · {section.count}</span>
+        <span class="name">{node.name} · {node.count}</span>
       </button>
-    </h2>
-    {#if open && section.nodes.length > 0}
-      <div class="items" style:height="{heightOf(section)}px">
-        {@render nodes(section.nodes, 0)}
-      </div>
-      <!-- Un séparateur focusable (valeurs, flèches) est un « window splitter » d'ARIA 1.2 : un widget, que la règle de Svelte ne reconnaît pas. -->
-      <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+      {#if open}{@render nodes(node.children, depth + 1)}{/if}
+    {:else}
       <div
-        class="grip"
-        class:dragging={drag?.id === section.id}
-        role="separator"
-        aria-orientation="horizontal"
-        aria-label="Resize {section.title}"
-        aria-valuemin={ROW_HEIGHT}
-        aria-valuemax={Math.max(visibleRows(section.nodes, closed), 1) * ROW_HEIGHT}
-        aria-valuenow={heightOf(section)}
-        tabindex="0"
-        onpointerdown={(event) => startDrag(event, section)}
-        onpointermove={moveDrag}
-        onpointerup={endDrag}
-        onpointercancel={endDrag}
-        ondblclick={() => resetHeight(section)}
-        onkeydown={(event) => keyResize(event, section)}
-      ></div>
+        class="item"
+        aria-current={node.ref.current ? "true" : undefined}
+        class:current={node.ref.current}
+        style="padding-left: {6 + depth * 12}px"
+      >
+        <span class="mark" aria-hidden="true">{node.ref.current ? "●" : ""}</span>
+        <span class="name">{node.text}</span>
+        {#if node.ref.kind === "stash" && stashTitles[node.ref.name]}
+          <span class="note">{stashTitles[node.ref.name]}</span>
+        {/if}
+      </div>
     {/if}
   {/each}
-</nav>
+{/snippet}
+
+{#snippet block(section: SidebarSection)}
+  {@const open = !folded.includes(section.id)}
+  <h2>
+    <button
+      type="button"
+      class="section-toggle"
+      aria-expanded={open}
+      onclick={() => toggleSection(section.id)}
+    >
+      <span class="chevron" aria-hidden="true">
+        {#if open}<ChevronDown size={16} strokeWidth={1.8} />{:else}<ChevronRight
+            size={16}
+            strokeWidth={1.8}
+          />{/if}
+      </span>
+      <span>{section.title} · {section.count}</span>
+    </button>
+  </h2>
+  {#if open && section.nodes.length > 0}
+    <div class="items" style:height="{heightOf(section)}px">
+      {@render nodes(section.nodes, 0)}
+    </div>
+    <!-- Un séparateur focusable (valeurs, flèches) est un « window splitter » d'ARIA 1.2 : un widget, que la règle de Svelte ne reconnaît pas. -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+    <div
+      class="grip"
+      class:dragging={drag?.id === section.id}
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Resize {section.title}"
+      aria-valuemin={ROW_HEIGHT}
+      aria-valuemax={Math.max(visibleRows(section.nodes, closed), 1) * ROW_HEIGHT}
+      aria-valuenow={heightOf(section)}
+      tabindex="0"
+      onpointerdown={(event) => startDrag(event, section)}
+      onpointermove={moveDrag}
+      onpointerup={endDrag}
+      onpointercancel={endDrag}
+      ondblclick={() => resetHeight(section)}
+      onkeydown={(event) => keyResize(event, section)}
+    ></div>
+  {/if}
+{/snippet}
+
+{#if panelFolded}
+  <div class="host" bind:this={host}>
+    <nav class="strip" aria-label="Branches">
+      <button
+        type="button"
+        class="tool"
+        aria-label="Expand branches panel"
+        title="Expand branches panel"
+        onclick={() => setPanelFolded(false)}
+      >
+        <PanelLeftOpen size={16} strokeWidth={1.8} />
+      </button>
+      {#each sections as section (section.id)}
+        {@const Icon = iconOf(section.id)}
+        <button
+          type="button"
+          class="tool"
+          class:active={flyId === section.id}
+          data-section={section.id}
+          aria-label={section.title}
+          title={section.title}
+          aria-expanded={flyId === section.id}
+          onclick={() => (flyId = flyId === section.id ? null : section.id)}
+        >
+          <Icon size={16} strokeWidth={1.8} />
+        </button>
+      {/each}
+    </nav>
+    {#if flySection}
+      <section class="flyout" aria-label={flySection.title}>
+        {@render block(flySection)}
+      </section>
+    {/if}
+  </div>
+{:else}
+  <nav class="sidebar" aria-label="Branches" bind:this={nav}>
+    <div class="head">
+      <button
+        type="button"
+        class="tool"
+        aria-label="Collapse branches panel"
+        title="Collapse branches panel"
+        onclick={() => setPanelFolded(true)}
+      >
+        <PanelLeftClose size={16} strokeWidth={1.8} />
+      </button>
+    </div>
+    {#each sections as section (section.id)}
+      {@render block(section)}
+    {/each}
+  </nav>
+{/if}
 
 <style>
   .sidebar {
@@ -250,6 +349,73 @@
     overflow-y: auto;
     background: var(--surface-raised);
     border-right: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .head {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  /* Bande repliée : une icône par section ; le volet flotte par-dessus le graphe sans prendre de place. */
+  .host {
+    position: relative;
+    flex: none;
+    width: 44px;
+  }
+
+  .strip {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+    height: 100%;
+    padding: 10px 0;
+    overflow-y: auto;
+    background: var(--surface-raised);
+    border-right: 1px solid var(--border);
+  }
+
+  .tool {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .tool:hover,
+  .tool.active {
+    background: var(--selection);
+    color: var(--ink);
+  }
+
+  .tool:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+  }
+
+  .flyout {
+    position: absolute;
+    z-index: 10;
+    top: 0;
+    left: 100%;
+    box-sizing: border-box;
+    width: 230px;
+    max-height: 100%;
+    padding: 10px;
+    overflow-y: auto;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-strong);
+    border-left: 0;
+    border-radius: 0 6px 6px 0;
     font-size: 13px;
   }
 
@@ -263,6 +429,10 @@
 
   h2:first-child {
     margin-top: 0;
+  }
+
+  .head + h2 {
+    margin-top: 4px;
   }
 
   .section-toggle {

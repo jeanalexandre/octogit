@@ -16,6 +16,13 @@ Le panneau `BranchSidebar` se replie en bande d'une icône par section, mémoris
 - **organiser-l-espace CA-9** : Étant donné `BranchSidebar` déplié, quand je clique sur le bouton en tête du panneau, alors le panneau devient une bande d'une icône par section, avec le nom de la section en infobulle ; un nouveau clic le rétablit ; aucun raccourci clavier ne le replie ; l'état est gardé à la fermeture d'Octogit et dans tous les dépôts.
 - **organiser-l-espace CA-10** : Étant donné le panneau replié, quand je clique sur l'icône d'une section, alors un volet flottant affiche cette section par-dessus le graphe, sans décaler ni redimensionner le graphe ; Échap, un clic hors du volet ou un checkout depuis le volet le ferme.
 
+## Décisions de l'humain
+### Après la revue 1 (12/11/2026)
+1. Verdict « bloqué » (captures impossibles, le reviewer n'a pas d'outil d'écriture) : l'orchestrateur écrit et lance le script de captures dans son scratchpad, hors dépôt, puis relance la revue avec les images pour la partie visuelle (choix a de l'humain). Vaut pour tout le lot (S-60, S-61).
+
+### Après la revue 2 (12/11/2026)
+1. Chevauchement des étiquettes de la colonne des refs et en-tête « GRAPH » contre « COMMIT MESSAGE » sur la fixture `layout` (préexistant) : pris en compte (pour information) ; largeur du graphe et colonne des refs sont l'objet de S-60 et S-61.
+
 ## Contexte technique
 - Le plan scinde CA-10 : la fermeture au checkout est livrée en S-25, car le checkout par double-clic n'existe pas encore. Ici : fermeture par Échap et par un clic hors du volet seulement.
 - Dépend de S-58 (sections à hauteur et repli, préférences globales). `src/lib/components/BranchSidebar.svelte`, `src/lib/screens/History.svelte`.
@@ -48,7 +55,10 @@ Le panneau `BranchSidebar` se replie en bande d'une icône par section, mémoris
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : (notée au démarrage de la boucle)
+Référence du diff : `c209a3a`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; préférences en `version` 3 (`panel_collapsed`), commandes `get_panel_collapsed` / `set_panel_collapsed` ; tests, lint, build relancés ✅ | — |
+| 1 | reviewer | `stories/S-59-revue-1.md` ; aucun problème de code, captures d'interface impossibles (outil Write absent chez le reviewer) | bloqué |
+| 1 | reviewer | `stories/S-59-revue-2.md` ; revue visuelle sur captures de l'orchestrateur, aucun problème | validé |

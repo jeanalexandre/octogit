@@ -16,6 +16,8 @@
     sectionHeights = {},
     collapsedSections = [],
     openId = 0,
+    panelCollapsed = false,
+    onpaneltoggle,
     onopen,
     onchoose,
     onhidecolumns,
@@ -45,6 +47,10 @@
     collapsedSections?: string[];
     /** Change à chaque ouverture de dépôt : les hauteurs par défaut sont recalculées alors. */
     openId?: number;
+    /** `BranchSidebar` est replié en bande d'icônes, pour tous les dépôts. */
+    panelCollapsed?: boolean;
+    /** Le panneau se replie ou se déplie : à mémoriser. */
+    onpaneltoggle?: (collapsed: boolean) => void;
     /** Fin d'un réglage de hauteur : la hauteur, ou `null` pour le défaut. */
     onsectionheight?: (section: string, height: number | null) => void;
     /** Une section de `BranchSidebar` se replie ou se déplie : à mémoriser. */
@@ -114,6 +120,8 @@
         {sectionHeights}
         {collapsedSections}
         {openId}
+        {panelCollapsed}
+        {onpaneltoggle}
         onheight={onsectionheight}
         {onsectiontoggle}
       />

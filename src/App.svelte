@@ -13,7 +13,8 @@
   import ProfileSettings from "./lib/screens/ProfileSettings.svelte";
   import Welcome from "./lib/screens/Welcome.svelte";
 
-  let screen: LaunchState | null = $state(null);
+  // `raw` : le dépôt est toujours remplacé en entier, jamais muté ; un proxy profond sur 10 000 commits ralentit chaque lecture.
+  let screen: LaunchState | null = $state.raw(null);
   let recent: RecentView[] = $state([]);
   let error: string | null = $state(null);
   let hiddenColumns: Column[] = $state([]);
@@ -49,6 +50,25 @@
       },
     });
   });
+
+  /** Dossiers repliés de `BranchSidebar` pour le dépôt ouvert, relus à chaque changement de dépôt. */
+  let collapsedFolders: string[] = $state([]);
+  $effect(() => {
+    const path = openPath;
+    collapsedFolders = [];
+    if (path === null) return;
+    let stale = false;
+    void commands.getCollapsedFolders(path).then((folders) => {
+      if (!stale) collapsedFolders = folders;
+    });
+    return () => {
+      stale = true;
+    };
+  });
+
+  async function toggleFolder(key: string, collapsed: boolean) {
+    if (openPath !== null) await commands.setFolderCollapsed(openPath, key, collapsed);
+  }
 
   onMount(async () => {
     recent = await commands.listRecentRepositories();
@@ -132,6 +152,8 @@
     {error}
     {hiddenColumns}
     {lastFetched}
+    {collapsedFolders}
+    ontogglefolder={toggleFolder}
     onopen={open}
     onchoose={chooseFolder}
     onhidecolumns={hideColumns}

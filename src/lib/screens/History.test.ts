@@ -239,7 +239,16 @@ describe("History", () => {
     expect(within(sidebar).getByText("origin · 2")).toBeInTheDocument();
     expect(within(sidebar).getByText("Tags · 1")).toBeInTheDocument();
     expect(within(sidebar).getByText("Stashes · 1")).toBeInTheDocument();
-    for (const name of ["develop", "feature/profiles", "spike/gix", "v1.1.0", "stash@{0}"])
+    // Les noms à chemin sont groupés en dossiers (organiser-l-espace CA-2).
+    for (const name of [
+      "develop",
+      "feature · 1",
+      "profiles",
+      "spike · 1",
+      "gix",
+      "v1.1.0",
+      "stash@{0}",
+    ])
       expect(within(sidebar).getAllByText(name).length).toBeGreaterThan(0);
     expect(within(sidebar).getAllByText("develop")[0].closest(".item")).toHaveAttribute(
       "aria-current",

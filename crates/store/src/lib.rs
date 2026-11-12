@@ -1,5 +1,6 @@
 //! Persistance locale : fichiers JSON versionnés, écriture atomique, dans le dossier de données.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -8,7 +9,7 @@ use octogit_identity::Profile;
 use serde::{Deserialize, Serialize};
 
 pub const REPOSITORIES_FILE: &str = "repositories.json";
-pub const REPOSITORIES_VERSION: u32 = 2;
+pub const REPOSITORIES_VERSION: u32 = 3;
 
 pub const PREFERENCES_FILE: &str = "preferences.json";
 pub const PREFERENCES_VERSION: u32 = 1;
@@ -39,11 +40,14 @@ pub struct RecentRepository {
     pub last_opened: u64,
 }
 
-/// Format courant : `recent` du plus récent au plus ancien, sans doublon.
+/// Format courant : `recent` du plus récent au plus ancien, sans doublon ; `collapsed_folders` :
+/// par chemin de dépôt, les dossiers repliés de `BranchSidebar` (la version 2 n'en a pas).
 #[derive(Debug, Serialize, Deserialize)]
 struct RepositoriesFile {
     version: u32,
     recent: Vec<RecentRepository>,
+    #[serde(default)]
+    collapsed_folders: BTreeMap<String, Vec<String>>,
 }
 
 /// Format de la version 1 (S-1) : un seul dépôt mémorisé.
@@ -67,40 +71,95 @@ impl Store {
         &self.dir
     }
 
-    /// Dépôts récents, du plus récent au plus ancien. Fichier absent, illisible ou d'une version
-    /// inconnue : liste vide. La version 1 est migrée à la lecture.
-    pub fn recent_repositories(&self) -> Vec<RecentRepository> {
+    fn empty_repositories() -> RepositoriesFile {
+        RepositoriesFile {
+            version: REPOSITORIES_VERSION,
+            recent: Vec::new(),
+            collapsed_folders: BTreeMap::new(),
+        }
+    }
+
+    /// Contenu du fichier des dépôts, au format courant. Fichier absent, illisible ou d'une version
+    /// inconnue : vide. Les versions 1 et 2 sont migrées à la lecture (la 2 sans état de dossiers).
+    fn read_repositories(&self) -> RepositoriesFile {
         let file_path = self.dir.join(REPOSITORIES_FILE);
         let Ok(content) = fs::read_to_string(&file_path) else {
-            return Vec::new();
+            return Self::empty_repositories();
         };
         let Ok(value) = serde_json::from_str::<serde_json::Value>(&content) else {
-            return Vec::new();
+            return Self::empty_repositories();
         };
         match value.get("version").and_then(|v| v.as_u64()) {
-            Some(2) => serde_json::from_value::<RepositoriesFile>(value)
-                .map(|f| f.recent)
-                .unwrap_or_default(),
+            Some(2 | 3) => serde_json::from_value::<RepositoriesFile>(value)
+                .unwrap_or_else(|_| Self::empty_repositories()),
             Some(1) => {
                 let Ok(old) = serde_json::from_value::<RepositoriesFileV1>(value) else {
-                    return Vec::new();
+                    return Self::empty_repositories();
                 };
                 let modified = fs::metadata(&file_path)
                     .and_then(|m| m.modified())
                     .ok()
                     .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                     .map_or(0, |d| d.as_secs());
-                old.last_repository
-                    .map(|path| {
-                        vec![RecentRepository {
-                            path,
-                            last_opened: modified,
-                        }]
-                    })
-                    .unwrap_or_default()
+                RepositoriesFile {
+                    recent: old
+                        .last_repository
+                        .map(|path| {
+                            vec![RecentRepository {
+                                path,
+                                last_opened: modified,
+                            }]
+                        })
+                        .unwrap_or_default(),
+                    ..Self::empty_repositories()
+                }
             }
-            _ => Vec::new(),
+            _ => Self::empty_repositories(),
         }
+    }
+
+    fn write_repositories(&self, mut file: RepositoriesFile) -> io::Result<()> {
+        file.version = REPOSITORIES_VERSION;
+        let json = serde_json::to_string_pretty(&file).map_err(io::Error::other)?;
+        self.write_atomically(REPOSITORIES_FILE, json.as_bytes())
+    }
+
+    /// Dépôts récents, du plus récent au plus ancien. Fichier absent, illisible ou d'une version
+    /// inconnue : liste vide.
+    pub fn recent_repositories(&self) -> Vec<RecentRepository> {
+        self.read_repositories().recent
+    }
+
+    /// Dossiers repliés de `BranchSidebar` pour `repository` (clés `section:chemin`), dans l'ordre
+    /// où ils ont été repliés. Les autres dépôts ont leurs propres états.
+    pub fn collapsed_folders(&self, repository: &Path) -> Vec<String> {
+        self.read_repositories()
+            .collapsed_folders
+            .remove(&repository.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    }
+
+    /// Replie (`collapsed`) ou déplie le dossier `folder` de `repository`.
+    pub fn set_folder_collapsed(
+        &self,
+        repository: &Path,
+        folder: &str,
+        collapsed: bool,
+    ) -> io::Result<()> {
+        let mut file = self.read_repositories();
+        let key = repository.to_string_lossy().into_owned();
+        let folders = file.collapsed_folders.entry(key.clone()).or_default();
+        if collapsed {
+            if !folders.iter().any(|f| f == folder) {
+                folders.push(folder.to_string());
+            }
+        } else {
+            folders.retain(|f| f != folder);
+        }
+        if folders.is_empty() {
+            file.collapsed_folders.remove(&key);
+        }
+        self.write_repositories(file)
     }
 
     /// Dernier dépôt ouvert (tête de la liste des récents).
@@ -113,21 +172,16 @@ impl Store {
 
     /// Place `repository` en tête des récents (sans doublon), daté de `now`.
     pub fn record_opened(&self, repository: &Path, now: u64) -> io::Result<()> {
-        let mut recent = self.recent_repositories();
-        recent.retain(|r| r.path != repository);
-        recent.insert(
+        let mut file = self.read_repositories();
+        file.recent.retain(|r| r.path != repository);
+        file.recent.insert(
             0,
             RecentRepository {
                 path: repository.to_path_buf(),
                 last_opened: now,
             },
         );
-        let file = RepositoriesFile {
-            version: REPOSITORIES_VERSION,
-            recent,
-        };
-        let json = serde_json::to_string_pretty(&file).map_err(io::Error::other)?;
-        self.write_atomically(REPOSITORIES_FILE, json.as_bytes())
+        self.write_repositories(file)
     }
 
     /// Colonnes masquées du graphe. Fichier absent, illisible ou d'une version inconnue : aucune.
@@ -490,6 +544,94 @@ mod tests {
         assert_eq!(store.last_repository(), Some(PathBuf::from("/a")));
         assert_eq!(store.hidden_columns(), ["sha"]);
         assert_eq!(store.profiles().len(), 1);
+    }
+
+    #[test]
+    fn collapsed_folders_are_kept_per_repository_across_a_new_store() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        let (a, b) = (Path::new("/a"), Path::new("/b"));
+        assert!(Store::new(&data).collapsed_folders(a).is_empty());
+        let store = Store::new(&data);
+        store.set_folder_collapsed(a, "local:feat", true).unwrap();
+        store.set_folder_collapsed(a, "tags:v1", true).unwrap();
+        store.set_folder_collapsed(a, "local:feat", true).unwrap();
+        assert_eq!(
+            Store::new(&data).collapsed_folders(a),
+            ["local:feat", "tags:v1"]
+        );
+        assert!(Store::new(&data).collapsed_folders(b).is_empty());
+        Store::new(&data)
+            .set_folder_collapsed(b, "local:feat", true)
+            .unwrap();
+        Store::new(&data)
+            .set_folder_collapsed(a, "local:feat", false)
+            .unwrap();
+        assert_eq!(Store::new(&data).collapsed_folders(a), ["tags:v1"]);
+        assert_eq!(Store::new(&data).collapsed_folders(b), ["local:feat"]);
+    }
+
+    #[test]
+    fn folder_states_and_recent_list_do_not_erase_each_other() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        store
+            .set_folder_collapsed(Path::new("/a"), "local:feat", true)
+            .unwrap();
+        store.record_opened(Path::new("/a"), 1).unwrap();
+        store.record_opened(Path::new("/b"), 2).unwrap();
+        assert_eq!(store.collapsed_folders(Path::new("/a")), ["local:feat"]);
+        assert_eq!(paths(&store), [PathBuf::from("/b"), "/a".into()]);
+        store
+            .set_folder_collapsed(Path::new("/a"), "x", true)
+            .unwrap();
+        assert_eq!(paths(&store), [PathBuf::from("/b"), "/a".into()]);
+    }
+
+    #[test]
+    fn version_2_example_file_is_read_without_folder_state_then_upgraded() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(REPOSITORIES_FILE),
+            include_str!("../tests-data/repositories-v2.json"),
+        )
+        .unwrap();
+        assert_eq!(
+            paths(&store),
+            [PathBuf::from("/work/octogit"), "/work/other".into()]
+        );
+        assert!(store
+            .collapsed_folders(Path::new("/work/octogit"))
+            .is_empty());
+        store
+            .set_folder_collapsed(Path::new("/work/octogit"), "local:feat", true)
+            .unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(tmp.0.join(REPOSITORIES_FILE)).unwrap())
+                .unwrap();
+        assert_eq!(json["version"], 3);
+        assert_eq!(
+            paths(&store),
+            [PathBuf::from("/work/octogit"), "/work/other".into()]
+        );
+    }
+
+    #[test]
+    fn version_3_example_file_is_read() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(REPOSITORIES_FILE),
+            include_str!("../tests-data/repositories-v3.json"),
+        )
+        .unwrap();
+        assert_eq!(
+            store.collapsed_folders(Path::new("/work/octogit")),
+            ["local:feat", "origin:feature/ui"]
+        );
+        assert!(store.collapsed_folders(Path::new("/work/other")).is_empty());
+        assert_eq!(paths(&store).len(), 2);
     }
 
     #[test]

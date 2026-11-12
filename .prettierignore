@@ -9,6 +9,7 @@ pnpm-lock.yaml
 Cargo.lock
 playwright-report/
 test-results/
+.vitest/
 brief.md
 ux.md
 stack.md

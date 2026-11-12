@@ -37,6 +37,8 @@ pub fn builder() -> Builder<tauri::Wry> {
         commands::choose_folder,
         commands::get_hidden_columns,
         commands::set_hidden_columns,
+        commands::get_collapsed_folders,
+        commands::set_folder_collapsed,
         commands::get_commit_detail,
         commands::fetch_repository,
         commands::list_profiles,

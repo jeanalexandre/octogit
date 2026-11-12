@@ -53,6 +53,20 @@ pub fn set_hidden_columns(columns: Vec<Column>) {
     preferences::set_hidden_columns(&Store::new(data_dir()), &columns);
 }
 
+/// Dossiers repliés de `BranchSidebar` pour le dépôt `path`.
+#[tauri::command]
+#[specta::specta]
+pub fn get_collapsed_folders(path: String) -> Vec<String> {
+    Store::new(data_dir()).collapsed_folders(Path::new(&path))
+}
+
+/// Replie ou déplie un dossier de `BranchSidebar`. Une préférence est une aide : un échec d'écriture est ignoré.
+#[tauri::command]
+#[specta::specta]
+pub fn set_folder_collapsed(path: String, folder: String, collapsed: bool) {
+    let _ = Store::new(data_dir()).set_folder_collapsed(Path::new(&path), &folder, collapsed);
+}
+
 /// Profils dans l'ordre de `ProfileSettings`.
 #[tauri::command]
 #[specta::specta]

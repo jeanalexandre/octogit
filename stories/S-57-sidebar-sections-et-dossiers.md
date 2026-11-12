@@ -17,6 +17,17 @@
 - **organiser-l-espace CA-2** : Étant donné les branches locales `feat/api`, `feat/graph`, `feat/ui/x` et `main`, alors Local montre le dossier « feat · 3 » puis `main` ; « feat · 3 » contient le dossier « ui · 1 » (qui affiche `x`) puis `api` et `graph` : dossiers avant les noms, chacun par ordre alphabétique, compte de toutes les refs sous le dossier, sous-dossiers compris, dossiers dépliés par défaut ; le même groupement s'applique à chaque remote et à Tags ; les stashes ne sont pas groupés.
 - **organiser-l-espace CA-3** : Étant donné un dossier de `BranchSidebar`, quand je clique dessus, alors il se replie ou se déplie ; quand je ferme puis rouvre Octogit sur ce dépôt, alors il garde cet état ; un autre dépôt garde ses propres états.
 
+## Décisions de l'humain
+### Pendant le passage 1 (12/11/2026)
+1. Ajouter `.vitest` à `.gitignore` et à `.prettierignore` dans cette story (demande de l'humain, hors critères).
+
+### Écarts du passage 1 de dev (12/11/2026)
+2. Ordre dans `BranchSidebar` (décision de l'humain, remplace l'ordre alphabétique des branches de CA-1) : à chaque niveau, dossiers avant les éléments ; seuls les dossiers sont triés par ordre alphanumérique croissant sans tenir compte de la casse, dans toutes les sections groupées (Local, remotes, Tags) ; tous les autres éléments (branches locales, branches distantes, tags, stashes) vont du plus récent au plus ancien (date du commit désigné), la courante à sa place dans cet ordre. Un dossier ne prend pas la date de son élément le plus récent. L'ordre des sections (CA-1) ne change pas. `specs/organiser-l-espace.md` CA-1 et CA-2 et `ux/ecrans/history.md` (ligne `BranchSidebar`) sont à amender en conséquence (par `/ksm:spec` et `/ksm:ux`, pas par `dev`).
+
+### Après la revue 2 (12/11/2026)
+3. Sidebar coupée en bas à 1280×720, sans défilement : pris en compte (pour information), couvert par S-58 (CA-4, hauteur et défilement des sections).
+4. Lecture-modification-écriture de `repositories.json` à chaque clic de dossier, un clic très rapproché peut se perdre : pris en compte (pour information).
+5. `pnpm dev:web` des captures coupé : pris en compte (pour information).
 ## Contexte technique
 - Dépend de S-5 (refs, `BranchSidebar` actuel). `src/lib/components/BranchSidebar.svelte` : aujourd'hui liste plate en un seul bloc par section (`Local`, un par remote, `Tags`, `Stashes`), `<h2>{title} · {n}</h2>`, sans tri ni dossiers. Le remote `origin` passe en premier, les autres remotes par ordre alphabétique. Le tri des tags et des stashes « du plus récent au plus ancien » demande la date du commit de la ref : vérifier ce que `RefView` (`src/lib/bindings.ts`, `crates/git/src/graph.rs`) porte déjà, et ne l'ajouter côté Rust (puis `pnpm gen:bindings`) que s'il manque.
 - Écran : `ux/ecrans/history.md`, ligne `BranchSidebar` du tableau des composants ; maquette `ux/maquettes/history.html`, sections 1 et « 7 · Sidebar and layout » ; icônes Lucide (`stack.md`) ; couleurs uniquement par `src/lib/styles/tokens.css`.
@@ -48,7 +59,11 @@
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : (notée au démarrage de la boucle)
+Référence du diff : 9165773
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (suite pour les décisions 1 et 2), vérifications relancées ✅ | — |
+| 1 | reviewer | `stories/S-57-revue-1.md` : 1 bloquant (régression CA-23 10 000 commits, ouverture > 3 s), 1 mineur (captures non prises) | à corriger |
+| 2 | dev | terminé (`screen` en `$state.raw` dans `App.svelte`), vérifications relancées ✅ dont `pnpm e2e` 50/50 | — |
+| 2 | reviewer | `stories/S-57-revue-2.md` : bloquant et mineur levés, aucun problème | validé |

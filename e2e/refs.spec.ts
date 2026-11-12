@@ -39,9 +39,11 @@ for (const size of sizes) {
       await expect(nav.getByText(title, { exact: true })).toBeVisible();
     for (const name of [
       "develop",
-      "feature/profiles",
+      "feature · 1",
+      "profiles",
       "main",
-      "spike/gix",
+      "spike · 1",
+      "gix",
       "v1.0.0",
       "v1.1.0",
       "stash@{0}",

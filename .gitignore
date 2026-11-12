@@ -6,4 +6,5 @@ dist/
 src-tauri/gen/
 playwright-report/
 test-results/
+.vitest/
 .env

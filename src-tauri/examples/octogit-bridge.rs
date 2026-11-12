@@ -19,6 +19,13 @@ struct OpenArgs {
 }
 
 #[derive(Deserialize)]
+struct FolderArgs {
+    path: String,
+    folder: String,
+    collapsed: bool,
+}
+
+#[derive(Deserialize)]
 struct DetailArgs {
     path: String,
     id: String,
@@ -62,6 +69,19 @@ fn main() {
         "set_hidden_columns" => {
             let args: ColumnsArgs = serde_json::from_str(&input).expect("arguments { columns }");
             octogit_app::commands::set_hidden_columns(args.columns);
+            (serde_json::to_string(&()), 0)
+        }
+        "get_collapsed_folders" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            (
+                serde_json::to_string(&octogit_app::commands::get_collapsed_folders(args.path)),
+                0,
+            )
+        }
+        "set_folder_collapsed" => {
+            let args: FolderArgs =
+                serde_json::from_str(&input).expect("arguments { path, folder, collapsed }");
+            octogit_app::commands::set_folder_collapsed(args.path, args.folder, args.collapsed);
             (serde_json::to_string(&()), 0)
         }
         "get_commit_detail" => {

@@ -12,9 +12,11 @@
     error,
     hiddenColumns,
     lastFetched = null,
+    collapsedFolders = [],
     onopen,
     onchoose,
     onhidecolumns,
+    ontogglefolder,
     loadDetail,
   }: {
     repository: RepositoryView;
@@ -28,6 +30,10 @@
     onopen: (path: string) => void;
     onchoose: () => void;
     onhidecolumns: (columns: Column[]) => void;
+    /** Clés des dossiers repliés de `BranchSidebar` pour ce dépôt. */
+    collapsedFolders?: string[];
+    /** Un dossier de `BranchSidebar` se replie ou se déplie : à mémoriser. */
+    ontogglefolder?: (key: string, collapsed: boolean) => void;
     /** Lit le détail d'un commit du dépôt affiché ; rejette si la lecture échoue. */
     loadDetail: (id: string) => Promise<CommitDetailView>;
   } = $props();
@@ -84,7 +90,13 @@
     <p class="empty">No commits yet.</p>
   {:else}
     <div class="body">
-      <BranchSidebar refs={repository.refs} {stashTitles} />
+      <BranchSidebar
+        refs={repository.refs}
+        commits={repository.commits}
+        {stashTitles}
+        collapsed={collapsedFolders}
+        ontoggle={ontogglefolder}
+      />
       <CommitGraph
         commits={repository.commits}
         refs={repository.refs}

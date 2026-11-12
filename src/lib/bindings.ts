@@ -11,6 +11,10 @@ export const commands = {
 	chooseFolder: () => __TAURI_INVOKE<string | null>("choose_folder"),
 	getHiddenColumns: () => __TAURI_INVOKE<Column[]>("get_hidden_columns"),
 	setHiddenColumns: (columns: Column[]) => __TAURI_INVOKE<void>("set_hidden_columns", { columns }),
+	/**  Dossiers repliés de `BranchSidebar` pour le dépôt `path`. */
+	getCollapsedFolders: (path: string) => __TAURI_INVOKE<string[]>("get_collapsed_folders", { path }),
+	/**  Replie ou déplie un dossier de `BranchSidebar`. Une préférence est une aide : un échec d'écriture est ignoré. */
+	setFolderCollapsed: (path: string, folder: string, collapsed: boolean) => __TAURI_INVOKE<void>("set_folder_collapsed", { path, folder, collapsed }),
 	/**  Détail d'un commit du dépôt `path` (message, auteur, date, signature, fichiers modifiés). */
 	getCommitDetail: (path: string, id: string) => typedError<CommitDetailView, string>(__TAURI_INVOKE("get_commit_detail", { path, id })),
 	/**  Fetch automatique de `path` en tâche de fond (sans bloquer l'interface), puis relecture du dépôt s'il a changé. */

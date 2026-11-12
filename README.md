@@ -20,7 +20,7 @@ pnpm install
 ## Lancement
 
 - `pnpm tauri dev` : l'application dans sa fenêtre ; régénère `src/lib/bindings.ts`.
-- `pnpm dev:web` : l'interface seule sur `http://localhost:1420` dans le navigateur, avec un pont local qui exécute les vraies commandes Rust (utilisé par Playwright et les captures de revue).
+- `pnpm dev:web` : l'interface seule sur `http://localhost:1420` (ou `OCTOGIT_PORT` de `.env.local`) dans le navigateur, avec un pont local qui exécute les vraies commandes Rust (utilisé par Playwright et les captures de revue).
 
 ## Ouvrir un dépôt
 
@@ -106,7 +106,7 @@ Aucune automatisation ni CI de release.
 
 ## Données
 
-Octogit écrit ses fichiers JSON dans `OCTOGIT_DATA_DIR`. En développement et en test, le défaut est le dossier `.dev-data/` du repo (ignoré par Git) ; jamais `~/Library/Application Support/Octogit/`, réservé à l'application livrée. Les variables `OCTOGIT_DATA_DIR` et `OCTOGIT_PORT` se passent dans l'environnement du shell (aucun fichier `.env` n'est lu), par exemple `OCTOGIT_PORT=1421 OCTOGIT_DATA_DIR=/chemin/absolu pnpm dev:web`. Une valeur absolue est préférable pour `OCTOGIT_DATA_DIR`. `OCTOGIT_PORT` n'agit que sur `pnpm dev:web` : `pnpm tauri dev` sert toujours sur le port 1420, donc deux `pnpm tauri dev` en parallèle se bloquent. Voir `.env.example`.
+Octogit écrit ses fichiers JSON dans `OCTOGIT_DATA_DIR`. En développement et en test, le défaut est le dossier `.dev-data/` du repo (ignoré par Git) ; jamais `~/Library/Application Support/Octogit/`, réservé à l'application livrée. Les variables `OCTOGIT_DATA_DIR` et `OCTOGIT_PORT` se lisent dans `.env.local` à la racine (non versionné, ignoré par Git ; copier `.env.example`), sans préfixe de commande : `pnpm dev:web` et `pnpm e2e` le chargent par Node (`--env-file-if-exists`). Une variable déjà posée dans le shell l'emporte. Lancer toujours par ces scripts pnpm, jamais `npx playwright` ni `cargo run` en direct (ils ne lisent pas `.env.local`). Sous `pnpm e2e`, le port suit `OCTOGIT_PORT` mais les données de test restent dans un dossier temporaire. Une valeur absolue est préférable pour `OCTOGIT_DATA_DIR`. `OCTOGIT_PORT` n'agit que sur `pnpm dev:web` : `pnpm tauri dev` sert toujours sur le port 1420, donc deux `pnpm tauri dev` en parallèle se bloquent. Voir `.env.example`.
 
 ## Organisation du repo
 

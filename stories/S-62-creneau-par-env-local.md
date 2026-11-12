@@ -20,6 +20,11 @@ Aucune spec : critères tirés de `stack.md`, section « Environnement local »,
 - **stack.md Environnement local, d** : `.env.local` est ignoré par Git.
 - **stack.md Environnement local, e** : `pnpm tauri dev` n'est pas isolé : il sert toujours sur 1420 (`devUrl` de `src-tauri/tauri.conf.json` inchangé).
 
+## Décisions de l'humain
+### Après la revue 1 (12/11/2026)
+1. Mineur `tsconfig.json:12` (`allowImportingTsExtensions`) : pris en compte (d'office), le reviewer le juge nécessaire et ne demande aucune correction.
+2. Preuve de bout en bout « `.env.local` lu → port 1421 » non faite (sandbox) : pris en compte (pour information) ; essai à la main laissé à l'humain (outillage de développement, hors `notes-production.md`).
+
 ## Contexte technique
 - `stack.md`, section « Environnement local », champ « Isolement d'un worktree » : lecture par Node natif (`node --env-file-if-exists=.env.local` ou `process.loadEnvFile`), sans dépendance ; les sous-processus (vite, cargo, pont de test) héritent des variables ; toute commande qui a besoin du créneau passe par un script pnpm.
 - `package.json` : `dev:web` lit aujourd'hui le port par expansion du shell (`${OCTOGIT_PORT:-1420}`), qui a lieu avant Node : elle ne verrait pas `.env.local`. Le port doit être lu après le chargement du fichier (par exemple `server.port` de `vite.config.ts` pris de `process.env.OCTOGIT_PORT`, défaut 1420). `e2e` (`playwright test --trace off`) doit aussi passer par le chargement de `.env.local`.
@@ -52,7 +57,9 @@ Aucune spec : critères tirés de `stack.md`, section « Environnement local »,
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : (notée au démarrage de la boucle)
+Référence du diff : `0793870`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; `src/dev-slot.ts` ajouté, `tsconfig.json` `allowImportingTsExtensions` ; tests, lint, build relancés ✅ | — |
+| 1 | reviewer | `stories/S-62-revue-1.md` ; 1 mineur sans correction | validé |

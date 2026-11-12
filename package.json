@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "dev:web": "cargo build -q -p octogit-app --example octogit-bridge && vite --mode web --port ${OCTOGIT_PORT:-1420} --strictPort",
+    "dev:web": "cargo build -q -p octogit-app --example octogit-bridge && node --env-file-if-exists=.env.local node_modules/vite/bin/vite.js --mode web --strictPort",
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "gen:bindings": "cargo run -q -p octogit-app --example gen-bindings",
@@ -18,7 +18,7 @@
     "format": "cargo fmt --all && prettier --write .",
     "format:check": "cargo fmt --all --check && prettier --check .",
     "test": "cargo test --workspace && vitest run",
-    "e2e": "playwright test --trace off",
+    "e2e": "node --env-file-if-exists=.env.local node_modules/@playwright/test/cli.js test --trace off",
     "audit:deps": "cargo audit && pnpm audit",
     "tauri": "tauri"
   },

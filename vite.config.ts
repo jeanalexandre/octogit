@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { resolve } from "node:path";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig, type Plugin } from "vite";
+import { resolveDevPort } from "./src/dev-slot.ts";
 
 /**
  * Pont de test (`pnpm dev:web`, mode `web`) : `POST /__bridge/<commande>` exécute la vraie commande
@@ -50,7 +51,12 @@ export default defineConfig(({ mode }) => ({
   plugins: [svelte(), ...(mode === "web" ? [bridge()] : [])],
   clearScreen: false,
   resolve: process.env.VITEST ? { conditions: ["browser"] } : undefined,
-  server: { port: 1420, strictPort: true, watch: { ignored: ["**/target/**", "**/.dev-data/**"] } },
+  // Seul `dev:web` (mode web) lit le créneau ; `pnpm dev` / `tauri dev` restent sur 1420.
+  server: {
+    port: mode === "web" ? resolveDevPort(process.env) : 1420,
+    strictPort: true,
+    watch: { ignored: ["**/target/**", "**/.dev-data/**"] },
+  },
   test: {
     environment: "jsdom",
     setupFiles: ["src/test-setup.ts"],

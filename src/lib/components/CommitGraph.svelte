@@ -1,5 +1,13 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { Column, CommitView, EdgeView, RefView } from "../bindings";
+  import {
+    LANE_WIDTH,
+    MIN_GRAPH_WIDTH,
+    clampGraphWidth,
+    defaultGraphWidth,
+    lanesWidth,
+  } from "../graphWidth";
   import { formatAbsolute, formatRelativeShort } from "../relativeTime";
   import CommitNode from "./CommitNode.svelte";
   import RefLabel from "./RefLabel.svelte";
@@ -9,8 +17,11 @@
     refs,
     selected,
     hiddenColumns,
+    openId = 0,
+    savedWidth = null,
     onselect,
     onhidecolumns,
+    onwidth,
   }: {
     commits: CommitView[];
     /** Refs du dépôt : chacune s'affiche sur la ligne du commit qu'elle désigne. */
@@ -18,13 +29,19 @@
     /** Identifiant du commit sélectionné, ou `null`. */
     selected: string | null;
     hiddenColumns: Column[];
+    /** Change à chaque ouverture d'un dépôt : la largeur par défaut est alors recalculée, pas avant. */
+    openId?: number;
+    /** Largeur du graphe réglée pour ce dépôt (pixels), ou `null` : défaut calculé. */
+    savedWidth?: number | null;
     onselect: (id: string) => void;
     onhidecolumns: (columns: Column[]) => void;
+    /** Fin d'un glisser ou geste clavier sur le séparateur : la largeur réglée, ou `null` (retour au défaut). */
+    onwidth?: (width: number | null) => void;
   } = $props();
 
   /** Hauteur d'une ligne ; la bande teintée en fait 30. */
   const ROW = 34;
-  const LANE = 26;
+  const LANE = LANE_WIDTH;
   const OVERSCAN = 8;
   /** Hauteur supposée tant que la zone n'est pas mesurée. */
   const FALLBACK_HEIGHT = 600;
@@ -63,14 +80,85 @@
   const x = (lane: number) => 16 + lane * LANE;
   const shown = (column: Column) => !hiddenColumns.includes(column);
 
-  const graphWidth = $derived.by(() => {
-    let max = 0;
-    for (const commit of commits) {
-      if (commit.lane > max) max = commit.lane;
-      for (const edge of commit.edges) max = Math.max(max, edge.from, edge.to);
-    }
-    return max * LANE + 32;
+  /** Zone du graphe : la liste des commits, sans `BranchSidebar` ni panneau de droite (absente sous jsdom : `0`). */
+  let zoneElement: HTMLElement | undefined = $state();
+  let zone = $state(0);
+  $effect(() => {
+    const element = zoneElement;
+    if (!element) return;
+    zone = element.clientWidth;
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => (zone = element.clientWidth));
+    observer.observe(element);
+    return () => observer.disconnect();
   });
+
+  /** Largeur de toutes les lanes du dépôt. */
+  const lanes = $derived(lanesWidth(commits));
+  /**
+   * Défaut figé : calculé à l'ouverture d'un dépôt (dès que la zone est mesurée), pas à chaque fetch ;
+   * les lanes ajoutées ensuite au-delà de la largeur sont coupées, signalées par le fondu.
+   */
+  let frozen: number | null = $state(null);
+  let lastOpen: unknown = undefined;
+  $effect.pre(() => {
+    const open = openId;
+    const measured = zone;
+    untrack(() => {
+      if (open !== lastOpen) frozen = null;
+      lastOpen = open;
+      if (frozen === null && measured > 0) frozen = defaultGraphWidth(lanes, measured);
+    });
+  });
+  /** Repart de la préférence du dépôt, puis suit les gestes (le parent la mémorise aussi). */
+  let adjusted: number | null = $derived(savedWidth);
+  /** Glisser en cours : la largeur suit le pointeur, rien n'est écrit avant la fin. */
+  let drag: { startX: number; startWidth: number; width: number } | null = $state(null);
+
+  function currentWidth(): number {
+    if (drag) return drag.width;
+    if (adjusted !== null) return Math.max(MIN_GRAPH_WIDTH, adjusted);
+    return frozen ?? defaultGraphWidth(lanes, zone);
+  }
+  const graphWidth = $derived.by(currentWidth);
+  /** Des lanes dépassent la largeur : le fondu au bord les signale. */
+  const cut = $derived(lanes > graphWidth);
+
+  function startDrag(event: PointerEvent) {
+    if (event.button !== 0) return;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    drag = { startX: event.clientX, startWidth: graphWidth, width: graphWidth };
+  }
+
+  function moveDrag(event: PointerEvent) {
+    if (!drag) return;
+    drag.width = clampGraphWidth(drag.startWidth + event.clientX - drag.startX, lanes);
+  }
+
+  function endDrag() {
+    if (!drag) return;
+    const { width, startWidth } = drag;
+    drag = null;
+    if (width === startWidth) return;
+    adjusted = width;
+    onwidth?.(width);
+  }
+
+  /** Double-clic : retour au défaut, recalculé sur les lanes présentes. */
+  function resetWidth() {
+    adjusted = null;
+    frozen = defaultGraphWidth(lanes, zone);
+    onwidth?.(null);
+  }
+
+  function keyResize(event: KeyboardEvent) {
+    const step = event.key === "ArrowRight" ? LANE : event.key === "ArrowLeft" ? -LANE : 0;
+    if (step === 0) return;
+    event.preventDefault();
+    const next = clampGraphWidth(graphWidth + step, lanes);
+    adjusted = next;
+    onwidth?.(next);
+  }
   type Label = {
     name: string;
     variant: "synced" | "ahead" | "remote" | "tag" | "stash";
@@ -192,90 +280,123 @@
   onpointerdown={(e) => menu && !menuElement?.contains(e.target as Node) && closeMenu(false)}
 />
 
-<section class="graph" style="--columns: {template}">
-  <div
-    class="rows"
-    bind:this={rowsElement}
-    onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
-  >
+<section class="graph" style="--columns: {template}" bind:this={zoneElement}>
+  <div class="main">
     <div
-      class="head"
-      role="group"
-      tabindex="0"
-      aria-label="Column headers"
-      bind:this={headElement}
-      oncontextmenu={openMenu}
-      onkeydown={onheadkeydown}
+      class="rows"
+      bind:this={rowsElement}
+      onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
     >
-      <span>Branch / Tag</span>
-      <span>Graph</span>
-      <span>Commit message</span>
-      {#each COLUMNS.filter((c) => shown(c.id)) as column (column.id)}
-        <span>{column.label}</span>
-      {/each}
-    </div>
-    <div class="spacer" role="list" style="height: {commits.length * ROW}px">
-      {#each visible as commit, i (commit.id)}
-        <div
-          class="row"
-          role="listitem"
-          style="--lane: var(--lane-{commit.color + 1}); top: {(first + i) * ROW}px"
-        >
-          <div class="refs">
-            {#each labelsByCommit[commit.id] ?? [] as label (label.variant + label.name)}
-              <RefLabel
-                name={label.name}
-                variant={label.variant}
-                published={label.published}
-                color={commit.color}
-              />
-            {/each}
-            {#if commit.id in labelsByCommit}<span class="wire" data-wire aria-hidden="true"
-              ></span>{/if}
-          </div>
-          <div class="lanes">
-            <svg width={graphWidth} height={ROW} aria-hidden="true">
-              {#if commit.id in labelsByCommit}
-                <line class="wire-line" x1="0" x2={x(commit.lane) - 12} y1={ROW / 2} y2={ROW / 2} />
-              {/if}
-              {#each commit.edges as edge, k (k)}
-                <path d={path(edge)} style="--lane: var(--lane-{edge.color + 1})" />
+      <div
+        class="head"
+        role="group"
+        tabindex="0"
+        aria-label="Column headers"
+        bind:this={headElement}
+        oncontextmenu={openMenu}
+        onkeydown={onheadkeydown}
+      >
+        <span>Branch / Tag</span>
+        <span>Graph</span>
+        <span>Commit message</span>
+        {#each COLUMNS.filter((c) => shown(c.id)) as column (column.id)}
+          <span>{column.label}</span>
+        {/each}
+      </div>
+      <div class="spacer" role="list" style="height: {commits.length * ROW}px">
+        {#each visible as commit, i (commit.id)}
+          <div
+            class="row"
+            role="listitem"
+            style="--lane: var(--lane-{commit.color + 1}); top: {(first + i) * ROW}px"
+          >
+            <div class="refs">
+              {#each labelsByCommit[commit.id] ?? [] as label (label.variant + label.name)}
+                <RefLabel
+                  name={label.name}
+                  variant={label.variant}
+                  published={label.published}
+                  color={commit.color}
+                />
               {/each}
-            </svg>
-            <span class="node-slot" style="left: {x(commit.lane) - 12}px">
-              <CommitNode author={commit.author} color={commit.color} />
-            </span>
-          </div>
-          <div class="band">
-            <span class="trait" data-trait aria-hidden="true"></span>
-            <button
-              type="button"
-              class="summary"
-              aria-current={selected === commit.id ? "true" : undefined}
-              onclick={() => onselect(commit.id)}>{commit.summary}</button
-            >
-            {#if shown("author")}<span class="author muted">{commit.author}</span>{/if}
-            {#if shown("date") && commit.timestamp !== null}
-              <span class="date muted">
-                <time
-                  datetime={new Date(commit.timestamp * 1000).toISOString()}
-                  onmouseenter={() => (hovered = commit.id)}
-                  onmouseleave={() => (hovered = null)}
-                >
-                  {formatRelativeShort(commit.timestamp)}
-                </time>
-                {#if hovered === commit.id}
-                  <span role="tooltip" class="tooltip">{formatAbsolute(commit.timestamp)}</span>
+              {#if commit.id in labelsByCommit}<span class="wire" data-wire aria-hidden="true"
+                ></span>{/if}
+            </div>
+            <div class="lanes" data-lanes>
+              <svg width={graphWidth} height={ROW} aria-hidden="true">
+                {#if commit.id in labelsByCommit}
+                  <line
+                    class="wire-line"
+                    x1="0"
+                    x2={x(commit.lane) - 12}
+                    y1={ROW / 2}
+                    y2={ROW / 2}
+                  />
                 {/if}
-              </span>
-            {:else if shown("date")}
-              <span></span>
-            {/if}
-            {#if shown("sha")}<span class="sha muted">{commit.id.slice(0, 7)}</span>{/if}
+                {#each commit.edges as edge, k (k)}
+                  {#if x(Math.min(edge.from, edge.to)) < graphWidth}
+                    <path d={path(edge)} style="--lane: var(--lane-{edge.color + 1})" />
+                  {/if}
+                {/each}
+              </svg>
+              {#if x(commit.lane) - 12 < graphWidth}
+                <span class="node-slot" style="left: {x(commit.lane) - 12}px">
+                  <CommitNode author={commit.author} color={commit.color} />
+                </span>
+              {/if}
+              {#if cut}<span class="fade" data-fade aria-hidden="true"></span>{/if}
+            </div>
+            <div class="band">
+              <span class="trait" data-trait aria-hidden="true"></span>
+              <button
+                type="button"
+                class="summary"
+                aria-current={selected === commit.id ? "true" : undefined}
+                onclick={() => onselect(commit.id)}>{commit.summary}</button
+              >
+              {#if shown("author")}<span class="author muted">{commit.author}</span>{/if}
+              {#if shown("date") && commit.timestamp !== null}
+                <span class="date muted">
+                  <time
+                    datetime={new Date(commit.timestamp * 1000).toISOString()}
+                    onmouseenter={() => (hovered = commit.id)}
+                    onmouseleave={() => (hovered = null)}
+                  >
+                    {formatRelativeShort(commit.timestamp)}
+                  </time>
+                  {#if hovered === commit.id}
+                    <span role="tooltip" class="tooltip">{formatAbsolute(commit.timestamp)}</span>
+                  {/if}
+                </span>
+              {:else if shown("date")}
+                <span></span>
+              {/if}
+              {#if shown("sha")}<span class="sha muted">{commit.id.slice(0, 7)}</span>{/if}
+            </div>
           </div>
-        </div>
-      {/each}
+        {/each}
+      </div>
     </div>
+    <!-- Un séparateur focusable (valeurs, flèches) est un « window splitter » d'ARIA 1.2 : un widget, que la règle de Svelte ne reconnaît pas. -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+    <div
+      class="splitter"
+      class:dragging={drag !== null}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize graph"
+      aria-valuemin={MIN_GRAPH_WIDTH}
+      aria-valuemax={Math.max(lanes, graphWidth)}
+      aria-valuenow={graphWidth}
+      tabindex="0"
+      style="left: calc({REFS_WIDTH} + {graphWidth}px - 3px)"
+      onpointerdown={startDrag}
+      onpointermove={moveDrag}
+      onpointerup={endDrag}
+      onpointercancel={endDrag}
+      ondblclick={resetWidth}
+      onkeydown={keyResize}
+    ></div>
   </div>
 
   {#if menu}
@@ -317,14 +438,52 @@
     display: flex;
     flex: 1;
     flex-direction: column;
+    /* La zone ne dépend pas de ses colonnes : sa largeur est celle qu'on mesure pour le défaut. */
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .main {
+    position: relative;
+    display: flex;
+    flex: 1;
     min-height: 0;
   }
 
   .rows {
     position: relative;
     flex: 1;
+    min-width: 0;
     min-height: 0;
     overflow-y: auto;
+  }
+
+  /* Séparateur entre graphe et message : zone à saisir de 7 px, trait fin au milieu. */
+  .splitter {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 3;
+    width: 7px;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  .splitter::after {
+    content: "";
+    position: absolute;
+    inset: 0 3px;
+    border-left: 1px solid var(--border);
+  }
+
+  .splitter:hover::after,
+  .splitter.dragging::after {
+    border-left-color: var(--focus);
+  }
+
+  .splitter:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
   }
 
   .head,
@@ -378,6 +537,16 @@
   .lanes {
     position: relative;
     height: 34px;
+    overflow: hidden;
+  }
+
+  /* Fondu au bord droit : les lanes au-delà de la largeur sont coupées ; un dégradé vers la surface, sans couleur propre. */
+  .fade {
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: 24px;
+    background: linear-gradient(to right, transparent, var(--surface));
+    pointer-events: none;
   }
 
   svg {

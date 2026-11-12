@@ -1,0 +1,13 @@
+{
+  "version": 4,
+  "recent": [
+    { "path": "/work/octogit", "last_opened": 1762857600 },
+    { "path": "/work/other", "last_opened": 1762771200 }
+  ],
+  "collapsed_folders": {
+    "/work/octogit": ["local:feat", "origin:feature/ui"]
+  },
+  "graph_widths": {
+    "/work/octogit": 312
+  }
+}

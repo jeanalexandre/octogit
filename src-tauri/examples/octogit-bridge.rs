@@ -26,6 +26,12 @@ struct FolderArgs {
 }
 
 #[derive(Deserialize)]
+struct GraphWidthArgs {
+    path: String,
+    width: Option<u32>,
+}
+
+#[derive(Deserialize)]
 struct SectionHeightArgs {
     section: String,
     height: Option<u32>,
@@ -125,6 +131,19 @@ fn main() {
             let args: FolderArgs =
                 serde_json::from_str(&input).expect("arguments { path, folder, collapsed }");
             octogit_app::commands::set_folder_collapsed(args.path, args.folder, args.collapsed);
+            (serde_json::to_string(&()), 0)
+        }
+        "get_graph_width" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            (
+                serde_json::to_string(&octogit_app::commands::get_graph_width(args.path)),
+                0,
+            )
+        }
+        "set_graph_width" => {
+            let args: GraphWidthArgs =
+                serde_json::from_str(&input).expect("arguments { path, width }");
+            octogit_app::commands::set_graph_width(args.path, args.width);
             (serde_json::to_string(&()), 0)
         }
         "get_commit_detail" => {

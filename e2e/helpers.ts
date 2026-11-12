@@ -23,6 +23,7 @@ export class Workspace {
       | "layout"
       | "conflict"
       | "identity"
+      | "wide"
       | "large",
     name = "my-repo",
   ): string {
@@ -115,6 +116,36 @@ export class Workspace {
     git("checkout", "-q", "-b", branch, "origin/develop");
     git("commit", "-q", "--allow-empty", "-m", `Work on ${branch}`);
     git("push", "-q", "origin", branch);
+  }
+
+  /**
+   * Comme `pushBranchFromOther`, pour `count` branches `wide-01`… qui partent toutes du même commit :
+   * `repo` les connaît après son prochain fetch, avec autant de lanes de plus.
+   */
+  pushManyBranchesFromOther(repo: string, count: number): void {
+    const other = `${repo}-other`;
+    const git = (...args: string[]) =>
+      execFileSync("git", ["-C", other, ...args], {
+        env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+      });
+    const names: string[] = [];
+    for (let n = 1; n <= count; n++) {
+      const name = `wide-${String(n).padStart(2, "0")}`;
+      git("checkout", "-q", "-B", name, "origin/develop");
+      git("commit", "-q", "--allow-empty", "-m", `Work on ${name}`);
+      names.push(name);
+    }
+    git("push", "-q", "origin", ...names);
+  }
+
+  /** `graph_widths` de `repositories.json` : largeur du graphe réglée, par chemin de dépôt. */
+  storedGraphWidths(): Record<string, number> {
+    try {
+      const file = JSON.parse(readFileSync(join(this.dataDir, "repositories.json"), "utf8"));
+      return file.graph_widths ?? {};
+    } catch {
+      return {};
+    }
   }
 
   /** Adresse de l'interface qui lit et écrit dans le dossier de données de ce test. */

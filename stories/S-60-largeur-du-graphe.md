@@ -17,6 +17,15 @@ La largeur du graphe affiche par défaut toutes les lanes dans la limite de 40 %
 - **organiser-l-espace CA-12** : Étant donné la largeur du graphe par défaut, quand un fetch ajoute des lanes, alors la largeur ne change pas jusqu'à la prochaine ouverture du dépôt et un fondu au bord signale les lanes nouvelles coupées.
 - **organiser-l-espace CA-13** : Étant donné le séparateur entre graphe et message, quand je le glisse, alors la largeur du graphe suit et est gardée à la fermeture d'Octogit pour ce dépôt seulement ; quand je double-clique dessus, alors elle revient au défaut, recalculé sur les lanes présentes (CA-11).
 
+## Décisions de l'humain
+### Écarts du passage 1 de dev (12/11/2026)
+1. « Zone du graphe » du plafond de 40 % : toute la section `CommitGraph` (colonne des refs, lanes, message, auteur, date, SHA), sans `BranchSidebar` ni panneau de droite (choix 1a de l'humain, comme implémenté).
+2. Bornes du glisser du séparateur : au moins une lane (32 px), au plus toutes les lanes du dépôt (choix 2a de l'humain, comme implémenté).
+3. Revue visuelle : captures prises par l'orchestrateur hors dépôt et fournies au reviewer (décision de l'humain sur S-59, revue 1, valable pour le lot).
+
+### Après la revue 1 (12/11/2026)
+1. `pnpm tauri build` non relancé par le reviewer : pris en compte (pour information) ; relancé par l'orchestrateur sur le même code après le passage 1 de dev, vert.
+
 ## Contexte technique
 - Dépend de S-4 (graphe en lanes). `src/lib/components/CommitGraph.svelte`, `CommitNode.svelte`, `src/lib/screens/History.svelte`, `crates/git/src/graph.rs` (nombre de lanes du dépôt).
 - Défaut : largeur de toutes les lanes du dépôt, au plus 40 % de la zone du graphe (mesurer la zone du graphe telle que `ux/ecrans/history.md` la définit : la liste des commits, sans `BranchSidebar` ni panneau de droite ; si la définition de « zone » reste ambiguë à l'implémentation, `dev` la pose en écart de fiche). Calculé à l'ouverture du dépôt puis figé : un fetch ne le recalcule pas, et les lanes ajoutées au-delà de la largeur sont coupées avec le fondu. Double-clic sur le séparateur : recalcul sur les lanes présentes.
@@ -51,7 +60,9 @@ La largeur du graphe affiche par défaut toutes les lanes dans la limite de 40 %
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : (notée au démarrage de la boucle)
+Référence du diff : `bcf5549`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; `repositories.json` en `version` 4 (`graph_widths`), commandes `get_graph_width` / `set_graph_width`, fixture `wide.sh` ; écarts « zone du graphe » et bornes du glisser tranchés par l'humain (1a, 2a) ; tests, lint, build relancés ✅ | — |
+| 1 | reviewer | `stories/S-60-revue-1.md` ; revue visuelle sur captures de l'orchestrateur, aucun problème | validé |

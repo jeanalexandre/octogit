@@ -16,6 +16,8 @@
     sectionHeights = {},
     collapsedSections = [],
     openId = 0,
+    graphWidth = null,
+    ongraphwidth,
     panelCollapsed = false,
     onpaneltoggle,
     onopen,
@@ -47,6 +49,10 @@
     collapsedSections?: string[];
     /** Change à chaque ouverture de dépôt : les hauteurs par défaut sont recalculées alors. */
     openId?: number;
+    /** Largeur du graphe réglée pour ce dépôt (pixels), ou `null` : défaut calculé à l'ouverture. */
+    graphWidth?: number | null;
+    /** Fin d'un réglage de la largeur du graphe : la largeur, ou `null` pour le défaut. */
+    ongraphwidth?: (width: number | null) => void;
     /** `BranchSidebar` est replié en bande d'icônes, pour tous les dépôts. */
     panelCollapsed?: boolean;
     /** Le panneau se replie ou se déplie : à mémoriser. */
@@ -130,6 +136,9 @@
         refs={repository.refs}
         {selected}
         {hiddenColumns}
+        {openId}
+        savedWidth={graphWidth}
+        onwidth={ongraphwidth}
         onselect={select}
         {onhidecolumns}
       />

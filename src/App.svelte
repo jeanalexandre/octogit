@@ -67,6 +67,26 @@
     };
   });
 
+  /** Largeur du graphe réglée pour le dépôt ouvert (pixels), ou `null` : défaut calculé. Relue à chaque changement de dépôt. */
+  let graphWidth: number | null = $state(null);
+  $effect(() => {
+    const path = openPath;
+    graphWidth = null;
+    if (path === null) return;
+    let stale = false;
+    void commands.getGraphWidth(path).then((width) => {
+      if (!stale) graphWidth = width;
+    });
+    return () => {
+      stale = true;
+    };
+  });
+
+  async function setGraphWidth(width: number | null) {
+    graphWidth = width;
+    if (openPath !== null) await commands.setGraphWidth(openPath, width);
+  }
+
   /** Hauteurs et repli des sections de `BranchSidebar`, globaux : lus au lancement, mis à jour à chaque geste. */
   let sectionLayout: SectionLayoutView = $state({ heights: {}, collapsed: [] });
 
@@ -185,6 +205,8 @@
     sectionHeights={sectionLayout.heights}
     collapsedSections={sectionLayout.collapsed}
     openId={openCount}
+    {graphWidth}
+    ongraphwidth={setGraphWidth}
     {panelCollapsed}
     onpaneltoggle={togglePanel}
     onsectionheight={setSectionHeight}

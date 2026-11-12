@@ -9,7 +9,7 @@ use octogit_identity::Profile;
 use serde::{Deserialize, Serialize};
 
 pub const REPOSITORIES_FILE: &str = "repositories.json";
-pub const REPOSITORIES_VERSION: u32 = 3;
+pub const REPOSITORIES_VERSION: u32 = 4;
 
 pub const PREFERENCES_FILE: &str = "preferences.json";
 pub const PREFERENCES_VERSION: u32 = 3;
@@ -58,13 +58,17 @@ pub struct RecentRepository {
 }
 
 /// Format courant : `recent` du plus récent au plus ancien, sans doublon ; `collapsed_folders` :
-/// par chemin de dépôt, les dossiers repliés de `BranchSidebar` (la version 2 n'en a pas).
+/// par chemin de dépôt, les dossiers repliés de `BranchSidebar` (la version 2 n'en a pas) ;
+/// `graph_widths` : par chemin de dépôt, la largeur du graphe réglée en pixels (absente avant la
+/// version 4 ; sans entrée : défaut calculé).
 #[derive(Debug, Serialize, Deserialize)]
 struct RepositoriesFile {
     version: u32,
     recent: Vec<RecentRepository>,
     #[serde(default)]
     collapsed_folders: BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    graph_widths: BTreeMap<String, u32>,
 }
 
 /// Format de la version 1 (S-1) : un seul dépôt mémorisé.
@@ -93,11 +97,13 @@ impl Store {
             version: REPOSITORIES_VERSION,
             recent: Vec::new(),
             collapsed_folders: BTreeMap::new(),
+            graph_widths: BTreeMap::new(),
         }
     }
 
     /// Contenu du fichier des dépôts, au format courant. Fichier absent, illisible ou d'une version
-    /// inconnue : vide. Les versions 1 et 2 sont migrées à la lecture (la 2 sans état de dossiers).
+    /// inconnue : vide. Les versions 1 à 3 sont migrées à la lecture (la 2 sans état de dossiers,
+    /// la 3 sans largeur du graphe).
     fn read_repositories(&self) -> RepositoriesFile {
         let file_path = self.dir.join(REPOSITORIES_FILE);
         let Ok(content) = fs::read_to_string(&file_path) else {
@@ -107,7 +113,7 @@ impl Store {
             return Self::empty_repositories();
         };
         match value.get("version").and_then(|v| v.as_u64()) {
-            Some(2 | 3) => serde_json::from_value::<RepositoriesFile>(value)
+            Some(2..=4) => serde_json::from_value::<RepositoriesFile>(value)
                 .unwrap_or_else(|_| Self::empty_repositories()),
             Some(1) => {
                 let Ok(old) = serde_json::from_value::<RepositoriesFileV1>(value) else {
@@ -176,6 +182,26 @@ impl Store {
         if folders.is_empty() {
             file.collapsed_folders.remove(&key);
         }
+        self.write_repositories(file)
+    }
+
+    /// Largeur du graphe réglée pour `repository`, en pixels ; `None` : défaut calculé. Les autres
+    /// dépôts ont leur propre largeur.
+    pub fn graph_width(&self, repository: &Path) -> Option<u32> {
+        self.read_repositories()
+            .graph_widths
+            .get(repository.to_string_lossy().as_ref())
+            .copied()
+    }
+
+    /// Mémorise la largeur du graphe de `repository` ; `None` la remet à son défaut calculé.
+    pub fn set_graph_width(&self, repository: &Path, width: Option<u32>) -> io::Result<()> {
+        let mut file = self.read_repositories();
+        let key = repository.to_string_lossy().into_owned();
+        match width {
+            Some(w) => file.graph_widths.insert(key, w),
+            None => file.graph_widths.remove(&key),
+        };
         self.write_repositories(file)
     }
 
@@ -788,7 +814,7 @@ mod tests {
         let json: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(tmp.0.join(REPOSITORIES_FILE)).unwrap())
                 .unwrap();
-        assert_eq!(json["version"], 3);
+        assert_eq!(json["version"], REPOSITORIES_VERSION);
         assert_eq!(
             paths(&store),
             [PathBuf::from("/work/octogit"), "/work/other".into()]
@@ -809,6 +835,80 @@ mod tests {
             ["local:feat", "origin:feature/ui"]
         );
         assert!(store.collapsed_folders(Path::new("/work/other")).is_empty());
+        assert_eq!(paths(&store).len(), 2);
+    }
+
+    #[test]
+    fn graph_width_is_kept_for_its_repository_only_across_a_new_store() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        let (a, b) = (Path::new("/a"), Path::new("/b"));
+        assert_eq!(Store::new(&data).graph_width(a), None);
+        Store::new(&data).set_graph_width(a, Some(312)).unwrap();
+        assert_eq!(Store::new(&data).graph_width(a), Some(312));
+        assert_eq!(Store::new(&data).graph_width(b), None);
+        Store::new(&data).set_graph_width(b, Some(96)).unwrap();
+        Store::new(&data).set_graph_width(a, Some(400)).unwrap();
+        assert_eq!(Store::new(&data).graph_width(a), Some(400));
+        assert_eq!(Store::new(&data).graph_width(b), Some(96));
+        Store::new(&data).set_graph_width(a, None).unwrap();
+        assert_eq!(Store::new(&data).graph_width(a), None);
+        assert_eq!(Store::new(&data).graph_width(b), Some(96));
+    }
+
+    #[test]
+    fn graph_width_folder_states_and_recent_list_do_not_erase_each_other() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        store.set_graph_width(Path::new("/a"), Some(200)).unwrap();
+        store
+            .set_folder_collapsed(Path::new("/a"), "local:feat", true)
+            .unwrap();
+        store.record_opened(Path::new("/a"), 1).unwrap();
+        assert_eq!(store.graph_width(Path::new("/a")), Some(200));
+        assert_eq!(store.collapsed_folders(Path::new("/a")), ["local:feat"]);
+        assert_eq!(paths(&store), [PathBuf::from("/a")]);
+    }
+
+    #[test]
+    fn version_3_example_file_has_no_graph_width_then_is_upgraded_to_version_4() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(REPOSITORIES_FILE),
+            include_str!("../tests-data/repositories-v3.json"),
+        )
+        .unwrap();
+        assert_eq!(store.graph_width(Path::new("/work/octogit")), None);
+        store
+            .set_graph_width(Path::new("/work/octogit"), Some(250))
+            .unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(tmp.0.join(REPOSITORIES_FILE)).unwrap())
+                .unwrap();
+        assert_eq!(json["version"], 4);
+        assert_eq!(json["graph_widths"]["/work/octogit"], 250);
+        assert_eq!(
+            store.collapsed_folders(Path::new("/work/octogit")),
+            ["local:feat", "origin:feature/ui"]
+        );
+    }
+
+    #[test]
+    fn version_4_example_file_is_read() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(REPOSITORIES_FILE),
+            include_str!("../tests-data/repositories-v4.json"),
+        )
+        .unwrap();
+        assert_eq!(store.graph_width(Path::new("/work/octogit")), Some(312));
+        assert_eq!(store.graph_width(Path::new("/work/other")), None);
+        assert_eq!(
+            store.collapsed_folders(Path::new("/work/octogit")),
+            ["local:feat", "origin:feature/ui"]
+        );
         assert_eq!(paths(&store).len(), 2);
     }
 

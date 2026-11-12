@@ -25,6 +25,10 @@ export const commands = {
 	getCollapsedFolders: (path: string) => __TAURI_INVOKE<string[]>("get_collapsed_folders", { path }),
 	/**  Replie ou déplie un dossier de `BranchSidebar`. Une préférence est une aide : un échec d'écriture est ignoré. */
 	setFolderCollapsed: (path: string, folder: string, collapsed: boolean) => __TAURI_INVOKE<void>("set_folder_collapsed", { path, folder, collapsed }),
+	/**  Largeur du graphe réglée pour le dépôt `path` (pixels) ; `None` : défaut calculé. */
+	getGraphWidth: (path: string) => __TAURI_INVOKE<number | null>("get_graph_width", { path }),
+	/**  Mémorise la largeur du graphe de `path` ; `None` revient au défaut. Un échec d'écriture est ignoré. */
+	setGraphWidth: (path: string, width: number | null) => __TAURI_INVOKE<void>("set_graph_width", { path, width }),
 	/**  Détail d'un commit du dépôt `path` (message, auteur, date, signature, fichiers modifiés). */
 	getCommitDetail: (path: string, id: string) => typedError<CommitDetailView, string>(__TAURI_INVOKE("get_commit_detail", { path, id })),
 	/**  Fetch automatique de `path` en tâche de fond (sans bloquer l'interface), puis relecture du dépôt s'il a changé. */

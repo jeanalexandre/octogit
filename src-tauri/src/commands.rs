@@ -102,6 +102,20 @@ pub fn set_folder_collapsed(path: String, folder: String, collapsed: bool) {
     let _ = Store::new(data_dir()).set_folder_collapsed(Path::new(&path), &folder, collapsed);
 }
 
+/// Largeur du graphe réglée pour le dépôt `path` (pixels) ; `None` : défaut calculé.
+#[tauri::command]
+#[specta::specta]
+pub fn get_graph_width(path: String) -> Option<u32> {
+    Store::new(data_dir()).graph_width(Path::new(&path))
+}
+
+/// Mémorise la largeur du graphe de `path` ; `None` revient au défaut. Un échec d'écriture est ignoré.
+#[tauri::command]
+#[specta::specta]
+pub fn set_graph_width(path: String, width: Option<u32>) {
+    let _ = Store::new(data_dir()).set_graph_width(Path::new(&path), width);
+}
+
 /// Profils dans l'ordre de `ProfileSettings`.
 #[tauri::command]
 #[specta::specta]

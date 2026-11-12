@@ -44,6 +44,8 @@ pub fn builder() -> Builder<tauri::Wry> {
         commands::set_panel_collapsed,
         commands::get_collapsed_folders,
         commands::set_folder_collapsed,
+        commands::get_graph_width,
+        commands::set_graph_width,
         commands::get_commit_detail,
         commands::fetch_repository,
         commands::list_profiles,

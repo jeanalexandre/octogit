@@ -24,6 +24,12 @@
 | 14 | S-9 | écart de dev | `-F none` absent : `~/.ssh/config` peut ajouter une autre clé ? | `-F none` ajouté au passage suivant, cohérence `core.sshCommand` par `/ksm:stack` (autre : garder la commande de `stack.md`) | CA-9 : seule la clé du profil est présentée | à revoir avant push |
 | 15 | S-9 | revue 1 | Icône devant Test connection, Test again et les boutons hérités de S-8 ? | Reporté vers S-48 (autre : traiter ici) | S-48 prévoit les icônes Lucide devant chaque libellé | à relire |
 | 16 | S-9 | revue 1 | `ssh` du `PATH` en production, contre `/usr/bin/ssh` de `stack.md` ? | `/usr/bin/ssh` toujours dans l'application, faux `ssh` injecté par les tests seulement (autre : amender `stack.md` pour le `PATH`) | Respecte `stack.md` ; un autre OpenSSH ne se substitue pas en fond | à revoir avant push |
+| 17 | S-10 | fiche | `core.sshCommand` avec `-F none` ? | Oui, amendement `/ksm:stack` (autre : commande de `stack.md` telle quelle) | CA-3 : seule la clé du profil ; même choix que S-9 ; les alias de `~/.ssh/config` ne servent plus aux dépôts rattachés | à revoir avant push |
+| 18 | S-10 | écart de dev | Contrat (`rules`, `profile` du dépôt) et `profiles.json` en version 2 avec migration de la version 1 ? | Acceptés (autre : les refaire autrement) | Prévus par la fiche, migration sans perte | à revoir avant push |
+| 19 | S-10 | écart de dev | Règle Path sans joker = dossier et contenu ; `dossier/**` inclut `dossier` ? | Accepté (autre : correspondance exacte seulement) | Ce que l'utilisateur attend d'un dossier de projets | à relire |
+| 20 | S-10 | écart de dev | Remote owner sans casse, `ssh://` et `git://` acceptés ? | Accepté (autre : casse exacte, SSH et HTTPS seuls) | GitHub ne distingue pas la casse des comptes | à relire |
+| 21 | S-10 | écart de dev | Règles éditables seulement sur un profil enregistré ? | Accepté (autre : aussi à la création) | Plus simple, sans perte : on enregistre puis on ajoute | à relire |
+| 22 | S-10 | écart de dev | Signature cochée sans `.pub` : rien d'écrit, sans message ? | Accepté jusqu'au badge de S-12 (autre : message d'erreur dès maintenant) | Rien d'écrit est sûr ; l'écart deviendra visible en S-12 | à relire |
 
 ## Alertes
 - 

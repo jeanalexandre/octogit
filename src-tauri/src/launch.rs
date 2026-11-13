@@ -7,6 +7,8 @@ use octogit_store::Store;
 use serde::Serialize;
 use specta::Type;
 
+use crate::attach::{attach_profile, ProfileBadgeView};
+
 /// Nombre de commits lus pour le graphe (liste virtualisée : 10 000 commits tiennent).
 ///
 /// Limite connue : une ref plus ancienne que ces 10 000 commits (du plus récent au plus ancien)
@@ -60,6 +62,9 @@ pub struct RepositoryView {
     pub commits: Vec<CommitView>,
     /// Branches locales, `origin/…`, tags et stashes ; chacune désigne un commit de `commits`.
     pub refs: Vec<RefView>,
+    /// Profil rattaché par les règles à l'ouverture ; `None` : aucune règle ne correspond (ou lecture seule,
+    /// comme après un fetch : l'appelant garde alors le profil déjà connu).
+    pub profile: Option<ProfileBadgeView>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Type)]
@@ -153,6 +158,7 @@ fn repository_view_with_limit(path: &Path, limit: usize) -> Option<RepositoryVie
                 behind: r.behind,
             })
             .collect(),
+        profile: None,
     })
 }
 
@@ -163,11 +169,21 @@ pub fn folder_name(path: &Path) -> String {
         .unwrap_or_else(|| path.to_string_lossy().into_owned())
 }
 
-/// Dernier dépôt mémorisé et lisible : `History` ; sinon (aucun, dossier absent, pas un dépôt) : `Welcome`.
+/// Dernier dépôt mémorisé et lisible : `History`, rattaché à son profil ; sinon (aucun, dossier absent,
+/// pas un dépôt) : `Welcome`.
 pub fn launch_state(store: &Store) -> LaunchState {
+    launch_state_in(store, &crate::home_dir())
+}
+
+/// Comme `launch_state`, avec `home` pour `~` et pour le `HOME` de `git`.
+pub fn launch_state_in(store: &Store, home: &Path) -> LaunchState {
     store
         .last_repository()
-        .and_then(|path| repository_view(&path))
+        .and_then(|path| {
+            let mut view = repository_view(&path)?;
+            view.profile = attach_profile(store, &path, home);
+            Some(view)
+        })
         .map_or(LaunchState::Welcome, |repository| LaunchState::History {
             repository,
         })

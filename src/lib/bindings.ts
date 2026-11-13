@@ -132,6 +132,14 @@ export type OpenError =
 /**  Le dossier n'est pas un dépôt Git lisible ; `name` est le nom du dossier. */
 { kind: "notARepository"; name: string };
 
+/**  Profil rattaché à un dépôt, tel que `ProfileBadge` l'affiche. */
+export type ProfileBadgeView = {
+	id: string,
+	name: string,
+	/**  Indice de couleur de lane, de 0 à 5. */
+	color: number,
+};
+
 /**  Profil tel que l'interface le manipule. `id` vide : profil pas encore créé. */
 export type ProfileView = {
 	id: string,
@@ -142,6 +150,7 @@ export type ProfileView = {
 	userEmail: string,
 	signCommits: boolean,
 	sshKeyPath: string,
+	rules: RuleView[],
 };
 
 export type RecentView = {
@@ -195,6 +204,11 @@ export type RepositoryView_Deserialize = {
 	commits: CommitView[],
 	/**  Branches locales, `origin/…`, tags et stashes ; chacune désigne un commit de `commits`. */
 	refs: RefView_Deserialize[],
+	/**
+	 *  Profil rattaché par les règles à l'ouverture ; `None` : aucune règle ne correspond (ou lecture seule,
+	 *  comme après un fetch : l'appelant garde alors le profil déjà connu).
+	 */
+	profile?: ProfileBadgeView | null,
 };
 
 export type RepositoryView_Serialize = {
@@ -203,6 +217,19 @@ export type RepositoryView_Serialize = {
 	commits: CommitView[],
 	/**  Branches locales, `origin/…`, tags et stashes ; chacune désigne un commit de `commits`. */
 	refs: RefView_Serialize[],
+	/**
+	 *  Profil rattaché par les règles à l'ouverture ; `None` : aucune règle ne correspond (ou lecture seule,
+	 *  comme après un fetch : l'appelant garde alors le profil déjà connu).
+	 */
+	profile: ProfileBadgeView | null,
+};
+
+export type RuleKindView = "path" | "remoteOwner";
+
+/**  Règle de rattachement : son type et son motif (`~/Dev/Pro/**`, `github.com/pro-company/*`). */
+export type RuleView = {
+	kind: RuleKindView,
+	pattern: string,
 };
 
 /**  Hauteurs (pixels, par identifiant de section) et sections repliées de `BranchSidebar`. */

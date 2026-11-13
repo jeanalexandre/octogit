@@ -15,9 +15,10 @@ pub const PREFERENCES_FILE: &str = "preferences.json";
 pub const PREFERENCES_VERSION: u32 = 3;
 
 pub const PROFILES_FILE: &str = "profiles.json";
-pub const PROFILES_VERSION: u32 = 1;
+pub const PROFILES_VERSION: u32 = 2;
 
-/// Profils dans l'ordre de `ProfileSettings` (les règles arrivent avec S-10).
+/// Profils dans l'ordre de `ProfileSettings`, chacun avec ses règles de rattachement. La version 1
+/// n'a pas de règles : elle est lue avec des règles vides et passe en version 2 à la prochaine écriture.
 #[derive(Debug, Serialize, Deserialize)]
 struct ProfilesFile {
     version: u32,
@@ -304,7 +305,7 @@ impl Store {
             return Vec::new();
         };
         match serde_json::from_str::<ProfilesFile>(&content) {
-            Ok(file) if file.version == PROFILES_VERSION => file.profiles,
+            Ok(file) if matches!(file.version, 1..=PROFILES_VERSION) => file.profiles,
             _ => Vec::new(),
         }
     }
@@ -666,7 +667,75 @@ mod tests {
             user_email: format!("{id}@pro-company.fr"),
             sign_commits: true,
             ssh_key_path: "~/.ssh/id_ed25519_pro".into(),
+            rules: vec![],
         }
+    }
+
+    fn rule(kind: octogit_identity::RuleKind, pattern: &str) -> octogit_identity::MatchingRule {
+        octogit_identity::MatchingRule {
+            kind,
+            pattern: pattern.into(),
+        }
+    }
+
+    #[test]
+    fn rules_are_persisted_with_their_type_and_a_removed_rule_stays_removed() {
+        use octogit_identity::RuleKind::{Path as PathRule, RemoteOwner};
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        let mut pro = sample("p1", "Pro");
+        pro.rules = vec![
+            rule(PathRule, "~/Dev/Pro/**"),
+            rule(RemoteOwner, "github.com/pro-company/*"),
+        ];
+        Store::new(&data).set_profiles(&[pro.clone()]).unwrap();
+        assert_eq!(Store::new(&data).profiles(), [pro.clone()]);
+        let json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(data.join(PROFILES_FILE)).unwrap()).unwrap();
+        assert_eq!(json["profiles"][0]["rules"][1]["kind"], "remote_owner");
+        pro.rules.remove(0);
+        Store::new(&data).set_profiles(&[pro.clone()]).unwrap();
+        assert_eq!(
+            Store::new(&data).profiles()[0].rules,
+            [rule(RemoteOwner, "github.com/pro-company/*")]
+        );
+    }
+
+    #[test]
+    fn version_2_profiles_example_file_is_read_with_its_rules() {
+        use octogit_identity::RuleKind::{Path as PathRule, RemoteOwner};
+        let tmp = TempDir::new();
+        fs::write(
+            tmp.0.join(PROFILES_FILE),
+            include_str!("../tests-data/profiles-v2.json"),
+        )
+        .unwrap();
+        let profiles = Store::new(&tmp.0).profiles();
+        assert_eq!(
+            profiles[0].rules,
+            [
+                rule(PathRule, "~/Dev/Pro/**"),
+                rule(RemoteOwner, "github.com/pro-company/*")
+            ]
+        );
+        assert!(profiles[1].rules.is_empty());
+    }
+
+    #[test]
+    fn version_1_profiles_have_no_rules_and_are_upgraded_to_version_2_on_write() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(PROFILES_FILE),
+            include_str!("../tests-data/profiles-v1.json"),
+        )
+        .unwrap();
+        let profiles = store.profiles();
+        assert!(profiles.iter().all(|p| p.rules.is_empty()));
+        store.set_profiles(&profiles).unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(tmp.0.join(PROFILES_FILE)).unwrap()).unwrap();
+        assert_eq!(json["version"], 2);
     }
 
     #[test]

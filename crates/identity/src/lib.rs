@@ -3,7 +3,12 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod local;
+pub mod rules;
 pub mod ssh;
+
+pub use local::{apply_profile, read_origin_url, ApplyOutcome};
+pub use rules::{first_matching_profile, MatchingRule, RuleKind};
 
 /// Profil d'identité : qui commite (`user.name`, `user.email`), avec quelle clé SSH, signé ou non.
 /// L'ordre de la liste des profils est porté par la liste, pas par le profil.
@@ -18,6 +23,9 @@ pub struct Profile {
     pub sign_commits: bool,
     /// Chemin de la clé privée, tel que saisi (choix et génération : S-8).
     pub ssh_key_path: String,
+    /// Règles de rattachement (S-10) ; absentes des fichiers de version 1.
+    #[serde(default)]
+    pub rules: Vec<MatchingRule>,
 }
 
 impl Profile {
@@ -66,6 +74,7 @@ mod tests {
             user_email: "e@x.org".into(),
             sign_commits: false,
             ssh_key_path: "k".into(),
+            rules: vec![],
         }
     }
 

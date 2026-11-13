@@ -1,6 +1,7 @@
 //! Crate `app` : commandes et événements Tauri seulement ; la logique vit dans les autres crates
 //! ou dans des modules testables sans runtime (`launch`).
 
+pub mod attach;
 pub mod commands;
 pub mod detail;
 pub mod fetch;
@@ -29,6 +30,13 @@ pub fn data_dir() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_default();
     home.join("Library/Application Support/Octogit")
+}
+
+/// Dossier personnel (`HOME`) : `~` des règles Path et des clés SSH des profils.
+pub fn home_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default()
 }
 
 /// Dossier SSH : `OCTOGIT_SSH_DIR` (tests et pont de test), sinon `~/.ssh`.

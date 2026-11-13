@@ -1,9 +1,48 @@
 //! Profils vus par l'interface. Aucune dépendance au runtime Tauri ; jamais d'accès à `~/.gitconfig`.
 
-use octogit_identity::{move_profile, new_profile_id, Profile};
+use octogit_identity::{move_profile, new_profile_id, MatchingRule, Profile, RuleKind};
 use octogit_store::Store;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum RuleKindView {
+    Path,
+    RemoteOwner,
+}
+
+/// Règle de rattachement : son type et son motif (`~/Dev/Pro/**`, `github.com/pro-company/*`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RuleView {
+    pub kind: RuleKindView,
+    pub pattern: String,
+}
+
+impl From<MatchingRule> for RuleView {
+    fn from(r: MatchingRule) -> Self {
+        RuleView {
+            kind: match r.kind {
+                RuleKind::Path => RuleKindView::Path,
+                RuleKind::RemoteOwner => RuleKindView::RemoteOwner,
+            },
+            pattern: r.pattern,
+        }
+    }
+}
+
+impl From<RuleView> for MatchingRule {
+    fn from(r: RuleView) -> Self {
+        MatchingRule {
+            kind: match r.kind {
+                RuleKindView::Path => RuleKind::Path,
+                RuleKindView::RemoteOwner => RuleKind::RemoteOwner,
+            },
+            pattern: r.pattern.trim().to_string(),
+        }
+    }
+}
 
 /// Profil tel que l'interface le manipule. `id` vide : profil pas encore créé.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -17,6 +56,7 @@ pub struct ProfileView {
     pub user_email: String,
     pub sign_commits: bool,
     pub ssh_key_path: String,
+    pub rules: Vec<RuleView>,
 }
 
 impl From<Profile> for ProfileView {
@@ -29,6 +69,7 @@ impl From<Profile> for ProfileView {
             user_email: p.user_email,
             sign_commits: p.sign_commits,
             ssh_key_path: p.ssh_key_path,
+            rules: p.rules.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -43,6 +84,7 @@ impl From<ProfileView> for Profile {
             user_email: v.user_email,
             sign_commits: v.sign_commits,
             ssh_key_path: v.ssh_key_path,
+            rules: v.rules.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -61,6 +103,9 @@ pub fn save(store: &Store, view: ProfileView) -> Result<ProfileView, String> {
     let mut profile: Profile = view.into();
     if !profile.is_valid() {
         return Err("A profile needs a name, a user.name and a user.email.".into());
+    }
+    if profile.rules.iter().any(|r| r.pattern.is_empty()) {
+        return Err("A matching rule needs a pattern.".into());
     }
     if profile.color >= COLORS {
         return Err("Unknown profile color.".into());
@@ -116,7 +161,42 @@ mod tests {
             user_email: format!("{name}@example.org"),
             sign_commits: false,
             ssh_key_path: "~/.ssh/id".into(),
+            rules: vec![],
         }
+    }
+
+    #[test]
+    fn rules_are_saved_with_their_type_listed_back_and_removed_by_a_later_save() {
+        let (store, dir) = store("rules");
+        let mut pro = view("Pro");
+        pro.rules = vec![
+            RuleView {
+                kind: RuleKindView::Path,
+                pattern: "~/Dev/Pro/**".into(),
+            },
+            RuleView {
+                kind: RuleKindView::RemoteOwner,
+                pattern: " github.com/pro-company/* ".into(),
+            },
+        ];
+        let saved = save(&store, pro).unwrap();
+        assert_eq!(saved.rules[1].pattern, "github.com/pro-company/*");
+        assert_eq!(list(&Store::new(store.dir()))[0].rules, saved.rules);
+        let without_path = ProfileView {
+            rules: saved.rules[1..].to_vec(),
+            ..saved
+        };
+        save(&store, without_path).unwrap();
+        let rules = list(&Store::new(store.dir()))[0].rules.clone();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].kind, RuleKindView::RemoteOwner);
+        let mut blank = view("Perso");
+        blank.rules = vec![RuleView {
+            kind: RuleKindView::Path,
+            pattern: "  ".into(),
+        }];
+        assert!(save(&store, blank).is_err());
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

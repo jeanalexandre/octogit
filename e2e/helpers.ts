@@ -3,6 +3,9 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
+/** Règle de rattachement telle que `profiles.json` la stocke. */
+export type StoredRule = { kind: "path" | "remote_owner"; pattern: string };
+
 /** Dossier temporaire d'un test : données d'Octogit et dépôts fabriqués par `fixtures/`. */
 export class Workspace {
   readonly root = mkdtempSync(join(tmpdir(), "octogit-e2e-"));
@@ -54,14 +57,16 @@ export class Workspace {
   }
 
   /** Enregistre des profils complets (dans l'ordre donné), comme le ferait une session précédente. */
-  rememberProfiles(names: string[]): void {
+  rememberProfiles(profiles: (string | { name: string; rules: StoredRule[] })[]): void {
+    const entries = profiles.map((p) => (typeof p === "string" ? { name: p, rules: [] } : p));
     writeFileSync(
       join(this.dataDir, "profiles.json"),
       JSON.stringify({
-        version: 1,
-        profiles: names.map((name, i) => ({
+        version: 2,
+        profiles: entries.map(({ name, rules }, i) => ({
           id: `p${i + 1}`,
           name,
+          rules,
           color: i % 6,
           user_name: `${name} User`,
           user_email: `${name.toLowerCase().replace(/\W+/g, "-")}@example.org`,
@@ -73,8 +78,35 @@ export class Workspace {
   }
 
   /** Contenu décodé de `profiles.json`. */
-  readProfilesFile(): { version: number; profiles: { name: string }[] } {
+  readProfilesFile(): {
+    version: number;
+    profiles: { name: string; rules: StoredRule[] }[];
+  } {
     return JSON.parse(readFileSync(join(this.dataDir, "profiles.json"), "utf8"));
+  }
+
+  /** Valeur `git config --local <clé>` d'un dépôt (vide si absente), sans `~/.gitconfig` ni config système. */
+  localConfig(repo: string, key: string): string {
+    try {
+      return execFileSync("git", ["-C", repo, "config", "--local", key], {
+        encoding: "utf8",
+        env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+      }).trim();
+    } catch {
+      return "";
+    }
+  }
+
+  /** Retire `user.name` et `user.email` du `.git/config` local : un dépôt sans identité locale. */
+  clearLocalIdentity(repo: string): void {
+    for (const key of ["user.name", "user.email"]) {
+      execFileSync("git", ["-C", repo, "config", "--local", "--unset", key]);
+    }
+  }
+
+  /** Remplace l'URL de `origin` (sans réseau) : `git@github.com:owner/repo.git`. */
+  setOrigin(repo: string, url: string): void {
+    execFileSync("git", ["-C", repo, "remote", "set-url", "origin", url]);
   }
 
   /** Dossier ordinaire (pas un dépôt Git) avec un fichier et un sous-dossier ; rend son chemin. */

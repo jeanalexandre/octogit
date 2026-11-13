@@ -13,6 +13,7 @@ const pro: ProfileView = {
   userEmail: "jag@pro-company.fr",
   signCommits: true,
   sshKeyPath: "~/.ssh/id_ed25519_pro",
+  rules: [],
 };
 const perso: ProfileView = {
   ...pro,

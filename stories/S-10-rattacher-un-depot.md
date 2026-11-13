@@ -20,6 +20,21 @@ Déclarer des règles Path et Remote owner dans `MatchingRuleList`, rattacher un
 - **proteger-l-identite CA-4** : Étant donné un `.git/config` local déjà conforme au profil, quand j'ouvre le dépôt, alors `.git/config` est identique octet pour octet et `ProfileBadge` est à l'état conforme.
 - **proteger-l-identite CA-28** : Étant donné toute suite d'ouvertures, de clones, de choix dans `IdentityMismatch` ou dans le menu de `ProfileBadge`, et de corrections, alors `~/.gitconfig` est identique octet pour octet avant et après.
 
+## Décisions de l'humain
+### Fiche
+1. `core.sshCommand` écrit avec `-F none` en plus de la commande de `stack.md` : `ssh -F none -i <clé> -o IdentitiesOnly=yes -o IdentityAgent=none`. Sans lui, un `IdentityFile` déclaré pour github.com dans `~/.ssh/config` serait encore présenté, contre CA-3 (« ne présente que la clé de Work ») ; même choix que le test de connexion de S-9 (décision 3 de S-9). Conséquence : les alias d'hôte de `~/.ssh/config` ne servent plus aux dépôts rattachés. Amendement de `stack.md` à faire par `/ksm:stack` (d'office).
+
+### Écarts du passage 1 de dev (13/11/2026)
+2. Contrat : `ProfileView.rules` (`RuleView { kind: path | remoteOwner, pattern }`) et `RepositoryView.profile` (`ProfileBadgeView { id, name, color } | null`) ajoutés ; `profiles.json` en version 2 (`rules`), version 1 lue avec des règles vides puis réécrite en version 2, exemple versionné : acceptés, ajouts prévus par la fiche, aucune donnée perdue (d'office).
+3. Règle Path : un motif sans joker vaut pour le dossier et tout son contenu ; `dossier/**` correspond aussi à `dossier` lui-même : accepté (d'office).
+4. Règle Remote owner : comparaison sans tenir compte de la casse (GitHub ne la distingue pas dans les noms de compte) ; formes `ssh://` et `git://` acceptées en plus de SSH et HTTPS : accepté (d'office).
+5. `MatchingRuleList` visible seulement pour un profil déjà enregistré, pas pendant sa création ; Save désactivé tant qu'un motif est vide, motif vide refusé par le cœur : accepté (d'office).
+6. Profil à signature cochée dont le `.pub` manque : rien n'est écrit, sans message, le profil reste rattaché : accepté pour cette story, l'état non conforme du dépôt sera visible par le badge de S-12 (d'office).
+7. Après un fetch, le profil affiché reste celui de l'ouverture (le fetch ne rattache pas) : accepté, conforme à « Quand écrire : à l'ouverture » (d'office).
+
+### Après la revue 1
+8. Tests de `livraison.test.ts` en échec une fois sous charge, puis verts à la relance (préexistants, hors story) : pris en compte (pour information).
+
 ## Contexte technique
 - Dépend de S-9 (profils complets avec clé) et de S-2 (ouverture d'un dépôt, `RepoPicker`, `open_repository` dans `src-tauri/src/open.rs`).
 - Règles : persistées avec le profil dans `profiles.json` (crate `store`, migration de `version` si le schéma change, fichier d'exemple versionné). Premier profil de la liste dont une règle correspond (ordre de `ProfileSettings`, S-7). Règle Path : motif de chemin avec `~` et `**` ; règle Remote owner : `github.com/<owner>/*` lue sur le remote `origin` seulement, URL SSH (`git@github.com:owner/repo.git`) ou HTTPS (`https://github.com/owner/repo.git`). Correspondance et analyse d'URL dans le crate `identity`.
@@ -58,7 +73,9 @@ Déclarer des règles Path et Remote owner dans `MatchingRuleList`, rattacher un
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : à noter au lancement de la boucle
+Référence du diff : 3fcfb87
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (écarts 2 à 7 tranchés d'office), vérifications relancées ✅ | — |
+| 1 | reviewer | `stories/S-10-revue-1.md` : aucun problème ; amendement `-F none` de `stack.md` déjà consigné (décision 1) | validé |

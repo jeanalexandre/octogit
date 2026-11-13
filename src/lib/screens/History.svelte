@@ -4,6 +4,7 @@
   import CommitDetail from "../components/CommitDetail.svelte";
   import CommitGraph from "../components/CommitGraph.svelte";
   import FetchStatus from "../components/FetchStatus.svelte";
+  import ProfileBadge from "../components/ProfileBadge.svelte";
   import RepoPicker from "../components/RepoPicker.svelte";
 
   let {
@@ -104,6 +105,7 @@
     <RepoPicker {recent} current={repository.path} {onopen} {onchoose} />
     <span class="path">{repository.path}</span>
     <div class="end">
+      {#if repository.profile}<ProfileBadge profile={repository.profile} />{/if}
       <FetchStatus {lastFetched} />
       {#if tracking}
         <span class="sync" role="group" aria-label="Ahead and behind">

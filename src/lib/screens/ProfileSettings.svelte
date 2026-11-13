@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { ProfileView } from "../bindings";
+  import MatchingRuleList from "../components/MatchingRuleList.svelte";
   import ProfileForm from "../components/ProfileForm.svelte";
   import type { SshApi } from "../sshKeys";
 
@@ -34,14 +35,18 @@
       userEmail: "",
       signCommits: false,
       sshKeyPath: "",
+      rules: [],
     };
   }
 
   const filled = (value: string) => value.trim() !== "";
 
+  /** Copie du profil, règles comprises : le brouillon ne doit jamais muter le profil enregistré. */
+  const copy = (p: ProfileView): ProfileView => ({ ...p, rules: p.rules.map((r) => ({ ...r })) });
+
   // `null` : nouveau profil, pas encore enregistré.
   let selectedId: string | null = $state(untrack(() => profiles[0]?.id ?? null));
-  let draft: ProfileView = $state(untrack(() => (profiles[0] ? { ...profiles[0] } : blank())));
+  let draft: ProfileView = $state(untrack(() => (profiles[0] ? copy(profiles[0]) : blank())));
   let confirming = $state(false);
   let error: string | null = $state(null);
 
@@ -51,12 +56,17 @@
     creating
       ? [draft.name, draft.userName, draft.userEmail, draft.sshKeyPath].some(filled)
       : saved !== undefined &&
-          (Object.keys(saved) as (keyof ProfileView)[]).some((key) => saved[key] !== draft[key]),
+          (Object.keys(saved) as (keyof ProfileView)[]).some((key) =>
+            key === "rules"
+              ? JSON.stringify(saved.rules) !== JSON.stringify(draft.rules)
+              : saved[key] !== draft[key],
+          ),
   );
   const canSubmit = $derived(
     filled(draft.name) &&
       filled(draft.userName) &&
       filled(draft.userEmail) &&
+      draft.rules.every((rule) => filled(rule.pattern)) &&
       (creating ? filled(draft.sshKeyPath) : dirty),
   );
   const heading = $derived(profiles.length === 0 ? "Create a first profile" : "New profile");
@@ -68,7 +78,7 @@
 
   function select(profile: ProfileView) {
     selectedId = profile.id;
-    draft = { ...profile };
+    draft = copy(profile);
     error = null;
   }
 
@@ -111,7 +121,7 @@
     try {
       const result = await onsave({ ...$state.snapshot(draft) });
       selectedId = result.id;
-      draft = { ...result };
+      draft = copy(result);
       error = null;
       return true;
     } catch (failure) {
@@ -241,6 +251,9 @@
         onsubmit={submit}
         {ssh}
       />
+      {#if !creating}
+        <MatchingRuleList bind:rules={draft.rules} />
+      {/if}
     </section>
   </div>
 </main>

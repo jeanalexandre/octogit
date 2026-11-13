@@ -15,6 +15,7 @@ fn profile(id: &str, name: &str) -> Profile {
         user_email: format!("{id}@example.org"),
         sign_commits: true,
         ssh_key_path: format!("~/.ssh/id_{id}"),
+        rules: vec![],
     }
 }
 

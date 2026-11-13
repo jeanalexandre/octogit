@@ -46,8 +46,15 @@
         if (result.status !== "ok") return;
         if (screen?.screen !== "history" || screen.repository.path !== path) return;
         // `null` : les refs n'ont pas changé (cas courant), le graphe n'est pas redessiné.
+        // Le fetch ne rattache rien : le profil reste celui de l'ouverture.
         if (result.data !== null)
-          screen = { screen: "history", repository: result.data satisfies RepositoryView };
+          screen = {
+            screen: "history",
+            repository: {
+              ...result.data,
+              profile: screen.repository.profile,
+            } satisfies RepositoryView,
+          };
         lastFetched = Date.now() / 1000;
       },
     });

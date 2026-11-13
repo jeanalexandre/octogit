@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "profiles": [
+    {
+      "id": "p1",
+      "name": "Pro",
+      "color": 2,
+      "user_name": "Jean-Alexandre Gautreau",
+      "user_email": "jag@pro-company.fr",
+      "sign_commits": true,
+      "ssh_key_path": "~/.ssh/id_ed25519_pro",
+      "rules": [
+        { "kind": "path", "pattern": "~/Dev/Pro/**" },
+        { "kind": "remote_owner", "pattern": "github.com/pro-company/*" }
+      ]
+    },
+    {
+      "id": "p2",
+      "name": "Perso",
+      "color": 4,
+      "user_name": "JAG",
+      "user_email": "jag@perso.dev",
+      "sign_commits": false,
+      "ssh_key_path": "~/.ssh/id_ed25519_perso",
+      "rules": []
+    }
+  ]
+}

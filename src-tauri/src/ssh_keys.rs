@@ -286,6 +286,7 @@ mod tests {
                 user_email: "w@example.org".into(),
                 sign_commits: false,
                 ssh_key_path: key.path.clone(),
+                rules: vec![],
             },
         )
         .unwrap();
@@ -350,6 +351,7 @@ mod tests {
                 user_email: "w@example.org".into(),
                 sign_commits: false,
                 ssh_key_path: key.path.clone(),
+                rules: vec![],
             },
         )
         .unwrap();

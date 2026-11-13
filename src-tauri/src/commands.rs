@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use octogit_store::Store;
 
+use crate::attach::{self, ProfileBadgeView};
 use crate::data_dir;
 use crate::detail::{self, CommitDetailView};
 use crate::fetch;
@@ -33,6 +34,41 @@ pub fn open_repository(path: String) -> Result<RepositoryView, OpenError> {
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
     open::open_repository(&Store::new(data_dir()), Path::new(&path), now)
+}
+
+/// `IdentityMismatch`, « Overwrite with profile X » : écrit les valeurs du profil rattaché à `path`.
+#[tauri::command]
+#[specta::specta]
+pub fn overwrite_identity(path: String) -> Result<(), String> {
+    attach::overwrite_identity(
+        &Store::new(data_dir()),
+        Path::new(&path),
+        &crate::home_dir(),
+    )
+}
+
+/// `IdentityMismatch`, « Import local config into Octogit… » : nouveau profil pré-rempli avec le
+/// `.git/config` local de `path` (rien n'est écrit, rien n'est enregistré).
+#[tauri::command]
+#[specta::specta]
+pub fn import_local_config(path: String) -> Result<ProfileView, String> {
+    attach::import_local_config(
+        &Store::new(data_dir()),
+        Path::new(&path),
+        &crate::home_dir(),
+    )
+}
+
+/// Rattache `path` au profil `profile_id` à la main (mémorisé, prioritaire sur les règles).
+#[tauri::command]
+#[specta::specta]
+pub fn attach_repository(path: String, profile_id: String) -> Result<ProfileBadgeView, String> {
+    attach::attach_manually(
+        &Store::new(data_dir()),
+        Path::new(&path),
+        &profile_id,
+        &crate::home_dir(),
+    )
 }
 
 /// Sélecteur de dossier natif ; `None` si annulé. En mode test, le pont d'interface répond à sa place.

@@ -97,6 +97,23 @@ export class Workspace {
     }
   }
 
+  /** Écrit une valeur dans le `.git/config` local d'un dépôt (un réglage modifié « à la main »). */
+  setLocalConfig(repo: string, key: string, value: string): void {
+    execFileSync("git", ["-C", repo, "config", "--local", key, value], {
+      env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+    });
+  }
+
+  /** Octets du `.git/config` d'un dépôt, pour comparer avant et après. */
+  gitConfigBytes(repo: string): Buffer {
+    return readFileSync(join(repo, ".git", "config"));
+  }
+
+  /** Contenu décodé de `repositories.json`. */
+  readRepositoriesFile(): { version: number; manual_profiles?: Record<string, string> } {
+    return JSON.parse(readFileSync(join(this.dataDir, "repositories.json"), "utf8"));
+  }
+
   /** Retire `user.name` et `user.email` du `.git/config` local : un dépôt sans identité locale. */
   clearLocalIdentity(repo: string): void {
     for (const key of ["user.name", "user.email"]) {

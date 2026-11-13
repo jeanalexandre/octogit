@@ -17,6 +17,19 @@
 - **proteger-l-identite CA-6** : Étant donné `IdentityMismatch`, quand je choisis « Overwrite with profile Pro », alors `.git/config` contient les valeurs de Pro (comme CA-3) et `ProfileBadge` passe à l'état conforme.
 - **proteger-l-identite CA-8** : Étant donné `IdentityMismatch`, quand je choisis « Import local config into Octogit… », alors `ProfileSettings` s'ouvre sur un nouveau profil pré-rempli avec les quatre valeurs locales ; `.git/config` est identique octet pour octet ; après Save, le dépôt est rattaché à ce profil, `ProfileBadge` est conforme, et ce rattachement est conservé aux ouvertures suivantes malgré les règles.
 
+## Décisions de l'humain
+### Écarts du passage 1 de dev (13/11/2026)
+1. Après Save d'un Import, rien n'est écrit : si le `core.sshCommand` local (ou la signature) n'a pas la forme écrite par Octogit (`-F none`, `IdentitiesOnly`…), `IdentityMismatch` revient à l'ouverture suivante, contre CA-8 (« après Save, … `ProfileBadge` est conforme, et ce rattachement est conservé »). À faire au passage suivant : `.git/config` reste identique octet pour octet jusqu'au Save ; au Save, les valeurs du nouveau profil sont écrites comme par Overwrite (mêmes valeurs, forme d'Octogit), de sorte que le dépôt est conforme et que le dialogue ne revient pas ; un test le prouve avec un `core.sshCommand` local de forme différente (par exemple `ssh -i <clé>`). La phrase « aucune autre écriture » du contexte technique vise les écritures autres que cette mise en forme (d'office).
+2. `repositories.json` en version 5 (`manual_profiles`, rattachement manuel par chemin), lecture des versions 2 à 5, exemple versionné : accepté, prévu par la fiche, sans perte (d'office).
+3. Contrat : `RepositoryView.mismatch` et commandes `overwrite_identity`, `import_local_config`, `attach_repository` : accepté (d'office).
+4. `ProfileSettings` pré-rempli par Import affiche le formulaire complet (signature comprise) et Save ; nom du profil importé vide, à saisir : accepté (d'office).
+5. Phrase « Until a choice is made, Commit and Push stay blocked. » de la maquette non affichée tant que le blocage n'existe pas : accepté, reportée vers S-21 qui crée ce blocage (d'office).
+
+### Après la revue 1
+6. Problèmes 1 (clippy `large_enum_variant`, corrigé sans `#[allow]`) et 2 (décision 1) : traiter (d'office).
+7. Problème 3 : ordre des lignes (`user.email` avant `user.name`, comme la maquette) : traiter ; icônes des boutons : reporter vers S-48, qui prévoit les icônes Lucide devant chaque libellé de bouton (d'office).
+8. Échec de `src/livraison.test.ts` sous charge : pris en compte (pour information), déjà dans les notes de production.
+
 ## Contexte technique
 - Dépend de S-10 : règles, correspondance, comparaison des quatre valeurs, écriture ciblée dans `.git/config` (fonctions de `crates/identity`), ouverture d'un dépôt. Ce que S-10 ne faisait pas (rien écrire en cas d'écart) devient ici le dialogue.
 - Dialogue `IdentityMismatch` : `ux/ecrans/dialogues.md`, maquette `ux/maquettes/profile-settings.html` section 3 ; composant `src/lib/components/IdentityMismatch.svelte`. Contenu : titre « Local Git config differs from profile Pro », chemin, origine du rattachement (« rule » désignée ou « manual choice »), « Nothing has been written. », tableau profil / local des quatre valeurs, écart marqué par un signe et un texte (jamais la couleur seule, `stack.md` « Accessibilité »), boutons « Overwrite with profile Pro », « Import local config into Octogit… », Cancel (Échap). Cancel et Échap ferment sans rien écrire (le blocage qui en découle est S-21).
@@ -52,7 +65,11 @@
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : à noter au lancement de la boucle
+Référence du diff : 3051d7e
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (écarts 1 à 5 tranchés d'office, le 1 à corriger), vérifications relancées ✅ (clippy non vu par la relance) | — |
+| 1 | reviewer | `stories/S-11-revue-1.md` : 2 bloquants (clippy, écriture au Save d'un Import), 1 mineur | à corriger |
+| 2 | dev | terminé (bloquants 1 et 2, ordre des lignes ; renvoyé une fois pour un clippy rouge dans un test), vérifications relancées ✅ (clippy relancé à part) | — |
+| 2 | reviewer | `stories/S-11-revue-2.md` : bloquants levés, aucun problème | validé |

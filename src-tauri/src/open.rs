@@ -6,7 +6,6 @@ use octogit_store::Store;
 use serde::Serialize;
 use specta::Type;
 
-use crate::attach::attach_profile;
 use crate::launch::{folder_name, repository_view, RepositoryView};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
@@ -45,7 +44,7 @@ pub fn open_repository_in(
         return Err(not_a_repository());
     }
     let mut view = repository_view(path).ok_or_else(not_a_repository)?;
-    view.profile = attach_profile(store, path, home);
+    view.attach(store, path, home);
     // Les récents sont une aide : un échec d'écriture n'empêche pas d'ouvrir le dépôt.
     let _ = store.record_opened(path, now);
     Ok(view)

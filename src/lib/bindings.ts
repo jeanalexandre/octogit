@@ -7,6 +7,15 @@ export const commands = {
 	getLaunchState: () => __TAURI_INVOKE<LaunchState_Serialize>("get_launch_state"),
 	listRecentRepositories: () => __TAURI_INVOKE<RecentView[]>("list_recent_repositories"),
 	openRepository: (path: string) => typedError<RepositoryView_Serialize, OpenError>(__TAURI_INVOKE("open_repository", { path })),
+	/**  `IdentityMismatch`, « Overwrite with profile X » : écrit les valeurs du profil rattaché à `path`. */
+	overwriteIdentity: (path: string) => typedError<null, string>(__TAURI_INVOKE("overwrite_identity", { path })),
+	/**
+	 *  `IdentityMismatch`, « Import local config into Octogit… » : nouveau profil pré-rempli avec le
+	 *  `.git/config` local de `path` (rien n'est écrit, rien n'est enregistré).
+	 */
+	importLocalConfig: (path: string) => typedError<ProfileView, string>(__TAURI_INVOKE("import_local_config", { path })),
+	/**  Rattache `path` au profil `profile_id` à la main (mémorisé, prioritaire sur les règles). */
+	attachRepository: (path: string, profileId: string) => typedError<ProfileBadgeView, string>(__TAURI_INVOKE("attach_repository", { path, profileId })),
 	/**  Sélecteur de dossier natif ; `None` si annulé. En mode test, le pont d'interface répond à sa place. */
 	chooseFolder: () => __TAURI_INVOKE<string | null>("choose_folder"),
 	getHiddenColumns: () => __TAURI_INVOKE<Column[]>("get_hidden_columns"),
@@ -128,9 +137,31 @@ export type LaunchState_Deserialize = { screen: "history"; repository: Repositor
 
 export type LaunchState_Serialize = { screen: "history"; repository: RepositoryView_Serialize } | { screen: "welcome" };
 
+/**  Écart entre le `.git/config` local et le profil rattaché : rien n'a été écrit. */
+export type MismatchView = MismatchView_Serialize | MismatchView_Deserialize;
+
+/**  Écart entre le `.git/config` local et le profil rattaché : rien n'a été écrit. */
+export type MismatchView_Deserialize = {
+	profileName: string,
+	path: string,
+	origin: OriginView,
+	rows: SettingRowView_Deserialize[],
+};
+
+/**  Écart entre le `.git/config` local et le profil rattaché : rien n'a été écrit. */
+export type MismatchView_Serialize = {
+	profileName: string,
+	path: string,
+	origin: OriginView,
+	rows: SettingRowView_Serialize[],
+};
+
 export type OpenError = 
 /**  Le dossier n'est pas un dépôt Git lisible ; `name` est le nom du dossier. */
 { kind: "notARepository"; name: string };
+
+/**  Qui a désigné le profil : la règle (son motif), ou un choix manuel mémorisé. */
+export type OriginView = { kind: "rule"; pattern: string } | { kind: "manual" };
 
 /**  Profil rattaché à un dépôt, tel que `ProfileBadge` l'affiche. */
 export type ProfileBadgeView = {
@@ -209,6 +240,11 @@ export type RepositoryView_Deserialize = {
 	 *  comme après un fetch : l'appelant garde alors le profil déjà connu).
 	 */
 	profile?: ProfileBadgeView | null,
+	/**
+	 *  Écart entre le `.git/config` local et le profil rattaché (`IdentityMismatch`, rien n'a été écrit) ;
+	 *  `None` aussi après un fetch.
+	 */
+	mismatch?: MismatchView_Deserialize | null,
 };
 
 export type RepositoryView_Serialize = {
@@ -222,6 +258,11 @@ export type RepositoryView_Serialize = {
 	 *  comme après un fetch : l'appelant garde alors le profil déjà connu).
 	 */
 	profile: ProfileBadgeView | null,
+	/**
+	 *  Écart entre le `.git/config` local et le profil rattaché (`IdentityMismatch`, rien n'a été écrit) ;
+	 *  `None` aussi après un fetch.
+	 */
+	mismatch: MismatchView_Serialize | null,
 };
 
 export type RuleKindView = "path" | "remoteOwner";
@@ -236,6 +277,27 @@ export type RuleView = {
 export type SectionLayoutView = {
 	heights: { [key in string]: number },
 	collapsed: string[],
+};
+
+/**  Une ligne du tableau profil / local de `IdentityMismatch`. */
+export type SettingRowView = SettingRowView_Serialize | SettingRowView_Deserialize;
+
+/**  Une ligne du tableau profil / local de `IdentityMismatch`. */
+export type SettingRowView_Deserialize = {
+	setting: string,
+	profile: string,
+	/**  `None` : réglage absent du `.git/config` local. */
+	local?: string | null,
+	differs: boolean,
+};
+
+/**  Une ligne du tableau profil / local de `IdentityMismatch`. */
+export type SettingRowView_Serialize = {
+	setting: string,
+	profile: string,
+	/**  `None` : réglage absent du `.git/config` local. */
+	local: string | null,
+	differs: boolean,
 };
 
 /**

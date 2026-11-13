@@ -7,7 +7,7 @@ use octogit_store::Store;
 use serde::Serialize;
 use specta::Type;
 
-use crate::attach::{attach_profile, ProfileBadgeView};
+use crate::attach::{attach_profile, MismatchView, ProfileBadgeView};
 
 /// Nombre de commits lus pour le graphe (liste virtualisée : 10 000 commits tiennent).
 ///
@@ -65,6 +65,18 @@ pub struct RepositoryView {
     /// Profil rattaché par les règles à l'ouverture ; `None` : aucune règle ne correspond (ou lecture seule,
     /// comme après un fetch : l'appelant garde alors le profil déjà connu).
     pub profile: Option<ProfileBadgeView>,
+    /// Écart entre le `.git/config` local et le profil rattaché (`IdentityMismatch`, rien n'a été écrit) ;
+    /// `None` aussi après un fetch.
+    pub mismatch: Option<MismatchView>,
+}
+
+impl RepositoryView {
+    /// Rattache le dépôt à son profil (voir `attach_profile`) : badge et écart éventuel.
+    pub fn attach(&mut self, store: &Store, path: &Path, home: &Path) {
+        let attachment = attach_profile(store, path, home);
+        self.profile = attachment.as_ref().map(|a| a.badge.clone());
+        self.mismatch = attachment.and_then(|a| a.mismatch);
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Type)]
@@ -97,7 +109,7 @@ pub struct RefView {
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(tag = "screen", rename_all = "camelCase")]
 pub enum LaunchState {
-    History { repository: RepositoryView },
+    History { repository: Box<RepositoryView> },
     Welcome,
 }
 
@@ -159,6 +171,7 @@ fn repository_view_with_limit(path: &Path, limit: usize) -> Option<RepositoryVie
             })
             .collect(),
         profile: None,
+        mismatch: None,
     })
 }
 
@@ -181,11 +194,11 @@ pub fn launch_state_in(store: &Store, home: &Path) -> LaunchState {
         .last_repository()
         .and_then(|path| {
             let mut view = repository_view(&path)?;
-            view.profile = attach_profile(store, &path, home);
+            view.attach(store, &path, home);
             Some(view)
         })
         .map_or(LaunchState::Welcome, |repository| LaunchState::History {
-            repository,
+            repository: Box::new(repository),
         })
 }
 

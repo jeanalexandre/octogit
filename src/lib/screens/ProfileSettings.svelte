@@ -12,7 +12,10 @@
     onmove,
     onclose,
     ssh,
+    initial,
   }: {
+    /** Nouveau profil pré-rempli (Import local config into Octogit…) : ouvert à la place du premier profil. */
+    initial?: ProfileView;
     /** Clé SSH du profil : sélecteur, génération, empreinte, passphrase, presse-papiers. */
     ssh: SshApi;
     /** Profils dans leur ordre mémorisé. */
@@ -45,8 +48,14 @@
   const copy = (p: ProfileView): ProfileView => ({ ...p, rules: p.rules.map((r) => ({ ...r })) });
 
   // `null` : nouveau profil, pas encore enregistré.
-  let selectedId: string | null = $state(untrack(() => profiles[0]?.id ?? null));
-  let draft: ProfileView = $state(untrack(() => (profiles[0] ? copy(profiles[0]) : blank())));
+  let selectedId: string | null = $state(
+    untrack(() => (initial ? null : (profiles[0]?.id ?? null))),
+  );
+  let draft: ProfileView = $state(
+    untrack(() => (initial ? copy(initial) : profiles[0] ? copy(profiles[0]) : blank())),
+  );
+  /** Brouillon pré-rempli par Import : formulaire complet (signature comprise), bouton Save. */
+  let prefilled = $state(untrack(() => initial !== undefined));
   let confirming = $state(false);
   let error: string | null = $state(null);
 
@@ -77,6 +86,7 @@
   let dialog: HTMLElement | undefined = $state();
 
   function select(profile: ProfileView) {
+    prefilled = false;
     selectedId = profile.id;
     draft = copy(profile);
     error = null;
@@ -105,6 +115,7 @@
   }
 
   function openBlank() {
+    prefilled = false;
     selectedId = null;
     draft = blank();
     error = null;
@@ -246,7 +257,7 @@
       {/if}
       <ProfileForm
         bind:profile={draft}
-        mode={creating ? "create" : "edit"}
+        mode={creating && !prefilled ? "create" : "edit"}
         {canSubmit}
         onsubmit={submit}
         {ssh}

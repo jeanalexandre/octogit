@@ -11,6 +11,7 @@
   } from "./lib/bindings";
   import { scheduleFetch } from "./lib/fetchScheduler";
   import { sshApi } from "./lib/sshKeys";
+  import IdentityMismatch from "./lib/components/IdentityMismatch.svelte";
   import History from "./lib/screens/History.svelte";
   import ProfileSettings from "./lib/screens/ProfileSettings.svelte";
   import Welcome from "./lib/screens/Welcome.svelte";
@@ -53,6 +54,7 @@
             repository: {
               ...result.data,
               profile: screen.repository.profile,
+              mismatch: screen.repository.mismatch,
             } satisfies RepositoryView,
           };
         lastFetched = Date.now() / 1000;
@@ -133,10 +135,59 @@
     screen = await commands.getLaunchState();
   });
 
+  /** `IdentityMismatch` fermé par Cancel ou Échap pour le dépôt ouvert ; réarmé à chaque ouverture. */
+  let mismatchHidden = $state(false);
+  /** Nouveau profil pré-rempli par « Import local config into Octogit… » ; `ProfileSettings` s'ouvre dessus. */
+  let importDraft: ProfileView | null = $state(null);
+
+  const mismatch = $derived.by(() => {
+    const current = screen as LaunchState | null;
+    if (settingsOpen || mismatchHidden || current?.screen !== "history") return null;
+    return current.repository.mismatch;
+  });
+
+  /** Remplace badge et écart du dépôt ouvert, le reste (graphe, refs) est gardé. */
+  function updateAttachment(profile: RepositoryView["profile"]) {
+    if (screen?.screen !== "history") return;
+    screen = {
+      screen: "history",
+      repository: { ...screen.repository, profile, mismatch: null },
+    };
+  }
+
+  async function overwriteIdentity() {
+    if (screen?.screen !== "history") return;
+    const result = await commands.overwriteIdentity(screen.repository.path);
+    if (result.status !== "ok") throw result.error;
+    updateAttachment(screen.repository.profile);
+  }
+
+  async function importLocalConfig() {
+    if (screen?.screen !== "history") return;
+    const result = await commands.importLocalConfig(screen.repository.path);
+    if (result.status !== "ok") throw result.error;
+    importDraft = result.data;
+    settingsOpen = true;
+  }
+
+  function closeSettings() {
+    settingsOpen = false;
+    importDraft = null;
+  }
+
   async function saveProfile(profile: ProfileView): Promise<ProfileView> {
+    const importing = importDraft !== null && profile.id === "";
+    const importPath = openPath;
     const result = await commands.saveProfile(profile);
     if (result.status !== "ok") throw result.error;
     profiles = await commands.listProfiles();
+    if (importing && importPath !== null) {
+      // Le dépôt est rattaché à ce profil à la main (ses valeurs sont écrites dans son `.git/config` comme par Overwrite), puis on y revient.
+      const attached = await commands.attachRepository(importPath, result.data.id);
+      if (attached.status !== "ok") throw attached.error;
+      updateAttachment(attached.data);
+      closeSettings();
+    }
     return result.data;
   }
 
@@ -162,6 +213,8 @@
     if (result.status === "ok") {
       error = null;
       settingsOpen = false;
+      importDraft = null;
+      mismatchHidden = false;
       openCount++;
       screen = { screen: "history", repository: result.data satisfies RepositoryView };
       recent = await commands.listRecentRepositories();
@@ -200,7 +253,8 @@
     onsave={saveProfile}
     onmove={moveProfile}
     ssh={sshApi}
-    onclose={() => (settingsOpen = false)}
+    initial={importDraft ?? undefined}
+    onclose={closeSettings}
   />
 {:else if screen?.screen === "history"}
   <History
@@ -227,4 +281,13 @@
   />
 {:else if screen?.screen === "welcome"}
   <Welcome {recent} {error} onopen={open} onchoose={chooseFolder} />
+{/if}
+
+{#if mismatch}
+  <IdentityMismatch
+    {mismatch}
+    onoverwrite={overwriteIdentity}
+    onimport={importLocalConfig}
+    oncancel={() => (mismatchHidden = true)}
+  />
 {/if}

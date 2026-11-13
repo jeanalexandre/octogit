@@ -20,6 +20,13 @@ struct OpenArgs {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AttachArgs {
+    path: String,
+    profile_id: String,
+}
+
+#[derive(Deserialize)]
 struct FolderArgs {
     path: String,
     folder: String,
@@ -171,6 +178,28 @@ fn main() {
         "open_repository" => {
             let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
             match octogit_app::commands::open_repository(args.path) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "overwrite_identity" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            match octogit_app::commands::overwrite_identity(args.path) {
+                Ok(()) => (serde_json::to_string(&()), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "import_local_config" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            match octogit_app::commands::import_local_config(args.path) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "attach_repository" => {
+            let args: AttachArgs =
+                serde_json::from_str(&input).expect("arguments { path, profileId }");
+            match octogit_app::commands::attach_repository(args.path, args.profile_id) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

@@ -9,7 +9,7 @@ use octogit_identity::Profile;
 use serde::{Deserialize, Serialize};
 
 pub const REPOSITORIES_FILE: &str = "repositories.json";
-pub const REPOSITORIES_VERSION: u32 = 4;
+pub const REPOSITORIES_VERSION: u32 = 5;
 
 pub const PREFERENCES_FILE: &str = "preferences.json";
 pub const PREFERENCES_VERSION: u32 = 3;
@@ -70,6 +70,10 @@ struct RepositoriesFile {
     collapsed_folders: BTreeMap<String, Vec<String>>,
     #[serde(default)]
     graph_widths: BTreeMap<String, u32>,
+    /// Rattachement manuel d'un dépôt à un profil (identifiant), par chemin de dépôt : prioritaire sur
+    /// les règles (absent avant la version 5).
+    #[serde(default)]
+    manual_profiles: BTreeMap<String, String>,
 }
 
 /// Format de la version 1 (S-1) : un seul dépôt mémorisé.
@@ -99,6 +103,7 @@ impl Store {
             recent: Vec::new(),
             collapsed_folders: BTreeMap::new(),
             graph_widths: BTreeMap::new(),
+            manual_profiles: BTreeMap::new(),
         }
     }
 
@@ -114,7 +119,7 @@ impl Store {
             return Self::empty_repositories();
         };
         match value.get("version").and_then(|v| v.as_u64()) {
-            Some(2..=4) => serde_json::from_value::<RepositoriesFile>(value)
+            Some(2..=5) => serde_json::from_value::<RepositoriesFile>(value)
                 .unwrap_or_else(|_| Self::empty_repositories()),
             Some(1) => {
                 let Ok(old) = serde_json::from_value::<RepositoriesFileV1>(value) else {
@@ -202,6 +207,30 @@ impl Store {
         match width {
             Some(w) => file.graph_widths.insert(key, w),
             None => file.graph_widths.remove(&key),
+        };
+        self.write_repositories(file)
+    }
+
+    /// Identifiant du profil auquel `repository` est rattaché à la main (Import local config, menu du
+    /// badge) ; `None` : le dépôt suit les règles.
+    pub fn manual_profile(&self, repository: &Path) -> Option<String> {
+        self.read_repositories()
+            .manual_profiles
+            .get(repository.to_string_lossy().as_ref())
+            .cloned()
+    }
+
+    /// Mémorise le rattachement manuel de `repository` à `profile_id` ; `None` l'efface.
+    pub fn set_manual_profile(
+        &self,
+        repository: &Path,
+        profile_id: Option<&str>,
+    ) -> io::Result<()> {
+        let mut file = self.read_repositories();
+        let key = repository.to_string_lossy().into_owned();
+        match profile_id {
+            Some(id) => file.manual_profiles.insert(key, id.to_string()),
+            None => file.manual_profiles.remove(&key),
         };
         self.write_repositories(file)
     }
@@ -940,7 +969,7 @@ mod tests {
     }
 
     #[test]
-    fn version_3_example_file_has_no_graph_width_then_is_upgraded_to_version_4() {
+    fn version_3_example_file_has_no_graph_width_then_is_upgraded_to_the_current_version() {
         let tmp = TempDir::new();
         let store = Store::new(&tmp.0);
         fs::write(
@@ -955,7 +984,7 @@ mod tests {
         let json: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(tmp.0.join(REPOSITORIES_FILE)).unwrap())
                 .unwrap();
-        assert_eq!(json["version"], 4);
+        assert_eq!(json["version"], REPOSITORIES_VERSION);
         assert_eq!(json["graph_widths"]["/work/octogit"], 250);
         assert_eq!(
             store.collapsed_folders(Path::new("/work/octogit")),

@@ -151,6 +151,173 @@ pub fn compare(expected: &Expected, local: &LocalValues) -> ApplyOutcome {
     }
 }
 
+/// Une ligne du tableau de `IdentityMismatch` : un des quatre réglages, côté profil et côté local.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SettingRow {
+    /// `user.name`, `user.email`, `core.sshCommand` ou `signing`.
+    pub setting: &'static str,
+    pub profile: String,
+    /// `None` : réglage absent du `.git/config` local.
+    pub local: Option<String>,
+    /// Une valeur locale présente diffère de celle du profil (mêmes règles que `compare`).
+    pub differs: bool,
+}
+
+/// Les quatre réglages comparés, dans l'ordre du tableau. Ne lit ni n'écrit rien.
+pub fn setting_rows(expected: &Expected, local: &LocalValues) -> Vec<SettingRow> {
+    let wanted = |key: &str| expected.get(key).cloned().flatten();
+    let differs = |group: &[&str]| {
+        group
+            .iter()
+            .any(|k| local.get(k).is_some_and(|v| Some(v.clone()) != wanted(k)))
+    };
+    let single = |index: usize, setting: &'static str| {
+        let key = GROUPS[index][0];
+        SettingRow {
+            setting,
+            profile: wanted(key).unwrap_or_default(),
+            local: local.get(key).cloned(),
+            differs: differs(GROUPS[index]),
+        }
+    };
+    let signing_profile = if wanted("commit.gpgsign").as_deref() == Some("true") {
+        "on (profile SSH key)"
+    } else {
+        "off"
+    };
+    let signing_local = {
+        let mut parts = Vec::new();
+        match local.get("commit.gpgsign").map(String::as_str) {
+            Some("true") => parts.push("on".to_string()),
+            Some(other) => parts.push(if other == "false" {
+                "off".to_string()
+            } else {
+                format!("commit.gpgsign={other}")
+            }),
+            None => {}
+        }
+        if let Some(format) = local.get("gpg.format") {
+            parts.push(format!("gpg.format={format}"));
+        }
+        if local.contains_key("user.signingkey") {
+            parts.push("signing key set".to_string());
+        }
+        (!parts.is_empty()).then(|| parts.join(", "))
+    };
+    vec![
+        single(1, "user.email"),
+        single(0, "user.name"),
+        single(2, "core.sshCommand"),
+        SettingRow {
+            setting: "signing",
+            profile: signing_profile.to_string(),
+            local: signing_local,
+            differs: differs(GROUPS[3]),
+        },
+    ]
+}
+
+/// Valeurs locales reprises dans un nouveau profil (Import local config into Octogit…).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportedConfig {
+    pub user_name: String,
+    pub user_email: String,
+    /// Chemin de la clé de `-i <clé>` dans `core.sshCommand` ; vide sans `-i`.
+    pub ssh_key_path: String,
+    /// `commit.gpgsign=true`.
+    pub sign_commits: bool,
+}
+
+pub fn imported_config(local: &LocalValues) -> ImportedConfig {
+    let get = |key: &str| local.get(key).cloned().unwrap_or_default();
+    let words = local
+        .get("core.sshCommand")
+        .map(|command| shell_words(command))
+        .unwrap_or_default();
+    let ssh_key_path = words
+        .iter()
+        .position(|w| w == "-i")
+        .and_then(|i| words.get(i + 1))
+        .cloned()
+        .unwrap_or_default();
+    ImportedConfig {
+        user_name: get("user.name"),
+        user_email: get("user.email"),
+        ssh_key_path,
+        sign_commits: local.get("commit.gpgsign").map(String::as_str) == Some("true"),
+    }
+}
+
+/// Découpe une commande à la manière du shell : espaces, `'…'` et `\x`.
+fn shell_words(text: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut current = String::new();
+    let mut started = false;
+    let mut quoted = false;
+    let mut chars = text.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\'' => {
+                quoted = !quoted;
+                started = true;
+            }
+            '\\' if !quoted => {
+                if let Some(next) = chars.next() {
+                    current.push(next);
+                    started = true;
+                }
+            }
+            c if c.is_whitespace() && !quoted => {
+                if started {
+                    words.push(std::mem::take(&mut current));
+                    started = false;
+                }
+            }
+            c => {
+                current.push(c);
+                started = true;
+            }
+        }
+    }
+    if started {
+        words.push(current);
+    }
+    words
+}
+
+/// Écrit toutes les valeurs de `profile` dans le `.git/config` local de `repo` (choix Overwrite de
+/// `IdentityMismatch`) : `git config --local` clé par clé, une clé qui ne doit pas exister est retirée,
+/// les autres sections ne sont pas touchées.
+pub fn overwrite_profile(repo: &Path, profile: &Profile, home: &Path) -> Result<(), String> {
+    let expected = expected_values(profile, home)?;
+    let local = read_local(repo, home)?;
+    for (key, value) in &expected {
+        match value {
+            Some(value) if local.get(key) == Some(value) => {}
+            Some(value) => {
+                let out = git(repo, home, &["config", "--local", key, value])?;
+                if !out.status.success() {
+                    return Err(format!(
+                        "{key} could not be written: {}",
+                        String::from_utf8_lossy(&out.stderr).trim()
+                    ));
+                }
+            }
+            None if local.contains_key(key) => {
+                let out = git(repo, home, &["config", "--local", "--unset-all", key])?;
+                if !out.status.success() {
+                    return Err(format!(
+                        "{key} could not be removed: {}",
+                        String::from_utf8_lossy(&out.stderr).trim()
+                    ));
+                }
+            }
+            None => {}
+        }
+    }
+    Ok(())
+}
+
 /// Écrit l'identité de `profile` dans le `.git/config` local de `repo` : seules les clés absentes, une à
 /// une par `git config --local`, rien d'autre. Conforme : aucune écriture. Une valeur locale qui diffère
 /// du profil : aucune écriture non plus.

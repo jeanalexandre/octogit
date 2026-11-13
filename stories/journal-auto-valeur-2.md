@@ -30,6 +30,10 @@
 | 20 | S-10 | écart de dev | Remote owner sans casse, `ssh://` et `git://` acceptés ? | Accepté (autre : casse exacte, SSH et HTTPS seuls) | GitHub ne distingue pas la casse des comptes | à relire |
 | 21 | S-10 | écart de dev | Règles éditables seulement sur un profil enregistré ? | Accepté (autre : aussi à la création) | Plus simple, sans perte : on enregistre puis on ajoute | à relire |
 | 22 | S-10 | écart de dev | Signature cochée sans `.pub` : rien d'écrit, sans message ? | Accepté jusqu'au badge de S-12 (autre : message d'erreur dès maintenant) | Rien d'écrit est sûr ; l'écart deviendra visible en S-12 | à relire |
+| 23 | S-11 | écart de dev | Après Save d'un Import, rien d'écrit, donc le dialogue revient si la forme locale diffère ? | Corrigé au passage suivant : au Save, valeurs du profil écrites comme par Overwrite (autre : comparer `core.sshCommand` par la seule clé) | CA-8 exige un dépôt conforme après Save ; garder `-F none` | à revoir avant push |
+| 24 | S-11 | écart de dev | `repositories.json` v5 (`manual_profiles`) et nouvelles commandes ? | Acceptés (autre : stockage séparé) | Prévus par la fiche, migration sans perte | à revoir avant push |
+| 25 | S-11 | écart de dev | Formulaire complet et nom vide pour un profil importé ? | Accepté (autre : nom déduit de `user.name`) | La signature doit être visible, le nom n'est pas une valeur locale | à relire |
+| 26 | S-11 | écart de dev | Phrase « Commit and Push stay blocked » absente ? | Reportée vers S-21, ajoutée à sa ligne du plan (autre : l'afficher dès maintenant, faux tant que rien ne bloque) | Le blocage arrive en S-21 | à relire |
 
 ## Alertes
 - 

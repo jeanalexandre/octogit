@@ -22,5 +22,6 @@
 - Une clé générée pendant qu'on change de profil reste sur disque et dans le trousseau, rattachée à aucun profil, sans message (S-8, passage 3, d'office)
 - Le test de connexion accepte la clé d'hôte de github.com au premier contact (`StrictHostKeyChecking=accept-new`), sans clé épinglée : un premier contact intercepté serait mémorisé dans `~/.ssh/known_hosts`. Accepté d'office pour qu'aucune confirmation ne bloque en fond ; amendement de `stack.md` à faire par `/ksm:stack` (S-9, passage 1)
 - Un dépôt rattaché à un profil reçoit `core.sshCommand` avec `-F none` : `~/.ssh/config` est ignoré pour ce dépôt (alias d'hôte, `ProxyCommand`, `IdentityFile`). Accepté d'office pour que seule la clé du profil soit présentée ; amendement de `stack.md` à faire par `/ksm:stack` (S-10, fiche)
+- Importer le réglage local d'un dépôt dans un nouveau profil (`IdentityMismatch` › Import) réécrit, au Save, `core.sshCommand` et la signature de ce dépôt dans la forme d'Octogit (`-F none`, `IdentitiesOnly`…) : mêmes clé et identité, mais l'ancienne ligne locale est remplacée (S-11, passage 1, d'office)
 - Un profil à signature cochée dont le `.pub` manque n'écrit rien dans le dépôt, sans message, jusqu'au badge « non conforme » de S-12 (S-10, passage 1, d'office)
-- Les tests de `src/livraison.test.ts` échouent parfois sous charge (vus en échec puis verts à la relance) (S-10, revue 1, pour information)
+- Les tests de `src/livraison.test.ts` échouent parfois sous charge (vus en échec puis verts à la relance) (S-10, revue 1, pour information ; S-11, revue 1 et revue 2)

@@ -45,9 +45,22 @@ pub fn first_matching_profile<'a>(
     origin_url: Option<&str>,
     home: &Path,
 ) -> Option<&'a Profile> {
-    profiles
-        .iter()
-        .find(|p| p.rules.iter().any(|r| r.matches(repo, origin_url, home)))
+    first_matching_rule(profiles, repo, origin_url, home).map(|(profile, _)| profile)
+}
+
+/// Comme `first_matching_profile`, avec la première règle de ce profil qui correspond (l'origine du rattachement).
+pub fn first_matching_rule<'a>(
+    profiles: &'a [Profile],
+    repo: &Path,
+    origin_url: Option<&str>,
+    home: &Path,
+) -> Option<(&'a Profile, &'a MatchingRule)> {
+    profiles.iter().find_map(|p| {
+        p.rules
+            .iter()
+            .find(|r| r.matches(repo, origin_url, home))
+            .map(|r| (p, r))
+    })
 }
 
 fn chars(text: &str) -> Vec<char> {

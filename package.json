@@ -18,6 +18,8 @@
     "format": "cargo fmt --all && prettier --write .",
     "format:check": "cargo fmt --all --check && prettier --check .",
     "test": "cargo test --workspace && vitest run",
+    "test:js": "vitest run",
+    "test:rs": "cargo test",
     "e2e": "node --env-file-if-exists=.env.local node_modules/@playwright/test/cli.js test --trace off",
     "audit:deps": "cargo audit && pnpm audit",
     "tauri": "tauri"

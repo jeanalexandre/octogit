@@ -134,7 +134,28 @@ impl octogit_platform::PassphraseStore for FileKeychain {
     }
 }
 
+/// Place le faux `ssh` de `fixtures/fake-ssh` en tête du `PATH` de ce processus (et donc de ses
+/// sous-processus) : le pont n'appelle jamais le vrai `ssh`. Son journal vaut `<dossier SSH>/fake-ssh.log`
+/// sauf `FAKE_SSH_LOG` ; le mode vient de `FAKE_SSH_MODE` (voir `fixtures/fake-ssh/ssh`).
+fn fake_ssh_program() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/fake-ssh/ssh")
+}
+
+fn put_fake_ssh_first() {
+    let fake_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/fake-ssh");
+    let mut paths = vec![fake_dir];
+    paths.extend(std::env::split_paths(
+        &std::env::var_os("PATH").unwrap_or_default(),
+    ));
+    std::env::set_var("PATH", std::env::join_paths(paths).expect("PATH"));
+    if std::env::var_os("FAKE_SSH_LOG").is_none() {
+        let _ = std::fs::create_dir_all(bridge_ssh_dir());
+        std::env::set_var("FAKE_SSH_LOG", bridge_ssh_dir().join("fake-ssh.log"));
+    }
+}
+
 fn main() {
+    put_fake_ssh_first();
     let command = std::env::args().nth(1).unwrap_or_default();
     let mut input = String::new();
     std::io::stdin().read_to_string(&mut input).ok();
@@ -287,6 +308,25 @@ fn main() {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }
+        }
+        // Jamais d'appel réel à GitHub : le pont passe le chemin du faux `ssh` ; l'application livrée
+        // lance toujours `/usr/bin/ssh`.
+        "test_ssh_connection" => {
+            let args: KeyPathArgs = serde_json::from_str(&input).expect("arguments { path }");
+            let timeout = std::env::var("OCTOGIT_SSH_TEST_TIMEOUT_MS")
+                .ok()
+                .and_then(|ms| ms.parse().ok())
+                .map(std::time::Duration::from_millis)
+                .unwrap_or(octogit_identity::ssh::TEST_TIMEOUT);
+            (
+                serde_json::to_string(&octogit_app::ssh_keys::test_connection(
+                    fake_ssh_program().as_os_str(),
+                    &args.path,
+                    &FileKeychain::new(),
+                    timeout,
+                )),
+                0,
+            )
         }
         // Le presse-papiers n'existe pas dans le navigateur : l'interface de test lit la ligne ici et la garde.
         "read_public_key" => {

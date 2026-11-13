@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ProfileView, SshKeyView } from "../bindings";
+  import type { ConnectionTestView, ProfileView, SshKeyView } from "../bindings";
   import { untrack } from "svelte";
   import { tildify, type SshApi } from "../sshKeys";
 
@@ -29,11 +29,18 @@
   let unlockPassphrase = $state("");
   let unlockError: string | null = $state(null);
   let copied = $state(false);
+  /** Test de connexion : en cours, ou résultat (texte à afficher tel quel) ; `null` avant tout test. */
+  let testing = $state(false);
+  let testResult: ConnectionTestView | null = $state(null);
+  /** Début du message d'un refus : le reste est la sortie brute de SSH, montrée en mono. */
+  const refusalPrefix = "Test failed: ";
 
   // Relit la clé à chaque changement de chemin (choix, génération, autre profil sélectionné).
   $effect(() => {
     const path = profile.sshKeyPath;
     copied = false;
+    testResult = null;
+    testing = false;
     unlockPassphrase = "";
     unlockError = null;
     if (path.trim() === "") {
@@ -123,6 +130,23 @@
     } catch (failure) {
       unlockError = String(failure);
     }
+  }
+
+  async function testConnection() {
+    if (!key || testing) return;
+    const path = key.path;
+    testing = true;
+    testResult = null;
+    let result: ConnectionTestView;
+    try {
+      result = await ssh.testConnection(path);
+    } catch (failure) {
+      result = { status: "failed", message: `Test failed: ${String(failure)}` };
+    }
+    // Autre clé choisie pendant le test : son résultat n'est pas celui de la clé affichée.
+    if (!key || key.path !== path) return;
+    testing = false;
+    testResult = result;
   }
 
   async function copyPublicKey() {
@@ -251,7 +275,28 @@
       {#if copied}
         <span class="small" role="status">Copied</span>
       {/if}
+      <span class="grow"></span>
+      <!-- aria-disabled et non disabled : le focus clavier reste sur le bouton pendant le test. -->
+      <button type="button" onclick={testConnection} aria-disabled={testing}>
+        {testResult && testResult.status !== "authenticated" ? "Test again" : "Test connection"}
+      </button>
     </div>
+    {#if testing}
+      <span class="small" role="status">Testing the connection to github.com…</span>
+    {:else if testResult?.status === "authenticated"}
+      <span class="ok" role="status" data-testid="ssh-test-result">✓ {testResult.message}</span>
+    {:else if testResult}
+      <div class="warn" role="alert">
+        <span data-testid="ssh-test-result"
+          >{#if refusalPrefix && testResult.message.startsWith(refusalPrefix)}{refusalPrefix}<span
+              class="mono">{testResult.message.slice(refusalPrefix.length)}</span
+            >{:else}{testResult.message}{/if}</span
+        >
+        {#if testResult.status === "failed"}
+          <br /><span class="small">Public key not added on GitHub yet?</span>
+        {/if}
+      </div>
+    {/if}
   {/if}
 
   <div class="actions">
@@ -314,6 +359,25 @@
     font-size: 12px;
   }
 
+  .ok,
+  .warn {
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  .ok {
+    border: 1px solid var(--success);
+    color: var(--success);
+  }
+
+  .warn {
+    border: 1px solid var(--warning);
+    color: var(--warning);
+  }
+
   .panel {
     display: flex;
     flex-direction: column;
@@ -334,6 +398,11 @@
     color: var(--ink);
     font: inherit;
     cursor: pointer;
+  }
+
+  .row button[aria-disabled="true"] {
+    color: var(--muted);
+    cursor: default;
   }
 
   .panel .primary {

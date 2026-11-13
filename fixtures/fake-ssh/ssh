@@ -2,9 +2,14 @@
 # Faux ssh de test, à placer en tête du PATH.
 # Enregistre les options reçues dans $FAKE_SSH_LOG (défaut : ./fake-ssh.log), une ligne par appel.
 # Réponse selon $FAKE_SSH_MODE : ok (défaut), denied (refus), silent (silence au-delà de 10 s).
+# Mode ok : « Hi $FAKE_SSH_ACCOUNT! » (défaut : octogit).
+# Si $FAKE_SSH_ENV_OUT est posé, y écrit l'environnement reçu ; si $FAKE_SSH_ASKPASS_OUT est posé et que
+# $SSH_ASKPASS l'est aussi, y écrit ce que rend ce programme d'appoint (la passphrase, pour les tests).
 echo "$*" >> "${FAKE_SSH_LOG:-./fake-ssh.log}"
+[ -n "$FAKE_SSH_ENV_OUT" ] && env > "$FAKE_SSH_ENV_OUT"
+if [ -n "$FAKE_SSH_ASKPASS_OUT" ] && [ -n "$SSH_ASKPASS" ]; then "$SSH_ASKPASS" "Enter passphrase" > "$FAKE_SSH_ASKPASS_OUT"; fi
 case "${FAKE_SSH_MODE:-ok}" in
-  ok) echo "Hi octogit! You've successfully authenticated, but GitHub does not provide shell access." >&2; exit 1 ;;
+  ok) echo "Hi ${FAKE_SSH_ACCOUNT:-octogit}! You've successfully authenticated, but GitHub does not provide shell access." >&2; exit 1 ;;
   denied) echo "git@github.com: Permission denied (publickey)." >&2; exit 255 ;;
-  silent) sleep 15 ;;
+  silent) exec sleep 15 ;;
 esac

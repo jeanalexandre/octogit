@@ -25,6 +25,15 @@ function bridge(): Plugin {
           if (typeof header === "string" && header) env.OCTOGIT_DATA_DIR = header;
           const sshHeader = req.headers["x-octogit-ssh-dir"];
           if (typeof sshHeader === "string" && sshHeader) env.OCTOGIT_SSH_DIR = sshHeader;
+          // Faux `ssh` des tests : mode, compte annoncé et délai du test de connexion, par test.
+          for (const [name, variable] of [
+            ["x-octogit-fake-ssh-mode", "FAKE_SSH_MODE"],
+            ["x-octogit-fake-ssh-account", "FAKE_SSH_ACCOUNT"],
+            ["x-octogit-ssh-test-timeout-ms", "OCTOGIT_SSH_TEST_TIMEOUT_MS"],
+          ] as const) {
+            const value = req.headers[name];
+            if (typeof value === "string" && value) env[variable] = value;
+          }
           const child = execFile(
             binary,
             [command],

@@ -77,7 +77,8 @@ pub fn builder() -> Builder<tauri::Wry> {
         commands::unlock_ssh_key,
         commands::propose_ssh_key,
         commands::generate_ssh_key,
-        commands::copy_public_key
+        commands::copy_public_key,
+        commands::test_ssh_connection
     ])
 }
 

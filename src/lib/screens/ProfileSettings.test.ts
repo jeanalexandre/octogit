@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
+import { tick } from "svelte";
 import { describe, expect, it, vi } from "vitest";
 import ProfileSettings from "./ProfileSettings.svelte";
 import type { ProfileView, SshKeyView } from "../bindings";
@@ -38,6 +39,10 @@ function makeSsh(overrides: Partial<SshApi> = {}): SshApi {
     propose: vi.fn(async (name: string) => `/ssh/id_ed25519_${name.toLowerCase()}`),
     generate: vi.fn(async (name: string) => keyView(`/ssh/id_ed25519_${name.toLowerCase()}`)),
     copyPublicKey: vi.fn(async () => {}),
+    testConnection: vi.fn(async () => ({
+      status: "authenticated" as const,
+      message: "github.com: authenticated as @compte-pro",
+    })),
     ...overrides,
   };
 }
@@ -447,6 +452,111 @@ describe("ProfileSettings, clé SSH", () => {
     expect(ssh.unlock).toHaveBeenCalledExactlyOnceWith(pro.sshKeyPath, "s3cret");
     await fireEvent.click(screen.getByRole("button", { name: "Copy public key" }));
     expect(ssh.copyPublicKey).toHaveBeenCalledOnce();
+  });
+
+  it("Test connection teste la clé du profil et affiche le texte reçu ; un refus offre Test again (CA-8, CA-10)", async () => {
+    const testConnection = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: "authenticated",
+        message: "github.com: authenticated as @compte-pro",
+      })
+      .mockResolvedValueOnce({ status: "failed", message: "Test failed: Permission denied" });
+    render(ProfileSettings, props({ ssh: makeSsh({ testConnection }), profiles: [pro] }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Test connection" }));
+    expect(await screen.findByTestId("ssh-test-result")).toHaveTextContent(
+      "github.com: authenticated as @compte-pro",
+    );
+    expect(testConnection).toHaveBeenCalledWith(pro.sshKeyPath);
+    await fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    expect(await screen.findByRole("button", { name: "Test again" })).toBeInTheDocument();
+    expect(screen.getByTestId("ssh-test-result")).toHaveTextContent(
+      "Test failed: Permission denied",
+    );
+    expect(screen.getByRole("button", { name: "Copy public key" })).toBeInTheDocument();
+  });
+
+  it("changer de clé efface le résultat du test et ignore celui d'un test encore en cours", async () => {
+    let finish: (v: { status: "authenticated"; message: string }) => void = () => {};
+    const testConnection = vi.fn(
+      () => new Promise<{ status: "authenticated"; message: string }>((r) => (finish = r)),
+    );
+    const ssh = makeSsh({ testConnection, choose: vi.fn(async () => "/ssh/id_other") });
+    render(ProfileSettings, props({ ssh, profiles: [pro] }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Test connection" }));
+    expect(screen.getByRole("button", { name: "Test connection" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    await waitFor(() => expect(ssh.inspect).toHaveBeenCalledWith("/ssh/id_other"));
+    finish({ status: "authenticated", message: "github.com: authenticated as @old" });
+    // Laisse la continuation de `testConnection` (résultat de l'ancienne clé) tourner et le DOM se mettre à jour.
+    await tick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await tick();
+    expect(screen.getByRole("button", { name: "Test connection" })).toHaveAttribute(
+      "aria-disabled",
+      "false",
+    );
+    expect(screen.queryByTestId("ssh-test-result")).toBeNull();
+  });
+
+  it("changer de clé efface le résultat déjà affiché", async () => {
+    const ssh = makeSsh({ choose: vi.fn(async () => "/ssh/id_other") });
+    render(ProfileSettings, props({ ssh, profiles: [pro] }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Test connection" }));
+    expect(await screen.findByTestId("ssh-test-result")).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    await waitFor(() => expect(ssh.inspect).toHaveBeenCalledWith("/ssh/id_other"));
+    expect(screen.queryByTestId("ssh-test-result")).toBeNull();
+    expect(screen.getByRole("button", { name: "Test connection" })).toBeInTheDocument();
+  });
+
+  it("le bouton garde le focus pendant le test (aria-disabled, jamais disabled) et un second clic ne relance rien", async () => {
+    let finish: (v: { status: "authenticated"; message: string }) => void = () => {};
+    const testConnection = vi.fn(
+      () => new Promise<{ status: "authenticated"; message: string }>((r) => (finish = r)),
+    );
+    render(ProfileSettings, props({ ssh: makeSsh({ testConnection }), profiles: [pro] }));
+    const button = await screen.findByRole("button", { name: "Test connection" });
+    button.focus();
+    await fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toBeDisabled();
+    expect(button).toHaveFocus();
+    await fireEvent.click(button);
+    expect(testConnection).toHaveBeenCalledOnce();
+    finish({ status: "authenticated", message: "github.com: authenticated as @x" });
+    expect(await screen.findByTestId("ssh-test-result")).toBeInTheDocument();
+    expect(button).toHaveFocus();
+  });
+
+  it("un test refusé montre le message brut en mono et la ligne d'aide (CA-10)", async () => {
+    const testConnection = vi.fn(async () => ({
+      status: "failed" as const,
+      message: "Test failed: git@github.com: Permission denied (publickey).",
+    }));
+    render(ProfileSettings, props({ ssh: makeSsh({ testConnection }), profiles: [pro] }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Test connection" }));
+    const result = await screen.findByTestId("ssh-test-result");
+    expect(result).toHaveTextContent("Test failed: git@github.com: Permission denied (publickey).");
+    const raw = within(result).getByText("git@github.com: Permission denied (publickey).");
+    expect(raw).toHaveClass("mono");
+    expect(screen.getByText("Public key not added on GitHub yet?")).toBeInTheDocument();
+  });
+
+  it("un délai dépassé n'affiche pas la ligne d'aide des clés non ajoutées", async () => {
+    const testConnection = vi.fn(async () => ({
+      status: "timedOut" as const,
+      message: "No response from github.com after 10 s.",
+    }));
+    render(ProfileSettings, props({ ssh: makeSsh({ testConnection }), profiles: [pro] }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Test connection" }));
+    expect(await screen.findByTestId("ssh-test-result")).toHaveTextContent(
+      "No response from github.com after 10 s.",
+    );
+    expect(screen.queryByText("Public key not added on GitHub yet?")).toBeNull();
   });
 
   it("une mauvaise passphrase reste demandée et affiche l'erreur", async () => {

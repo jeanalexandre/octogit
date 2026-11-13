@@ -109,6 +109,54 @@ pub fn generate(
     view(&key, false)
 }
 
+/// Issue d'un test de connexion, pour l'interface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ConnectionStatus {
+    Authenticated,
+    Failed,
+    TimedOut,
+}
+
+/// Résultat d'un test de connexion : issue et texte à afficher tel quel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionTestView {
+    pub status: ConnectionStatus,
+    pub message: String,
+}
+
+/// Teste la connexion à github.com avec la seule clé `path` (`ssh -T`), interrompu après `timeout`.
+/// La passphrase vient du trousseau ; elle n'est jamais rendue. `program` : l'application livrée passe
+/// toujours `/usr/bin/ssh` ; seul le pont de test en désigne un autre (le faux `ssh`). Le délai se compte
+/// depuis l'entrée dans cette fonction (le clic), trousseau compris.
+pub fn test_connection(
+    program: &std::ffi::OsStr,
+    path: &str,
+    store: &dyn PassphraseStore,
+    timeout: std::time::Duration,
+) -> ConnectionTestView {
+    let deadline = std::time::Instant::now() + timeout;
+    let outcome = match store.get(path) {
+        Ok(passphrase) => ssh::test_connection_with(
+            program,
+            Path::new(path),
+            passphrase.as_deref(),
+            deadline,
+            &[],
+        ),
+        Err(error) => ssh::ConnectionOutcome::Failed { output: error },
+    };
+    ConnectionTestView {
+        status: match outcome {
+            ssh::ConnectionOutcome::Authenticated { .. } => ConnectionStatus::Authenticated,
+            ssh::ConnectionOutcome::Failed { .. } => ConnectionStatus::Failed,
+            ssh::ConnectionOutcome::TimedOut => ConnectionStatus::TimedOut,
+        },
+        message: outcome.message(),
+    }
+}
+
 /// Clé publique sur une ligne, pour le presse-papiers.
 pub fn public_key(path: &str) -> Result<String, String> {
     ssh::read_public_key_line(Path::new(path))
@@ -155,6 +203,43 @@ mod tests {
         assert!(status.success());
         std::fs::remove_file(ssh::public_key_path(&key)).unwrap();
         key.to_string_lossy().into_owned()
+    }
+
+    /// Trousseau dont la lecture est lente.
+    struct SlowStore(std::time::Duration);
+
+    impl PassphraseStore for SlowStore {
+        fn get(&self, _key_path: &str) -> Result<Option<String>, String> {
+            std::thread::sleep(self.0);
+            Ok(None)
+        }
+        fn set(&self, _key_path: &str, _passphrase: &str) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    /// Le délai se compte depuis le clic : une lecture lente du trousseau en consomme une part, et
+    /// `ssh` silencieux est coupé à l'échéance, pas un délai plein après son lancement.
+    #[test]
+    fn the_delay_includes_a_slow_keychain_read() {
+        let dir = temp_dir("slow-keychain");
+        let silent = dir.join("silent-ssh");
+        std::fs::write(&silent, "#!/bin/sh\nexec sleep 15\n").unwrap();
+        std::fs::set_permissions(&silent, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let key = dir.join("id_pro");
+        std::fs::write(&key, "not read by the silent ssh").unwrap();
+        let store = SlowStore(std::time::Duration::from_millis(300));
+        let timeout = std::time::Duration::from_millis(600);
+        let start = std::time::Instant::now();
+        let view = test_connection(silent.as_os_str(), &key.to_string_lossy(), &store, timeout);
+        let elapsed = start.elapsed();
+        assert_eq!(view.status, ConnectionStatus::TimedOut);
+        assert!(elapsed >= timeout, "{elapsed:?}");
+        assert!(
+            elapsed < std::time::Duration::from_millis(850),
+            "the delay restarted after the keychain read: {elapsed:?}"
+        );
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

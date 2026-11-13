@@ -1,4 +1,4 @@
-import { commands, type SshKeyView } from "./bindings";
+import { commands, type ConnectionTestView, type SshKeyView } from "./bindings";
 
 /** Ce que `ProfileForm` demande au cœur pour la clé SSH d'un profil. Les erreurs sont des rejets portant un message. */
 export type SshApi = {
@@ -11,6 +11,8 @@ export type SshApi = {
   propose: (name: string) => Promise<string>;
   generate: (name: string, passphrase: string) => Promise<SshKeyView>;
   copyPublicKey: (path: string) => Promise<void>;
+  /** `ssh -T git@github.com` avec la seule clé du profil (10 s au plus) ; le texte est à afficher tel quel. */
+  testConnection: (path: string) => Promise<ConnectionTestView>;
 };
 
 async function unwrap<T>(
@@ -38,4 +40,5 @@ export const sshApi: SshApi = {
   copyPublicKey: async (path) => {
     await unwrap(await commands.copyPublicKey(path));
   },
+  testConnection: async (path) => unwrap(await commands.testSshConnection(path)),
 };

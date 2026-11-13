@@ -12,7 +12,7 @@ use crate::launch::{self, LaunchState, RepositoryView};
 use crate::open::{self, OpenError, RecentView};
 use crate::preferences::{self, Column, SectionLayoutView};
 use crate::profiles::{self, ProfileView};
-use crate::ssh_keys::{self, SshKeyView};
+use crate::ssh_keys::{self, ConnectionTestView, SshKeyView};
 
 #[tauri::command]
 #[specta::specta]
@@ -192,6 +192,22 @@ pub fn generate_ssh_key(name: String, passphrase: String) -> Result<SshKeyView, 
         &passphrase,
         &*crate::passphrase_store(),
     )
+}
+
+/// Test de connexion : `ssh -T git@github.com` avec la seule clé `path`, interrompu à 10 s.
+#[tauri::command]
+#[specta::specta]
+pub async fn test_ssh_connection(path: String) -> Result<ConnectionTestView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        ssh_keys::test_connection(
+            std::ffi::OsStr::new(octogit_identity::ssh::SSH),
+            &path,
+            &*crate::passphrase_store(),
+            octogit_identity::ssh::TEST_TIMEOUT,
+        )
+    })
+    .await
+    .map_err(|_| "The connection test was interrupted.".to_string())
 }
 
 /// Copie la clé publique de la clé `path` (une ligne) dans le presse-papiers.

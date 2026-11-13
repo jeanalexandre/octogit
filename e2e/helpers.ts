@@ -193,6 +193,23 @@ export class Workspace {
     return `/?data_dir=${encodeURIComponent(this.dataDir)}&ssh_dir=${encodeURIComponent(this.sshDir)}`;
   }
 
+  /** Comme `url`, avec des réglages du pont de test en plus (`fake_ssh_mode`, `fake_ssh_account`, `ssh_test_timeout_ms`…). */
+  urlWith(params: Record<string, string>): string {
+    const extra = Object.entries(params)
+      .map(([name, value]) => `${name}=${encodeURIComponent(value)}`)
+      .join("&");
+    return `${this.url}&${extra}`;
+  }
+
+  /** Lignes du journal du faux `ssh` (une par appel), dans le dossier SSH de ce test. */
+  fakeSshLog(): string[] {
+    try {
+      return readFileSync(join(this.sshDir, "fake-ssh.log"), "utf8").split("\n").filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
   /** Comme `url`, avec le fetch automatique toutes les `ms` millisecondes (au lieu de 60 s). */
   urlWithFetchInterval(ms: number): string {
     return `${this.url}&fetch_interval_ms=${ms}`;

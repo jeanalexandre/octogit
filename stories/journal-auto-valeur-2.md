@@ -19,6 +19,11 @@
 | 9 | S-8 | revue 2 | Trois mineurs (génération pendant un changement de profil, `tildify`, `.env.example`) ? | Traités au passage 3 (autre : conserver) | Règle « traiter » par défaut | à relire |
 | 10 | S-8 | écart de dev | `tildify` exclut seulement `/Users/Shared`, pas les autres utilisateurs ? | Accepté (autre : commande qui fournit le dossier personnel, nouveau contrat) | Affichage seul, pas de nouveau contrat | à relire |
 | 11 | S-8 | écart de dev | Clé générée pendant un changement de profil : laissée sur disque et au trousseau, sans profil ni message ? | Acceptée (autres : la supprimer ; l'annoncer) | Les clés ne sont jamais supprimées ; fenêtre de quelques ms | à revoir avant push |
+| 12 | S-9 | écart de dev | Passphrase vers `ssh` par `SSH_ASKPASS` lisant un tube nommé ? | Acceptée (autre : variable d'environnement comme S-8) | Option préférée du report de S-8, passphrase hors de l'environnement | à revoir avant push |
+| 13 | S-9 | écart de dev | Options `StrictHostKeyChecking=accept-new`, `NumberOfPasswordPrompts=1`, `BatchMode=yes` hors `stack.md` ? | Acceptées, amendement `/ksm:stack` (autres : les retirer ; épingler la clé d'hôte de github.com) | Aucune saisie bloquante en fond, exigée par la fiche | à revoir avant push |
+| 14 | S-9 | écart de dev | `-F none` absent : `~/.ssh/config` peut ajouter une autre clé ? | `-F none` ajouté au passage suivant, cohérence `core.sshCommand` par `/ksm:stack` (autre : garder la commande de `stack.md`) | CA-9 : seule la clé du profil est présentée | à revoir avant push |
+| 15 | S-9 | revue 1 | Icône devant Test connection, Test again et les boutons hérités de S-8 ? | Reporté vers S-48 (autre : traiter ici) | S-48 prévoit les icônes Lucide devant chaque libellé | à relire |
+| 16 | S-9 | revue 1 | `ssh` du `PATH` en production, contre `/usr/bin/ssh` de `stack.md` ? | `/usr/bin/ssh` toujours dans l'application, faux `ssh` injecté par les tests seulement (autre : amender `stack.md` pour le `PATH`) | Respecte `stack.md` ; un autre OpenSSH ne se substitue pas en fond | à revoir avant push |
 
 ## Alertes
 - 
@@ -27,4 +32,5 @@
 - 
 
 ## Renvois
-- 
+- `/ksm:ux` : aligner la section 2 de `ux/maquettes/profile-settings.html` sur le libellé « Choose… » (S-8, décision 6).
+- `/ksm:stack` : ajouter au test de connexion `-F none`, `StrictHostKeyChecking=accept-new`, `NumberOfPasswordPrompts=1` et `BatchMode=yes` (sans passphrase), et décider si `core.sshCommand` (S-10) prend aussi `-F none` (S-9, décisions 2 et 3).

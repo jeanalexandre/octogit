@@ -16,6 +16,16 @@ const sshDir = params.get("ssh_dir");
 /** Intervalle du fetch automatique, injectable en test par `?fetch_interval_ms=<ms>` (défaut : 60 s). */
 const fetchInterval = Number(params.get("fetch_interval_ms"));
 
+/**
+ * Réglages du faux `ssh` du pont, par l'adresse : `?fake_ssh_mode=ok|denied|silent`,
+ * `?fake_ssh_account=<compte>` (mode ok), `?ssh_test_timeout_ms=<ms>` (délai du test de connexion, 10 s par défaut).
+ */
+const testHeaders = [
+  ["fake_ssh_mode", "x-octogit-fake-ssh-mode"],
+  ["fake_ssh_account", "x-octogit-fake-ssh-account"],
+  ["ssh_test_timeout_ms", "x-octogit-ssh-test-timeout-ms"],
+] as const;
+
 declare global {
   interface Window {
     __octogitFetchIntervalMs?: number;
@@ -33,6 +43,10 @@ async function call(command: string, args?: unknown): Promise<unknown> {
   const headers: Record<string, string> = {};
   if (dataDir) headers["x-octogit-data-dir"] = dataDir;
   if (sshDir) headers["x-octogit-ssh-dir"] = sshDir;
+  for (const [param, header] of testHeaders) {
+    const value = params.get(param);
+    if (value) headers[header] = value;
+  }
   const response = await fetch(`/__bridge/${command}`, {
     method: "POST",
     headers,

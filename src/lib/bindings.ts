@@ -51,6 +51,8 @@ export const commands = {
 	generateSshKey: (name: string, passphrase: string) => typedError<SshKeyView_Serialize, string>(__TAURI_INVOKE("generate_ssh_key", { name, passphrase })),
 	/**  Copie la clé publique de la clé `path` (une ligne) dans le presse-papiers. */
 	copyPublicKey: (path: string) => typedError<null, string>(__TAURI_INVOKE("copy_public_key", { path })),
+	/**  Test de connexion : `ssh -T git@github.com` avec la seule clé `path`, interrompu à 10 s. */
+	testSshConnection: (path: string) => typedError<ConnectionTestView, string>(__TAURI_INVOKE("test_ssh_connection", { path })),
 };
 
 /* Types */
@@ -89,6 +91,15 @@ export type CommitView = {
 	color: number,
 	/**  Tronçons de lignes à tracer dans la hauteur de la ligne. */
 	edges: EdgeView[],
+};
+
+/**  Issue d'un test de connexion, pour l'interface. */
+export type ConnectionStatus = "authenticated" | "failed" | "timedOut";
+
+/**  Résultat d'un test de connexion : issue et texte à afficher tel quel. */
+export type ConnectionTestView = {
+	status: ConnectionStatus,
+	message: string,
 };
 
 export type EdgeKindView = 

@@ -116,6 +116,29 @@ describe("History", () => {
     expect(items[1]).toHaveTextContent("Bob Durand");
   });
 
+  it("proteger-l-identite CA-14 : the header badge shows the profile, the mismatch sign, or No profile", () => {
+    const withProfile = (profile: RepositoryView["profile"]) =>
+      props({ repository: { ...repository, profile } });
+    const shown = () => screen.getByRole("group", { name: "Profile" }).textContent?.trim();
+
+    const conform = render(
+      History,
+      withProfile({ id: "p1", name: "Work", color: 0, conform: true }),
+    );
+    expect(shown()).toBe("Work");
+    conform.unmount();
+
+    const mismatch = render(
+      History,
+      withProfile({ id: "p1", name: "Work", color: 0, conform: false }),
+    );
+    expect(shown()).toBe("⚠ Work · identity mismatch");
+    mismatch.unmount();
+
+    render(History, withProfile(null));
+    expect(shown()).toBe("No profile");
+  });
+
   it("shows an empty state for a repository without commit", () => {
     render(History, props({ repository: { ...repository, commits: [] } }));
     expect(screen.queryAllByRole("listitem")).toHaveLength(0);

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { RecentView } from "../bindings";
+  import ProfileBadge from "../components/ProfileBadge.svelte";
   import { formatRelative } from "../relativeTime";
 
   let {
@@ -34,10 +35,11 @@
                 <strong>{repo.name}</strong>
                 <span class="path">{repo.path}</span>
               </span>
-              <span class="date"
-                >{repo.lastOpened === null ? "" : formatRelative(repo.lastOpened)}</span
-              >
             </button>
+            <ProfileBadge profile={repo.profile ?? null} />
+            <span class="date"
+              >{repo.lastOpened === null ? "" : formatRelative(repo.lastOpened)}</span
+            >
           </li>
         {/each}
       </ul>
@@ -99,13 +101,23 @@
     border-top: 1px solid var(--border);
   }
 
-  .recent button {
+  .recent li {
+    position: relative;
     display: flex;
-    justify-content: space-between;
     align-items: center;
     gap: 16px;
-    width: 100%;
     padding: 8px 12px;
+  }
+
+  .recent li:hover {
+    background: var(--selection);
+  }
+
+  /* Le bouton couvre toute la ligne (badge et date compris) : un clic n'importe où ouvre le dépôt. */
+  .recent button {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
     border: 0;
     background: transparent;
     color: var(--ink);
@@ -114,8 +126,19 @@
     cursor: pointer;
   }
 
-  .recent button:hover {
-    background: var(--selection);
+  .recent button::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  .recent button:focus-visible {
+    outline: none;
+  }
+
+  .recent button:focus-visible::after {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
   }
 
   .identity {

@@ -105,7 +105,7 @@
     <RepoPicker {recent} current={repository.path} {onopen} {onchoose} />
     <span class="path">{repository.path}</span>
     <div class="end">
-      {#if repository.profile}<ProfileBadge profile={repository.profile} />{/if}
+      <ProfileBadge profile={repository.profile ?? null} />
       <FetchStatus {lastFetched} />
       {#if tracking}
         <span class="sync" role="group" aria-label="Ahead and behind">

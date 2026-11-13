@@ -6,6 +6,7 @@ use octogit_store::Store;
 use serde::Serialize;
 use specta::Type;
 
+use crate::attach::{badge_of, ProfileBadgeView};
 use crate::launch::{folder_name, repository_view, RepositoryView};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
@@ -15,6 +16,8 @@ pub struct RecentView {
     pub path: String,
     /// Secondes depuis l'epoch.
     pub last_opened: f64,
+    /// Profil rattaché (manuel mémorisé, sinon règles), avec sa conformité ; `None` : « No profile ».
+    pub profile: Option<ProfileBadgeView>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
@@ -52,6 +55,11 @@ pub fn open_repository_in(
 
 /// Récents du plus récent au plus ancien.
 pub fn recent_repositories(store: &Store) -> Vec<RecentView> {
+    recent_repositories_in(store, &crate::home_dir())
+}
+
+/// Comme `recent_repositories`, avec `home` pour `~` et pour le `HOME` de `git`.
+pub fn recent_repositories_in(store: &Store, home: &Path) -> Vec<RecentView> {
     store
         .recent_repositories()
         .into_iter()
@@ -59,6 +67,7 @@ pub fn recent_repositories(store: &Store) -> Vec<RecentView> {
             name: folder_name(&r.path),
             path: r.path.to_string_lossy().into_owned(),
             last_opened: r.last_opened as f64,
+            profile: badge_of(store, &r.path, home),
         })
         .collect()
 }

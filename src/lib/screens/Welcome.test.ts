@@ -30,6 +30,25 @@ describe("Welcome", () => {
     expect(items[2]).toHaveTextContent("repo-a");
   });
 
+  it("demarrer-un-depot CA-2 : each recent repository shows its profile badge, or No profile", () => {
+    const withProfiles: RecentView[] = [
+      {
+        ...recent[0],
+        profile: { id: "p1", name: "Work", color: 0, conform: true },
+      },
+      {
+        ...recent[1],
+        profile: { id: "p2", name: "Perso", color: 1, conform: false },
+      },
+      { ...recent[2], profile: null },
+    ];
+    render(Welcome, props({ recent: withProfiles }));
+    const badges = screen
+      .getAllByRole("listitem")
+      .map((item) => within(item).getByRole("group", { name: "Profile" }).textContent?.trim());
+    expect(badges).toEqual(["Work", "⚠ Perso · identity mismatch", "No profile"]);
+  });
+
   it("opens the clicked recent repository", async () => {
     const p = props();
     render(Welcome, p);

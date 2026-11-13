@@ -108,7 +108,8 @@ test("proteger-l-identite CA-1 : un dépôt ouvert par Open folder… est rattac
   ws.rememberLastRepository(other);
   await page.goto(ws.url);
   await expect(page.getByRole("heading", { name: "other" })).toBeVisible();
-  await expect(page.getByRole("group", { name: "Profile", exact: true })).toHaveCount(0);
+  // Aucune règle ne correspond : le badge dit « No profile » (S-12) au lieu d'un profil.
+  await expect(page.getByRole("group", { name: "Profile", exact: true })).toHaveText("No profile");
 
   await page.evaluate((p) => {
     window.__octogitChosenFolder = p;

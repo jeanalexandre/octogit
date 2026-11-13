@@ -34,6 +34,10 @@
 | 24 | S-11 | écart de dev | `repositories.json` v5 (`manual_profiles`) et nouvelles commandes ? | Acceptés (autre : stockage séparé) | Prévus par la fiche, migration sans perte | à revoir avant push |
 | 25 | S-11 | écart de dev | Formulaire complet et nom vide pour un profil importé ? | Accepté (autre : nom déduit de `user.name`) | La signature doit être visible, le nom n'est pas une valeur locale | à relire |
 | 26 | S-11 | écart de dev | Phrase « Commit and Push stay blocked » absente ? | Reportée vers S-21, ajoutée à sa ligne du plan (autre : l'afficher dès maintenant, faux tant que rien ne bloque) | Le blocage arrive en S-21 | à relire |
+| 27 | S-12 | écart de dev | Contrat : `conform`, `RecentView.profile`, nouvelles lectures ? | Accepté (autre : calcul côté interface) | Prévu par la fiche, lecture seule | à revoir avant push |
+| 28 | S-12 | écart de dev | Dépôt où seules des valeurs manquent : conforme ? | Oui, l'ouverture les écrit sans dialogue (autre : non conforme tant qu'elles manquent) | Cohérent avec S-10 ; aucune valeur fausse n'est présente | à revoir avant push |
+| 29 | S-12 | écart de dev | « No profile » dans `History`, sans ⚠ de la maquette ? | Accepté (autre : ⚠ dès maintenant) | La fiche demande le texte seul ; S-17 complète | à relire |
+| 30 | S-12 | revue 1 | Récent introuvable affiché « identity mismatch » ? | Reporté vers S-54, ajouté à sa ligne du plan (autre : traiter ici) | S-54 traite le dépôt introuvable | à relire |
 
 ## Alertes
 - 

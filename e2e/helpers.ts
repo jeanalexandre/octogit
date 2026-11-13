@@ -77,6 +77,17 @@ export class Workspace {
     );
   }
 
+  /** Passe les profils de `profiles.json` en signature cochée, avec la clé `keyPath` (sans `.pub` si on ne le crée pas). */
+  makeProfilesSign(keyPath: string): void {
+    const file = join(this.dataDir, "profiles.json");
+    const content = JSON.parse(readFileSync(file, "utf8"));
+    for (const profile of content.profiles) {
+      profile.sign_commits = true;
+      profile.ssh_key_path = keyPath;
+    }
+    writeFileSync(file, JSON.stringify(content));
+  }
+
   /** Contenu décodé de `profiles.json`. */
   readProfilesFile(): {
     version: number;

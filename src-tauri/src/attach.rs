@@ -22,6 +22,8 @@ pub struct ProfileBadgeView {
     pub name: String,
     /// Indice de couleur de lane, de 0 à 5.
     pub color: u8,
+    /// Les valeurs du profil sont toutes dans le `.git/config` local (sinon : « ⚠ … identity mismatch »).
+    pub conform: bool,
 }
 
 /// Qui a désigné le profil : la règle (son motif), ou un choix manuel mémorisé.
@@ -60,11 +62,12 @@ pub struct Attachment {
     pub mismatch: Option<MismatchView>,
 }
 
-fn badge(profile: &Profile) -> ProfileBadgeView {
+fn badge(profile: &Profile, conform: bool) -> ProfileBadgeView {
     ProfileBadgeView {
         id: profile.id.clone(),
         name: profile.name.clone(),
         color: profile.color,
+        conform,
     }
 }
 
@@ -102,6 +105,7 @@ pub fn attach_profile(store: &Store, repo: &Path, home: &Path) -> Option<Attachm
         return None;
     }
     let (profile, origin) = resolve(store, &profiles, repo, home)?;
+    let mut conform = false;
     let mismatch = match (expected_values(&profile, home), read_local(repo, home)) {
         (Ok(expected), Ok(local)) if compare(&expected, &local) == ApplyOutcome::Differs => {
             Some(MismatchView {
@@ -120,14 +124,34 @@ pub fn attach_profile(store: &Store, repo: &Path, home: &Path) -> Option<Attachm
             })
         }
         _ => {
-            let _ = octogit_identity::apply_profile(repo, &profile, home);
+            // Écriture impossible (clé publique absente, échec de `git config`) : rien n'est écrit, le
+            // dépôt reste non conforme pour le badge, sans message.
+            conform = matches!(
+                octogit_identity::apply_profile(repo, &profile, home),
+                Ok(ApplyOutcome::Conform | ApplyOutcome::Written)
+            );
             None
         }
     };
     Some(Attachment {
-        badge: badge(&profile),
+        badge: badge(&profile, conform),
         mismatch,
     })
+}
+
+/// Profil rattaché à `repo` et conformité de son `.git/config` local, lus sans rien écrire (Recent).
+/// Même état que celui qu'aura `History` à l'ouverture : conforme si le `.git/config` local a les valeurs
+/// du profil ou s'il n'en manque que (l'ouverture les écrit) ; non conforme si une valeur locale diffère,
+/// ou si les valeurs du profil ne peuvent pas être calculées ou lues (clé publique manquante d'un profil à
+/// signature : l'ouverture n'écrit rien).
+pub fn badge_of(store: &Store, repo: &Path, home: &Path) -> Option<ProfileBadgeView> {
+    let profiles = store.profiles();
+    let (profile, _) = resolve(store, &profiles, repo, home)?;
+    let conform = match (expected_values(&profile, home), read_local(repo, home)) {
+        (Ok(expected), Ok(local)) => compare(&expected, &local) != ApplyOutcome::Differs,
+        _ => false,
+    };
+    Some(badge(&profile, conform))
 }
 
 /// Profil rattaché à `repo` pour une action de l'écran d'écart.
@@ -178,5 +202,5 @@ pub fn attach_manually(
     store
         .set_manual_profile(repo, Some(profile_id))
         .map_err(|e| format!("The attachment could not be saved: {e}"))?;
-    Ok(badge(&profile))
+    Ok(badge(&profile, true))
 }

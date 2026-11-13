@@ -17,12 +17,25 @@ Afficher `ProfileBadge` (nom et couleur du profil, ou « ⚠ Work · identity mi
 - **proteger-l-identite CA-14** (modifié le 07/11/2026) : Étant donné un dépôt conforme au profil Work, alors `ProfileBadge` affiche le nom et la couleur de Work ; non conforme, il affiche « ⚠ Work · identity mismatch », distinct de l'état conforme par le signe et le texte, sans recours à la couleur.
 - **demarrer-un-depot CA-2** : Étant donné 3 dépôts déjà ouverts, quand `Welcome` s'affiche, alors la section Recent les liste du plus récemment ouvert au plus ancien, chacun avec son nom, son chemin, la date relative de sa dernière ouverture et un `ProfileBadge` au nom du profil auquel il est rattaché, ou « No profile » s'il n'en a aucun.
 
+## Décisions de l'humain
+### Écarts du passage 1 de dev (13/11/2026)
+1. Contrat : `ProfileBadgeView.conform`, `RecentView.profile`, lecture `attach::badge_of` et `open::recent_repositories_in` ; `bindings.ts` régénéré : accepté (d'office).
+2. Règle de conformité : non conforme si une valeur locale diffère, ou si les valeurs du profil ne se calculent pas (`.pub` manquant d'un profil à signature) ; un dépôt auquel il ne manque que des valeurs est conforme, puisque son ouverture les écrit sans dialogue (S-10) ; Recent lit seulement la config, sans rien écrire : accepté (d'office).
+3. `History` affiche « No profile » pour un dépôt sans profil (avant : aucun badge) ; assertion de `e2e/rules.spec.ts` adaptée : accepté, cohérent avec Recent (d'office).
+4. « No profile » sans le signe ⚠ de la maquette, en style pointillé : accepté, la fiche ne demande que le texte ; le « No profile — choose one » complet arrive avec S-17 (d'office).
+5. Ligne de Recent : bouton réduit au nom et au chemin, badge et date à côté, clic sur toute la ligne par un pseudo-élément (un `role=group` dans un `button` n'est pas exposé en accessibilité) : accepté (d'office).
+
+### Après la revue 1
+6. Problème 1 (récent introuvable rattaché par une règle de chemin affiché « ⚠ … identity mismatch ») : reporter vers S-54, qui traite le dépôt introuvable dans Recent ; ajouté à sa ligne du plan (d'office).
+7. Instabilité de `src/livraison.test.ts` sous charge : pris en compte (pour information), déjà dans les notes de production.
+
 ## Contexte technique
 - Dépend de S-11 : rattachement par règles et manuel (S-10, S-11), comparaison des quatre valeurs (`crates/identity`), `ProfileSettings` (S-7).
 - `ProfileBadge` : `src/lib/components/ProfileBadge.svelte`, nom exact de `ux.md` ; détail `ux/ecrans/communs.md` : conforme (nom et couleur du profil), non conforme (« ⚠ Work · identity mismatch », distinct sans la couleur), « No profile ». Cette story livre le **badge affiché** : le menu du badge (profils, « Edit profiles… », « Reset to rules », « Fix repository identity ») est S-17. Le « No profile — choose one » complet (avec son action) vient avec S-17 ; ici le texte « No profile » suffit pour Recent et pour un dépôt sans profil.
 - Où : en-tête de `History` (`src/lib/screens/History.svelte`, `ux/maquettes/history.html`) et chaque ligne de Recent dans `src/lib/screens/Welcome.svelte` (`ux/maquettes/welcome.html`), par le même composant. L'état d'un dépôt de Recent est calculé sans l'ouvrir dans la fenêtre : profil rattaché (manuel mémorisé, sinon règles) et conformité du `.git/config` local ; commande dans `src-tauri/src/open.rs` ou voisine, logique dans `identity`. Un dépôt introuvable n'est pas géré ici (S-54).
 - `ProfileSettings` : la liste affiche pastille (couleur de lane du profil), nom et compte (`user.email`), sans compteur de dépôts (`ux/ecrans/profile-settings.md`).
 - Couleurs : `src/lib/styles/tokens.css` / `ux/tokens.md` « Couleurs de profil » ; texte ≥ 12 px, jamais d'information par la couleur seule (`stack.md`). La conformité d'un dépôt de Recent peut être lue à l'affichage de `Welcome` sans geste ; ne pas ralentir l'ouverture (lecture de config seulement).
+- Report de S-10 (décision 6 de sa fiche) : un profil à signature cochée dont le `.pub` manque n'écrit rien dans le dépôt, sans message ; le dépôt doit alors apparaître non conforme par ce badge (et non comme conforme ni « No profile »), avec un test.
 - Fixtures : `fixtures/identity.sh` (non conforme), dépôts conformes écrits par S-10, trois dépôts pour Recent.
 
 ## Interface à vérifier
@@ -50,7 +63,9 @@ Afficher `ProfileBadge` (nom et couleur du profil, ou « ⚠ Work · identity mi
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : à noter au lancement de la boucle
+Référence du diff : 98f57bf
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (écarts 1 à 5 tranchés d'office), vérifications relancées ✅ (clippy à part) | — |
+| 1 | reviewer | `stories/S-12-revue-1.md` : 1 mineur, reporté vers S-54 | validé |

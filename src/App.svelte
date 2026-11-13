@@ -159,7 +159,9 @@
     if (screen?.screen !== "history") return;
     const result = await commands.overwriteIdentity(screen.repository.path);
     if (result.status !== "ok") throw result.error;
-    updateAttachment(screen.repository.profile);
+    // Les valeurs du profil sont écrites : le badge redevient conforme.
+    const profile = screen.repository.profile;
+    updateAttachment(profile && { ...profile, conform: true });
   }
 
   async function importLocalConfig() {

@@ -5,7 +5,7 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	getLaunchState: () => __TAURI_INVOKE<LaunchState_Serialize>("get_launch_state"),
-	listRecentRepositories: () => __TAURI_INVOKE<RecentView[]>("list_recent_repositories"),
+	listRecentRepositories: () => __TAURI_INVOKE<RecentView_Serialize[]>("list_recent_repositories"),
 	openRepository: (path: string) => typedError<RepositoryView_Serialize, OpenError>(__TAURI_INVOKE("open_repository", { path })),
 	/**  `IdentityMismatch`, « Overwrite with profile X » : écrit les valeurs du profil rattaché à `path`. */
 	overwriteIdentity: (path: string) => typedError<null, string>(__TAURI_INVOKE("overwrite_identity", { path })),
@@ -169,6 +169,8 @@ export type ProfileBadgeView = {
 	name: string,
 	/**  Indice de couleur de lane, de 0 à 5. */
 	color: number,
+	/**  Les valeurs du profil sont toutes dans le `.git/config` local (sinon : « ⚠ … identity mismatch »). */
+	conform: boolean,
 };
 
 /**  Profil tel que l'interface le manipule. `id` vide : profil pas encore créé. */
@@ -184,11 +186,24 @@ export type ProfileView = {
 	rules: RuleView[],
 };
 
-export type RecentView = {
+export type RecentView = RecentView_Serialize | RecentView_Deserialize;
+
+export type RecentView_Deserialize = {
 	name: string,
 	path: string,
 	/**  Secondes depuis l'epoch. */
 	lastOpened: number | null,
+	/**  Profil rattaché (manuel mémorisé, sinon règles), avec sa conformité ; `None` : « No profile ». */
+	profile?: ProfileBadgeView | null,
+};
+
+export type RecentView_Serialize = {
+	name: string,
+	path: string,
+	/**  Secondes depuis l'epoch. */
+	lastOpened: number | null,
+	/**  Profil rattaché (manuel mémorisé, sinon règles), avec sa conformité ; `None` : « No profile ». */
+	profile: ProfileBadgeView | null,
 };
 
 export type RefKindView = "branch" | "remote" | "tag" | "stash";

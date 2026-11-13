@@ -1,14 +1,23 @@
 <script lang="ts">
   import type { ProfileBadgeView } from "../bindings";
 
-  /** Profil rattaché au dépôt ouvert : nom et couleur seulement (états conforme / non conforme : S-12). */
-  let { profile }: { profile: ProfileBadgeView } = $props();
+  /**
+   * Profil rattaché au dépôt, ou `null` (« No profile »). Non conforme : le signe ⚠ et le texte
+   * « identity mismatch » distinguent l'état, jamais la couleur seule. Le menu du badge : S-17.
+   */
+  let { profile }: { profile: ProfileBadgeView | null } = $props();
 </script>
 
-<span class="badge" role="group" aria-label="Profile">
-  <span class="dot" style:background={`var(--lane-${profile.color + 1})`}></span>
-  <span class="name">{profile.name}</span>
-</span>
+{#if profile === null}
+  <span class="badge none" role="group" aria-label="Profile">No profile</span>
+{:else}
+  <span class="badge" class:mismatch={!profile.conform} role="group" aria-label="Profile">
+    <span class="dot" style:background={`var(--lane-${profile.color + 1})`}></span>
+    <span class="name"
+      >{profile.conform ? profile.name : `⚠ ${profile.name} · identity mismatch`}</span
+    >
+  </span>
+{/if}
 
 <style>
   .badge {
@@ -20,6 +29,14 @@
     border-radius: 999px;
     color: var(--ink);
     font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .badge.none,
+  .badge.mismatch {
+    border-style: dashed;
+    background: var(--surface-raised);
+    font-weight: 600;
   }
 
   .dot {

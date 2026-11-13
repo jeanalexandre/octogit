@@ -2,12 +2,13 @@
 
 > Aucun profil de type : hérite du seul `profil-stack.md` (commun). Ce fichier documente tous les choix du projet.
 > `/story` refuse de démarrer tant qu'un champ reste à renseigner.
-> Version du profil de stack utilisée : `0.25.0`
+> Version du profil de stack utilisée : `0.28.0`
 > Validé par l'humain le 08/11/2026.
 > Révisions : 08/11/2026 — reports des specs : J-17 (`specs/demarrer-un-depot.md` : `xcode-select --install`, revérification, reprise en 5 s) ; icônes Lucide ; détection des changements par `notify` ; graphe en liste virtualisée HTML et lanes SVG ; intégrations macOS par plugins Tauri et `keyring` (`platform` dépend désormais de Tauri).
 > Révisions : 08/11/2026 — amendement de S-1 (décisions de l'humain) : Node 26.13.0 et pnpm 12.18.0 fixés ; dépendances d'outillage acceptées (voir Commandes de qualité) ; exception d'audit GHSA-gcqx-w48m-w2h4.
 > Révisions : 11/11/2026 — report de `specs/organiser-l-espace.md` : mémorisations de mise en page dans les fichiers existants (préférences : hauteurs et repli des sections, repli du panneau ; dépôts : état des dossiers, largeur du graphe), écrites à la fin du glisser.
 > Révisions : 12/11/2026 — méthode 0.25.0 : variables du créneau d'un worktree passées par `.env.local` (lu par Node natif) au lieu d'un préfixe de commande ; commandes qui ont besoin du créneau lancées seulement par un script pnpm ; `pnpm tauri dev` non isolé (port 1420).
+> Révisions : 13/11/2026 — méthode 0.28.0 : ligne « Tests ciblés » ajoutée (`pnpm test:js`, `pnpm test:rs -p <crate>`, `pnpm e2e <fichier>`), scripts déjà présents.
 
 ## Type
 - Type de projet : application de bureau, macOS seulement pour la première version (d'autres systèmes ne sont pas exclus ensuite)
@@ -56,6 +57,7 @@
 - Formatage (choix de l'humain) : `rustfmt` ; Prettier avec `prettier-plugin-svelte`. `pnpm format` (écrit) ; `pnpm format:check` (= `cargo fmt --all --check` puis `prettier --check .`).
 - Tests unitaires (choix de l'humain) : `cargo test` (workspace, crates sans Tauri) ; Vitest avec Testing Library pour Svelte. `pnpm test` (= `cargo test --workspace` puis `vitest run`).
 - Tests de bout en bout (choix de l'humain) : Playwright sur l'interface Svelte servie dans Chromium ; en mode test, ses appels Tauri passent par un pont local qui exécute les vraies commandes du crate `app` sur des dépôts temporaires, avec le faux `ssh` (`tauri-driver` ne fonctionne pas sur macOS). Non couverts : fenêtre Tauri, menu natif, trousseau (tests manuels). `pnpm e2e` (= `playwright test --trace off`).
+- Tests ciblés (choix de l'humain, 13/11/2026 ; seule forme permise à `dev` et au reviewer pour un test isolé) : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`, voir Isolement d'un worktree).
 - Audit des dépendances (choix de l'humain) : `cargo audit` (base RustSec) et `pnpm audit`. `pnpm audit:deps`. Exception acceptée (choix de l'humain, 08/11/2026) : GHSA-gcqx-w48m-w2h4 (`deepmerge`, faible, outil de build, sans correctif) dans `auditConfig.ignoreGhsas` de `pnpm-workspace.yaml` (pnpm 12 ne lit plus le champ `pnpm` de `package.json` ; la surcharge `minimatch` y est aussi), à retirer dès qu'un correctif existe.
 - Build : `pnpm tauri build` (vérifie aussi `pnpm check`, contrôle de types Svelte et TypeScript).
 - Fichiers générés (produits par une commande, exclus du formatage et du lint, jamais édités à la main) : `src/lib/bindings.ts`, par `pnpm gen:bindings` (aussi régénéré par `pnpm tauri dev`).

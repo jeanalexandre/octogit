@@ -55,6 +55,8 @@ function props(overrides = {}) {
     origin: "Welcome",
     onsave: vi.fn(async (p: ProfileView) => p),
     onmove: vi.fn(async () => {}),
+    onlistrepos: vi.fn(async () => [] as string[]),
+    ondelete: vi.fn(async () => {}),
     onclose: vi.fn(),
     ...overrides,
   };
@@ -574,5 +576,90 @@ describe("ProfileSettings, clé SSH", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Wrong passphrase.");
     expect(screen.getByLabelText("Key passphrase")).toBeInTheDocument();
+  });
+});
+
+describe("ProfileSettings, propagation et suppression (S-13)", () => {
+  const repos = ["/Users/x/Dev/work/api", "/Users/x/Dev/work/web"];
+
+  it("CA-12 : Delete profile nomme le profil et liste ses dépôts, Cancel ne change rien", async () => {
+    const p = props({
+      profiles: [pro, perso],
+      onlistrepos: vi.fn(async () => repos),
+      ondelete: vi.fn(async () => {}),
+    });
+    render(ProfileSettings, p);
+    await fireEvent.click(screen.getByRole("button", { name: "Delete profile" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(p.onlistrepos).toHaveBeenCalledWith("p1");
+    expect(within(dialog).getByRole("heading", { name: "Delete profile Pro?" })).toBeVisible();
+    for (const path of repos) expect(within(dialog).getByText(path)).toBeVisible();
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(p.ondelete).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Pro" })).toBeVisible();
+  });
+
+  it("CA-12 : confirmer supprime le profil par son identifiant", async () => {
+    const p = props({
+      profiles: [pro, perso],
+      onlistrepos: vi.fn(async () => repos),
+      ondelete: vi.fn(async () => {}),
+    });
+    render(ProfileSettings, p);
+    await fireEvent.click(screen.getByRole("button", { name: "Delete profile" }));
+    const dialog = await screen.findByRole("dialog");
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Delete profile" }));
+    await waitFor(() => expect(p.ondelete).toHaveBeenCalledWith("p1"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("CA-20 : après Save, le message compte les dépôts laissés tels quels et donne leur chemin", async () => {
+    const onsave = vi.fn(async (p: ProfileView) => ({ ...p, notUpdated: [repos[1]] }));
+    render(ProfileSettings, props({ profiles: [pro], onsave }));
+    await fireEvent.input(screen.getByLabelText("user.email"), {
+      target: { value: "new@pro-company.fr" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    const notice = await screen.findByRole("status", { name: "Repositories not updated" });
+    expect(notice).toHaveTextContent("1 repository not updated: local settings changed by hand.");
+    expect(within(notice).getByText(repos[1])).toBeVisible();
+  });
+
+  it("CA-20 : un dépôt dont l'écriture a échoué est listé à part, sans être compté parmi les changés à la main", async () => {
+    const onsave = vi.fn(async (p: ProfileView) => ({
+      ...p,
+      notUpdated: [repos[1]],
+      failed: [repos[0]],
+    }));
+    render(ProfileSettings, props({ profiles: [pro], onsave }));
+    await fireEvent.input(screen.getByLabelText("user.email"), {
+      target: { value: "new@pro-company.fr" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    const hand = await screen.findByRole("status", { name: "Repositories not updated" });
+    expect(hand).toHaveTextContent("1 repository not updated: local settings changed by hand.");
+    expect(within(hand).queryByText(repos[0])).toBeNull();
+    const failed = await screen.findByRole("status", { name: "Repositories not written" });
+    expect(failed).toHaveTextContent("1 repository not updated: writing to .git/config failed.");
+    expect(within(failed).getByText(repos[0])).toBeVisible();
+  });
+
+  it("CA-20 : le message passe au pluriel et disparaît quand plus aucun dépôt n'est laissé", async () => {
+    const onsave = vi
+      .fn(async (p: ProfileView) => ({ ...p, notUpdated: [] as string[] }))
+      .mockImplementationOnce(async (p: ProfileView) => ({ ...p, notUpdated: repos }));
+    render(ProfileSettings, props({ profiles: [pro], onsave }));
+    const email = screen.getByLabelText("user.email");
+    await fireEvent.input(email, { target: { value: "a@pro-company.fr" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByRole("status", { name: "Repositories not updated" }),
+    ).toHaveTextContent("2 repositories not updated: local settings changed by hand.");
+    await fireEvent.input(email, { target: { value: "b@pro-company.fr" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("status", { name: "Repositories not updated" })).toBeNull(),
+    );
   });
 });

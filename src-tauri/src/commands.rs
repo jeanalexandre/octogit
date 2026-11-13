@@ -13,6 +13,7 @@ use crate::launch::{self, LaunchState, RepositoryView};
 use crate::open::{self, OpenError, RecentView};
 use crate::preferences::{self, Column, SectionLayoutView};
 use crate::profiles::{self, ProfileView};
+use crate::propagate::{self, SavedProfileView};
 use crate::ssh_keys::{self, ConnectionTestView, SshKeyView};
 
 #[tauri::command]
@@ -160,11 +161,29 @@ pub fn list_profiles() -> Vec<ProfileView> {
     profiles::list(&Store::new(data_dir()))
 }
 
-/// Crée (`id` vide) ou met à jour un profil ; rend le profil enregistré.
+/// Crée (`id` vide) ou met à jour un profil ; rend le profil enregistré et les dépôts rattachés laissés
+/// tels quels (réglages locaux changés à la main). Un profil modifié réécrit les autres dépôts conformes.
 #[tauri::command]
 #[specta::specta]
-pub fn save_profile(profile: ProfileView) -> Result<ProfileView, String> {
-    profiles::save(&Store::new(data_dir()), profile)
+pub fn save_profile(profile: ProfileView) -> Result<SavedProfileView, String> {
+    propagate::save_and_propagate(&Store::new(data_dir()), profile, &crate::home_dir())
+}
+
+/// Chemins des dépôts connus rattachés au profil `id` (confirmation de Delete profile).
+#[tauri::command]
+#[specta::specta]
+pub fn list_profile_repositories(id: String) -> Vec<String> {
+    propagate::attached_repositories(&Store::new(data_dir()), &id, &crate::home_dir())
+        .into_iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect()
+}
+
+/// Supprime un profil (aucun `.git/config`, clé SSH ni fichier touché) ; rend les profils restants.
+#[tauri::command]
+#[specta::specta]
+pub fn delete_profile(id: String) -> Result<Vec<ProfileView>, String> {
+    propagate::delete_profile(&Store::new(data_dir()), &id)
 }
 
 /// Déplace un profil d'un rang (`delta` négatif : vers le haut) ; rend la liste dans le nouvel ordre.

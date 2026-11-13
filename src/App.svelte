@@ -177,20 +177,42 @@
     importDraft = null;
   }
 
-  async function saveProfile(profile: ProfileView): Promise<ProfileView> {
+  async function saveProfile(
+    profile: ProfileView,
+  ): Promise<ProfileView & { notUpdated: string[]; failed: string[] }> {
     const importing = importDraft !== null && profile.id === "";
     const importPath = openPath;
     const result = await commands.saveProfile(profile);
     if (result.status !== "ok") throw result.error;
     profiles = await commands.listProfiles();
+    // Les dépôts récents ont pu être réécrits : leur badge est relu.
+    recent = await commands.listRecentRepositories();
     if (importing && importPath !== null) {
       // Le dépôt est rattaché à ce profil à la main (ses valeurs sont écrites dans son `.git/config` comme par Overwrite), puis on y revient.
-      const attached = await commands.attachRepository(importPath, result.data.id);
+      const attached = await commands.attachRepository(importPath, result.data.profile.id);
       if (attached.status !== "ok") throw attached.error;
       updateAttachment(attached.data);
       closeSettings();
     }
-    return result.data;
+    return {
+      ...result.data.profile,
+      notUpdated: result.data.notUpdated,
+      failed: result.data.failed,
+    };
+  }
+
+  async function listProfileRepositories(id: string): Promise<string[]> {
+    return commands.listProfileRepositories(id);
+  }
+
+  async function deleteProfile(id: string) {
+    const result = await commands.deleteProfile(id);
+    if (result.status !== "ok") throw result.error;
+    profiles = result.data;
+    recent = await commands.listRecentRepositories();
+    // Le dépôt ouvert, rattaché à ce profil, passe en « No profile » ; son `.git/config` n'a pas bougé.
+    if (screen?.screen === "history" && screen.repository.profile?.id === id)
+      updateAttachment(null);
   }
 
   async function moveProfile(id: string, delta: number) {
@@ -254,6 +276,8 @@
     origin={screen?.screen === "history" ? "History" : "Welcome"}
     onsave={saveProfile}
     onmove={moveProfile}
+    onlistrepos={listProfileRepositories}
+    ondelete={deleteProfile}
     ssh={sshApi}
     initial={importDraft ?? undefined}
     onclose={closeSettings}

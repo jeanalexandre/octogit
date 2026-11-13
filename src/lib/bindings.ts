@@ -44,8 +44,15 @@ export const commands = {
 	fetchRepository: (path: string) => typedError<RepositoryView_Serialize | null, string>(__TAURI_INVOKE("fetch_repository", { path })),
 	/**  Profils dans l'ordre de `ProfileSettings`. */
 	listProfiles: () => __TAURI_INVOKE<ProfileView[]>("list_profiles"),
-	/**  Crée (`id` vide) ou met à jour un profil ; rend le profil enregistré. */
-	saveProfile: (profile: ProfileView) => typedError<ProfileView, string>(__TAURI_INVOKE("save_profile", { profile })),
+	/**
+	 *  Crée (`id` vide) ou met à jour un profil ; rend le profil enregistré et les dépôts rattachés laissés
+	 *  tels quels (réglages locaux changés à la main). Un profil modifié réécrit les autres dépôts conformes.
+	 */
+	saveProfile: (profile: ProfileView) => typedError<SavedProfileView, string>(__TAURI_INVOKE("save_profile", { profile })),
+	/**  Chemins des dépôts connus rattachés au profil `id` (confirmation de Delete profile). */
+	listProfileRepositories: (id: string) => __TAURI_INVOKE<string[]>("list_profile_repositories", { id }),
+	/**  Supprime un profil (aucun `.git/config`, clé SSH ni fichier touché) ; rend les profils restants. */
+	deleteProfile: (id: string) => typedError<ProfileView[], string>(__TAURI_INVOKE("delete_profile", { id })),
 	/**  Déplace un profil d'un rang (`delta` négatif : vers le haut) ; rend la liste dans le nouvel ordre. */
 	moveProfile: (id: string, delta: number) => typedError<ProfileView[], string>(__TAURI_INVOKE("move_profile", { id, delta })),
 	/**  Sélecteur de fichier natif ouvert dans le dossier SSH ; `None` si annulé. En mode test, le pont répond à sa place. */
@@ -286,6 +293,20 @@ export type RuleKindView = "path" | "remoteOwner";
 export type RuleView = {
 	kind: RuleKindView,
 	pattern: string,
+};
+
+/**
+ *  Profil enregistré, et dépôts rattachés laissés tels quels parce que leurs réglages locaux ont été
+ *  changés à la main (leur chemin, pour le message d'après Save).
+ */
+export type SavedProfileView = {
+	profile: ProfileView,
+	notUpdated: string[],
+	/**
+	 *  Dépôts rattachés dont la réécriture a échoué (clé `.pub` absente, `git config` en erreur) : listés
+	 *  à part, jamais parmi les dépôts changés à la main.
+	 */
+	failed: string[],
 };
 
 /**  Hauteurs (pixels, par identifiant de section) et sections repliées de `BranchSidebar`. */

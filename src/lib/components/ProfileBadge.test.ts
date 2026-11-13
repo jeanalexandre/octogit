@@ -54,6 +54,8 @@ describe("ProfileBadge", () => {
       origin: "History",
       onsave: async (p: ProfileView) => p,
       onmove: async () => {},
+      onlistrepos: async () => [],
+      ondelete: async () => {},
       ssh: {
         choose: async () => null,
         inspect: async (path: string) => ({

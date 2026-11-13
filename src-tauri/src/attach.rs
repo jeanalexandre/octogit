@@ -71,18 +71,19 @@ fn badge(profile: &Profile, conform: bool) -> ProfileBadgeView {
     }
 }
 
-/// Profil du dépôt et origine du rattachement : le choix manuel mémorisé (prioritaire sur les règles, s'il
-/// désigne encore un profil existant), sinon le premier profil à règle correspondante.
-fn resolve(
+/// Profil du dépôt et origine du rattachement : le choix manuel mémorisé (prioritaire sur les règles ; s'il
+/// désigne un profil supprimé : aucun profil, « No profile »), sinon le premier profil à règle correspondante.
+pub(crate) fn resolve(
     store: &Store,
     profiles: &[Profile],
     repo: &Path,
     home: &Path,
 ) -> Option<(Profile, OriginView)> {
     if let Some(id) = store.manual_profile(repo) {
-        if let Some(profile) = profiles.iter().find(|p| p.id == id) {
-            return Some((profile.clone(), OriginView::Manual));
-        }
+        return profiles
+            .iter()
+            .find(|p| p.id == id)
+            .map(|profile| (profile.clone(), OriginView::Manual));
     }
     let origin = read_origin_url(repo, home);
     let (profile, rule): (&Profile, &MatchingRule) =

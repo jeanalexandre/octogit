@@ -38,9 +38,16 @@
 | 28 | S-12 | écart de dev | Dépôt où seules des valeurs manquent : conforme ? | Oui, l'ouverture les écrit sans dialogue (autre : non conforme tant qu'elles manquent) | Cohérent avec S-10 ; aucune valeur fausse n'est présente | à revoir avant push |
 | 29 | S-12 | écart de dev | « No profile » dans `History`, sans ⚠ de la maquette ? | Accepté (autre : ⚠ dès maintenant) | La fiche demande le texte seul ; S-17 complète | à relire |
 | 30 | S-12 | revue 1 | Récent introuvable affiché « identity mismatch » ? | Reporté vers S-54, ajouté à sa ligne du plan (autre : traiter ici) | S-54 traite le dépôt introuvable | à relire |
+| 31 | S-13 | écart de dev | Contrat : `save_profile` rend `SavedProfileView`, commandes `list_profile_repositories` et `delete_profile` ? | Accepté (autre : événement séparé) | Exigé par CA-12 et CA-20 | à revoir avant push |
+| 32 | S-13 | écart de dev | Rattachement manuel vers un profil supprimé : « No profile » sans repli sur les règles, gardé dans `repositories.json` ? | Accepté (autres : retomber sur les règles ; nettoyer l'entrée) | Conforme à la fiche ; aucune donnée supprimée | à revoir avant push |
+| 33 | S-13 | écart de dev | Réécriture seulement si identité, clé ou signature changent ? | Accepté (autre : réécrire à tout Save) | Aucune écriture inutile | à relire |
+| 34 | S-13 | revue 1 | Échec d'écriture présenté comme « changed by hand » ? | Traité au passage 2 : listé à part avec un message d'échec (autre : reporter vers S-53 ou S-54) | Aucune story ne couvre la propagation ; le message actuel est faux | à relire |
 
 ## Alertes
-- 
+- S-9 : troisième story dont le test CA-9 (agent SSH chargé d'une autre clé) n'a pas tourné avec un vrai agent, refusé par le bac à sable ; la preuve repose sur le journal du faux `ssh`.
+- `pnpm lint` filtré par rtk n'affiche que la partie ESLint : un échec clippy est passé inaperçu à la relance de S-11, passage 1 (vu par le reviewer). Clippy relancé à part depuis.
+- `src/livraison.test.ts` échoue sous charge et dans le bac à sable (`hdiutil`, `clang`), vert hors bac à sable.
+- S-13 : dev interrompu une fois par la limite d'usage, repris sans perte.
 
 ## Arrêts
 - 

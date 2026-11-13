@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import type { ProfileView } from "../bindings";
   import MatchingRuleList from "../components/MatchingRuleList.svelte";
   import ProfileForm from "../components/ProfileForm.svelte";
@@ -10,6 +10,8 @@
     origin,
     onsave,
     onmove,
+    onlistrepos,
+    ondelete,
     onclose,
     ssh,
     initial,
@@ -22,10 +24,19 @@
     profiles: ProfileView[];
     /** Écran d'origine, nommé dans le bouton de retour (« History », « Welcome »). */
     origin: string;
-    /** Enregistre (`id` vide : crée) ; rend le profil enregistré, ou rejette avec un message. */
-    onsave: (profile: ProfileView) => Promise<ProfileView>;
+    /**
+     * Enregistre (`id` vide : crée) ; rend le profil enregistré, avec les dépôts rattachés laissés tels
+     * quels (`notUpdated`, chemins), ou rejette avec un message.
+     */
+    onsave: (
+      profile: ProfileView,
+    ) => Promise<ProfileView & { notUpdated?: string[]; failed?: string[] }>;
     /** Déplace un profil d'un rang (`delta` négatif : vers le haut). */
     onmove: (id: string, delta: number) => Promise<void>;
+    /** Chemins des dépôts connus rattachés au profil `id` (confirmation de Delete profile). */
+    onlistrepos: (id: string) => Promise<string[]>;
+    /** Supprime le profil `id` ; `profiles` est mis à jour par l'appelant. */
+    ondelete: (id: string) => Promise<void>;
     onclose: () => void;
   } = $props();
 
@@ -58,6 +69,11 @@
   let prefilled = $state(untrack(() => initial !== undefined));
   let confirming = $state(false);
   let error: string | null = $state(null);
+  /** Dépôts rattachés laissés tels quels par le dernier Save (réglages locaux changés à la main). */
+  let notUpdated: string[] = $state([]);
+  let failed: string[] = $state([]);
+  /** Confirmation de Delete profile ouverte : le profil et les dépôts connus qui lui sont rattachés. */
+  let deleting: { profile: ProfileView; repos: string[] } | null = $state(null);
 
   const creating = $derived(selectedId === null);
   const saved = $derived(profiles.find((p) => p.id === selectedId));
@@ -90,6 +106,8 @@
     selectedId = profile.id;
     draft = copy(profile);
     error = null;
+    notUpdated = [];
+    failed = [];
   }
 
   function choose(profile: ProfileView) {
@@ -119,6 +137,35 @@
     selectedId = null;
     draft = blank();
     error = null;
+    notUpdated = [];
+    failed = [];
+  }
+
+  async function askDelete() {
+    if (!saved) return;
+    const profile = saved;
+    try {
+      deleting = { profile, repos: await onlistrepos(profile.id) };
+      error = null;
+    } catch (failure) {
+      error = String(failure);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    const id = deleting.profile.id;
+    try {
+      await ondelete(id);
+    } catch (failure) {
+      deleting = null;
+      error = String(failure);
+      return;
+    }
+    deleting = null;
+    await tick();
+    if (profiles.length > 0) select(profiles[0]);
+    else openBlank();
   }
 
   function startNew() {
@@ -130,10 +177,16 @@
 
   async function submit(): Promise<boolean> {
     try {
-      const result = await onsave({ ...$state.snapshot(draft) });
+      const {
+        notUpdated: left = [],
+        failed: broken = [],
+        ...result
+      } = await onsave({ ...$state.snapshot(draft) });
       selectedId = result.id;
       draft = copy(result);
       error = null;
+      notUpdated = left;
+      failed = broken;
       return true;
     } catch (failure) {
       error = String(failure);
@@ -173,20 +226,21 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Tab" && confirming) {
+    if (event.key === "Tab" && (confirming || deleting)) {
       trapTab(event);
       return;
     }
     if (event.key === "Escape") {
       event.preventDefault();
-      if (confirming) cancel();
+      if (deleting) deleting = null;
+      else if (confirming) cancel();
       else leave();
       return;
     }
     const delta = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
     if (delta !== 0 && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
       event.preventDefault();
-      if (!confirming && selectedId !== null) void onmove(selectedId, delta);
+      if (!confirming && !deleting && selectedId !== null) void onmove(selectedId, delta);
     }
   }
 </script>
@@ -250,10 +304,37 @@
               ></button>
             {/each}
           </div>
+          <button type="button" class="delete" onclick={askDelete}>Delete profile</button>
         </div>
       {/if}
       {#if error}
         <p class="error" role="alert">{error}</p>
+      {/if}
+      {#if notUpdated.length > 0}
+        <div class="notice" role="status" aria-label="Repositories not updated">
+          <p>
+            {notUpdated.length === 1 ? "1 repository" : `${notUpdated.length} repositories`} not updated:
+            local settings changed by hand.
+          </p>
+          <ul>
+            {#each notUpdated as path (path)}
+              <li class="mono">{path}</li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+      {#if failed.length > 0}
+        <div class="notice" role="status" aria-label="Repositories not written">
+          <p>
+            {failed.length === 1 ? "1 repository" : `${failed.length} repositories`} not updated: writing
+            to .git/config failed.
+          </p>
+          <ul>
+            {#each failed as path (path)}
+              <li class="mono">{path}</li>
+            {/each}
+          </ul>
+        </div>
       {/if}
       <ProfileForm
         bind:profile={draft}
@@ -285,6 +366,37 @@
         <button type="button" class="primary" disabled={!canSubmit} onclick={saveAndClose}>
           Save
         </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if deleting}
+  <div class="backdrop">
+    <div
+      class="dialog"
+      bind:this={dialog}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-title"
+    >
+      <h2 id="delete-title">Delete profile {deleting.profile.name}?</h2>
+      {#if deleting.repos.length > 0}
+        <p class="hint">
+          Attached repositories ({deleting.repos.length}). Their local .git/config is left as it is;
+          they show “No profile”.
+        </p>
+        <ul class="paths">
+          {#each deleting.repos as path (path)}
+            <li class="mono">{path}</li>
+          {/each}
+        </ul>
+      {:else}
+        <p class="hint">No known repository is attached to this profile.</p>
+      {/if}
+      <div class="choices">
+        <button type="button" use:focusOnMount onclick={() => (deleting = null)}>Cancel</button>
+        <button type="button" class="danger" onclick={confirmDelete}>Delete profile</button>
       </div>
     </div>
   </div>
@@ -331,6 +443,7 @@
 
   .back,
   .new,
+  .delete,
   .choices button {
     padding: 4px 10px;
     border: 1px solid var(--border-strong);
@@ -449,6 +562,32 @@
     margin: 0;
     color: var(--muted);
     font-size: 11px;
+  }
+
+  .mono {
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .notice {
+    padding: 8px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+  }
+
+  .notice p {
+    margin: 0 0 4px;
+  }
+
+  .paths {
+    max-height: 160px;
+    overflow: auto;
+  }
+
+  .choices .danger {
+    border: 2px solid var(--ink);
+    font-weight: 600;
   }
 
   .error {

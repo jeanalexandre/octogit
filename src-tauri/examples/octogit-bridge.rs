@@ -68,6 +68,11 @@ struct SaveProfileArgs {
 }
 
 #[derive(Deserialize)]
+struct IdArgs {
+    id: String,
+}
+
+#[derive(Deserialize)]
 struct MoveProfileArgs {
     id: String,
     delta: i32,
@@ -288,6 +293,20 @@ fn main() {
                 serde_json::from_str(&input).expect("arguments { profile }");
             match octogit_app::commands::save_profile(args.profile) {
                 Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "list_profile_repositories" => {
+            let args: IdArgs = serde_json::from_str(&input).expect("arguments { id }");
+            (
+                serde_json::to_string(&octogit_app::commands::list_profile_repositories(args.id)),
+                0,
+            )
+        }
+        "delete_profile" => {
+            let args: IdArgs = serde_json::from_str(&input).expect("arguments { id }");
+            match octogit_app::commands::delete_profile(args.id) {
+                Ok(views) => (serde_json::to_string(&views), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }
         }

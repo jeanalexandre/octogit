@@ -9,6 +9,7 @@ pub mod launch;
 pub mod open;
 pub mod preferences;
 pub mod profiles;
+pub mod propagate;
 pub mod ssh_keys;
 
 use std::path::PathBuf;
@@ -82,6 +83,8 @@ pub fn builder() -> Builder<tauri::Wry> {
         commands::fetch_repository,
         commands::list_profiles,
         commands::save_profile,
+        commands::list_profile_repositories,
+        commands::delete_profile,
         commands::move_profile,
         commands::choose_ssh_key,
         commands::inspect_ssh_key,

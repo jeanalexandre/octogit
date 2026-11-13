@@ -318,6 +318,25 @@ pub fn overwrite_profile(repo: &Path, profile: &Profile, home: &Path) -> Result<
     Ok(())
 }
 
+/// Modification d'un profil : si le `.git/config` local de `repo` correspond encore à `old` (aucune valeur
+/// locale ne diffère de `old`), écrit les valeurs de `new` et rend `true`. Sinon (réglage changé à la
+/// main, ou valeurs de `old` impossibles à calculer) ne touche à rien et rend `false`.
+pub fn propagate_profile(
+    repo: &Path,
+    old: &Profile,
+    new: &Profile,
+    home: &Path,
+) -> Result<bool, String> {
+    let (Ok(expected_old), local) = (expected_values(old, home), read_local(repo, home)?) else {
+        return Ok(false);
+    };
+    if compare(&expected_old, &local) == ApplyOutcome::Differs {
+        return Ok(false);
+    }
+    overwrite_profile(repo, new, home)?;
+    Ok(true)
+}
+
 /// Écrit l'identité de `profile` dans le `.git/config` local de `repo` : seules les clés absentes, une à
 /// une par `git config --local`, rien d'autre. Conforme : aucune écriture. Une valeur locale qui diffère
 /// du profil : aucune écriture non plus.

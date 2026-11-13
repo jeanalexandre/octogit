@@ -17,6 +17,20 @@
 - **configurer-les-profils CA-18** : Étant donné le profil Work rattaché à des dépôts connus dont le `.git/config` local correspond encore à l'ancien profil, quand je modifie `user.email`, la clé ou la signature puis Save, alors, sans autre geste, `git config --local user.email`, `core.sshCommand` et le réglage de signature de chacun de ces dépôts renvoient les nouvelles valeurs dans le terminal.
 - **configurer-les-profils CA-20** : Étant donné le profil Work rattaché à 2 dépôts connus, dont 1 a un `user.email` local changé à la main (différent de l'ancien profil), quand je modifie le profil puis Save, alors ce dépôt a un `.git/config` identique octet pour octet, l'autre est réécrit (CA-18), et « 1 repository not updated: local settings changed by hand. » s'affiche avec le chemin du dépôt laissé tel quel ; à sa prochaine ouverture, `IdentityMismatch` s'affiche (`specs/proteger-l-identite.md`, CA-7).
 
+## Décisions de l'humain
+### Écarts du passage 1 de dev (13/11/2026)
+1. Contrat : `save_profile` rend `SavedProfileView { profile, notUpdated }` ; nouvelles commandes `list_profile_repositories` et `delete_profile` ; pont de test étendu : accepté, exigé par CA-12 et CA-20 (d'office).
+2. Un rattachement manuel vers un profil supprimé rend « aucun profil » et ne retombe pas sur les règles ; README de S-12 corrigé en conséquence : accepté, conforme à la fiche (d'office).
+3. Rattachement manuel vers un profil supprimé gardé dans `repositories.json`, sans nettoyage : accepté, aucune donnée supprimée sans décision (d'office).
+4. Seuls `user.name`, `user.email`, la clé et la signature déclenchent la réécriture ; un changement de nom, de couleur ou de règles ne réécrit et ne liste rien ; seuls les dépôts de Recent rattachés avant l'enregistrement sont concernés : accepté (d'office).
+5. Après suppression, `ProfileSettings` sélectionne le premier profil restant, ou « Create a first profile » s'il n'en reste aucun : accepté (d'office).
+
+### Après la revue 1
+6. Problème 1 (dépôt dont la réécriture échoue listé « local settings changed by hand ») : traiter, aucune story du plan ne le prévoit. Distinguer « changé à la main » d'une erreur d'écriture ; un dépôt en erreur est listé à part avec un message qui dit que l'écriture a échoué (texte en anglais, ton de `ux.md`) et son chemin, sans être compté parmi les « changed by hand » ; un test le prouve (signature cochée sans `.pub`) (d'office).
+
+### Écarts du passage 2 de dev
+7. `SavedProfileView.failed` (chemins) ajouté à côté de `notUpdated` ; message « N repository/repositories not updated: writing to .git/config failed. » suivi des chemins, dans un second bloc d'état : accepté, prolonge la décision 1 (d'office).
+
 ## Contexte technique
 - Dépend de S-12 : badge et état de conformité d'un dépôt, rattachement (règles et manuel), `IdentityMismatch` (S-11), écriture ciblée (S-10), `ProfileSettings` (S-7).
 - Dépôts connus : la liste Recent du crate `store` (`repositories.json`, `crates/store/src/lib.rs`), chacun avec son rattachement actuel (manuel mémorisé, sinon règles). Les dépôts ouverts plus tard par clone (S-27) rejoignent Recent et donc cette liste sans changement ici.
@@ -51,7 +65,11 @@
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : à noter au lancement de la boucle
+Référence du diff : cfb5aeb
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (interrompu par la limite d'usage puis repris ; écarts 1 à 5 tranchés d'office), vérifications relancées ✅ (clippy à part, 120 e2e) | — |
+| 1 | reviewer | `stories/S-13-revue-1.md` : 1 mineur (échec d'écriture présenté comme réglage changé à la main) | validé |
+| 2 | dev | terminé (mineur 1 de la revue 1, écart 7 accepté d'office), vérifications relancées ✅ (clippy à part, 120 e2e) | — |
+| 2 | reviewer | `stories/S-13-revue-2.md` : mineur levé, aucun problème | validé |

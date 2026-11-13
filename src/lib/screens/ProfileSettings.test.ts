@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 import ProfileSettings from "./ProfileSettings.svelte";
-import type { ProfileView } from "../bindings";
+import type { ProfileView, SshKeyView } from "../bindings";
+import type { SshApi } from "../sshKeys";
 
 const pro: ProfileView = {
   id: "p1",
@@ -21,8 +22,29 @@ const perso: ProfileView = {
 };
 const client: ProfileView = { ...pro, id: "p3", name: "Client X", color: 2 };
 
+const keyView = (path: string, overrides: Partial<SshKeyView> = {}): SshKeyView => ({
+  path,
+  publicPath: `${path}.pub`,
+  fingerprint: "SHA256:abcDEF123",
+  needsPassphrase: false,
+  ...overrides,
+});
+
+function makeSsh(overrides: Partial<SshApi> = {}): SshApi {
+  return {
+    choose: vi.fn(async () => null),
+    inspect: vi.fn(async (path: string) => keyView(path)),
+    unlock: vi.fn(async (path: string) => keyView(path)),
+    propose: vi.fn(async (name: string) => `/ssh/id_ed25519_${name.toLowerCase()}`),
+    generate: vi.fn(async (name: string) => keyView(`/ssh/id_ed25519_${name.toLowerCase()}`)),
+    copyPublicKey: vi.fn(async () => {}),
+    ...overrides,
+  };
+}
+
 function props(overrides = {}) {
   return {
+    ssh: makeSsh(),
     profiles: [] as ProfileView[],
     origin: "Welcome",
     onsave: vi.fn(async (p: ProfileView) => p),
@@ -39,13 +61,13 @@ describe("ProfileSettings, aucun profil", () => {
     expect(screen.getByLabelText("Name")).toHaveValue("");
     expect(screen.getByLabelText("user.name")).toHaveValue("");
     expect(screen.getByLabelText("user.email")).toHaveValue("");
-    expect(screen.getByLabelText("SSH key")).toHaveValue("");
+    expect(screen.getByLabelText("SSH key")).toHaveTextContent("No key yet");
     expect(screen.queryByRole("list")).toBeNull();
     expect(screen.queryByRole("button", { name: /New profile/ })).toBeNull();
   });
 
   it("garde Create profile désactivé tant qu'un des quatre champs manque", async () => {
-    const p = props();
+    const p = props({ ssh: makeSsh({ choose: vi.fn(async () => "~/.ssh/id_pro") }) });
     render(ProfileSettings, p);
     const create = screen.getByRole("button", { name: "Create profile" });
     expect(create).toBeDisabled();
@@ -53,13 +75,14 @@ describe("ProfileSettings, aucun profil", () => {
       ["Name", "Pro"],
       ["user.name", "Jean"],
       ["user.email", "j@x.org"],
-      ["SSH key", "~/.ssh/id_pro"],
     ];
     for (const [label, value] of fields) {
       expect(create).toBeDisabled();
       await fireEvent.input(screen.getByLabelText(label), { target: { value } });
     }
-    expect(create).toBeEnabled();
+    expect(create).toBeDisabled();
+    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    await waitFor(() => expect(create).toBeEnabled());
     await fireEvent.input(screen.getByLabelText("user.email"), { target: { value: "  " } });
     expect(create).toBeDisabled();
     await fireEvent.input(screen.getByLabelText("user.email"), { target: { value: "j@x.org" } });
@@ -86,7 +109,7 @@ describe("ProfileSettings, profils enregistrés", () => {
     expect(items[1]).toHaveTextContent("Perso");
     expect(items[2]).toHaveTextContent("Client X");
     expect(screen.getByLabelText("user.email")).toHaveValue("jag@pro-company.fr");
-    expect(screen.getByLabelText("SSH key")).toHaveValue("~/.ssh/id_ed25519_pro");
+    expect(screen.getByLabelText("SSH key")).toHaveTextContent("~/.ssh/id_ed25519_pro");
     expect(screen.getByLabelText(/Sign commits/)).toBeChecked();
   });
 
@@ -284,5 +307,161 @@ describe("ProfileSettings, profils enregistrés", () => {
       (container.textContent ?? "").replace(/to paste in GitHub › Settings › SSH keys/, ""),
     ).not.toMatch(/github/i);
     expect(container.querySelectorAll("a, [href]")).toHaveLength(0);
+  });
+});
+
+describe("ProfileSettings, clé SSH", () => {
+  it("Choose… affiche le chemin et l'empreinte de la clé choisie (CA-5)", async () => {
+    const ssh = makeSsh({ choose: vi.fn(async () => "/ssh/id_other") });
+    render(ProfileSettings, props({ ssh }));
+    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    await waitFor(() => expect(screen.getByTestId("ssh-fingerprint")).toHaveTextContent("SHA256:"));
+    expect(screen.getByLabelText("SSH key")).toHaveTextContent("/ssh/id_other");
+    expect(ssh.inspect).toHaveBeenCalledWith("/ssh/id_other");
+  });
+
+  it("Choose… annulé ne change rien", async () => {
+    render(ProfileSettings, props());
+    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    expect(screen.getByLabelText("SSH key")).toHaveTextContent("No key yet");
+  });
+
+  it("Generate ed25519… propose le fichier du profil, puis la clé générée est celle du profil (CA-6)", async () => {
+    const ssh = makeSsh();
+    render(ProfileSettings, props({ ssh, profiles: [{ ...pro, name: "Work", sshKeyPath: "" }] }));
+    await fireEvent.click(screen.getByRole("button", { name: "Generate ed25519…" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("ssh-proposed")).toHaveTextContent("/ssh/id_ed25519_work"),
+    );
+    expect(screen.getByLabelText("Passphrase (optional)")).toHaveValue("");
+    await fireEvent.input(screen.getByLabelText("Passphrase (optional)"), {
+      target: { value: "pw" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("SSH key")).toHaveTextContent("/ssh/id_ed25519_work"),
+    );
+    expect(ssh.generate).toHaveBeenCalledWith("Work", "pw");
+    expect(screen.queryByLabelText("Passphrase (optional)")).toBeNull();
+  });
+
+  it("Name modifié panneau ouvert : le fichier affiché est celui que Generate écrit (CA-6)", async () => {
+    const ssh = makeSsh();
+    render(ProfileSettings, props({ ssh }));
+    await fireEvent.click(screen.getByRole("button", { name: "Generate ed25519…" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("ssh-proposed")).toHaveTextContent("/ssh/id_ed25519_"),
+    );
+    await fireEvent.input(screen.getByLabelText("Name"), { target: { value: "Work" } });
+    await waitFor(() =>
+      expect(screen.getByTestId("ssh-proposed")).toHaveTextContent("/ssh/id_ed25519_work"),
+    );
+    await fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(() => expect(ssh.generate).toHaveBeenCalledWith("Work", ""));
+    expect(screen.getByLabelText("SSH key")).toHaveTextContent("/ssh/id_ed25519_work");
+  });
+
+  it("le panneau Generate se ferme quand on change de profil (CA-6)", async () => {
+    render(ProfileSettings, props({ profiles: [pro, perso] }));
+    await fireEvent.click(screen.getByRole("button", { name: "Generate ed25519…" }));
+    expect(await screen.findByLabelText("Passphrase (optional)")).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole("button", { name: /Perso/ }));
+    await waitFor(() => expect(screen.queryByLabelText("Passphrase (optional)")).toBeNull());
+  });
+
+  it("les chemins sous le dossier personnel s'affichent avec ~ (CA-6)", async () => {
+    const ssh = makeSsh({ choose: vi.fn(async () => "/Users/jaja/.ssh/id_other") });
+    render(ProfileSettings, props({ ssh }));
+    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("SSH key")).toHaveTextContent("~/.ssh/id_other"),
+    );
+    expect(screen.getByLabelText("SSH key")).not.toHaveTextContent("/Users/jaja");
+    expect(ssh.inspect).toHaveBeenCalledWith("/Users/jaja/.ssh/id_other");
+  });
+
+  it("un autre dossier sous /Users que le dossier personnel n'est pas abrégé en ~ (CA-6)", async () => {
+    const ssh = makeSsh({ choose: vi.fn(async () => "/Users/Shared/keys/id_other") });
+    render(ProfileSettings, props({ ssh }));
+    await fireEvent.click(screen.getByRole("button", { name: "Choose…" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("SSH key")).toHaveTextContent("/Users/Shared/keys/id_other"),
+    );
+  });
+
+  it("une clé générée pendant un changement de profil n'est pas rattachée à l'autre profil (CA-6)", async () => {
+    let finish: (view: SshKeyView) => void = () => {};
+    const ssh = makeSsh({
+      generate: vi.fn(() => new Promise<SshKeyView>((resolve) => (finish = resolve))),
+    });
+    const other: ProfileView = { ...perso, sshKeyPath: "/ssh/perso_key" };
+    render(ProfileSettings, props({ ssh, profiles: [{ ...pro, sshKeyPath: "" }, other] }));
+    await fireEvent.click(screen.getByRole("button", { name: "Generate ed25519…" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("ssh-proposed")).toHaveTextContent("/ssh/id_ed25519_pro"),
+    );
+    await fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(() => expect(ssh.generate).toHaveBeenCalled());
+    await fireEvent.click(screen.getByRole("button", { name: /Perso/ }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("SSH key")).toHaveTextContent("/ssh/perso_key"),
+    );
+    finish(keyView("/ssh/id_ed25519_pro"));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByLabelText("SSH key")).toHaveTextContent("/ssh/perso_key");
+    expect(screen.getByLabelText("SSH key")).not.toHaveTextContent("id_ed25519_pro");
+  });
+
+  it("un fichier existant refusé : le message nomme le fichier et la clé du profil ne change pas (CA-6)", async () => {
+    const ssh = makeSsh({
+      generate: vi.fn(async () => {
+        throw "/ssh/id_ed25519_work already exists: nothing was written.";
+      }),
+    });
+    render(ProfileSettings, props({ ssh, profiles: [{ ...pro, name: "Work" }] }));
+    await fireEvent.click(screen.getByRole("button", { name: "Generate ed25519…" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Generate" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("id_ed25519_work");
+    expect(screen.getByLabelText("SSH key")).toHaveTextContent(pro.sshKeyPath);
+  });
+
+  it("Copy public key demande la copie de la clé affichée (CA-7)", async () => {
+    const ssh = makeSsh();
+    render(ProfileSettings, props({ ssh, profiles: [pro] }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Copy public key" }));
+    await waitFor(() => expect(ssh.copyPublicKey).toHaveBeenCalledWith(pro.sshKeyPath));
+    expect(screen.getByText("to paste in GitHub › Settings › SSH keys")).toBeInTheDocument();
+  });
+
+  it("une clé protégée sans .pub demande la passphrase une fois, puis Copy public key marche (CA-16)", async () => {
+    const ssh = makeSsh({
+      inspect: vi.fn(async (path: string) => keyView(path, { needsPassphrase: true })),
+      unlock: vi.fn(async (path: string) => keyView(path)),
+    });
+    render(ProfileSettings, props({ ssh, profiles: [pro] }));
+    const field = await screen.findByLabelText("Key passphrase");
+    expect(screen.queryByRole("button", { name: "Copy public key" })).toBeNull();
+    await fireEvent.input(field, { target: { value: "s3cret" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
+    await waitFor(() => expect(screen.queryByLabelText("Key passphrase")).toBeNull());
+    expect(ssh.unlock).toHaveBeenCalledExactlyOnceWith(pro.sshKeyPath, "s3cret");
+    await fireEvent.click(screen.getByRole("button", { name: "Copy public key" }));
+    expect(ssh.copyPublicKey).toHaveBeenCalledOnce();
+  });
+
+  it("une mauvaise passphrase reste demandée et affiche l'erreur", async () => {
+    const ssh = makeSsh({
+      inspect: vi.fn(async (path: string) => keyView(path, { needsPassphrase: true })),
+      unlock: vi.fn(async () => {
+        throw "Wrong passphrase.";
+      }),
+    });
+    render(ProfileSettings, props({ ssh, profiles: [pro] }));
+    await fireEvent.input(await screen.findByLabelText("Key passphrase"), {
+      target: { value: "nope" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Wrong passphrase.");
+    expect(screen.getByLabelText("Key passphrase")).toBeInTheDocument();
   });
 });

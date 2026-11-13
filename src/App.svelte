@@ -10,6 +10,7 @@
     type RepositoryView,
   } from "./lib/bindings";
   import { scheduleFetch } from "./lib/fetchScheduler";
+  import { sshApi } from "./lib/sshKeys";
   import History from "./lib/screens/History.svelte";
   import ProfileSettings from "./lib/screens/ProfileSettings.svelte";
   import Welcome from "./lib/screens/Welcome.svelte";
@@ -191,6 +192,7 @@
     origin={screen?.screen === "history" ? "History" : "Welcome"}
     onsave={saveProfile}
     onmove={moveProfile}
+    ssh={sshApi}
     onclose={() => (settingsOpen = false)}
   />
 {:else if screen?.screen === "history"}

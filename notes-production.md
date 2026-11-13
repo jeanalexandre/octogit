@@ -9,6 +9,7 @@
 <!-- Actions hors code : configuration de l'hébergement, secrets, vérifications sur l'environnement réel. Une source par story qui a relevé le point. -->
 
 - [ ] Vérifier à l'œil l'icône d'Octogit installée depuis le `.dmg` : Dock, Cmd+Tab, Finder et « À propos » (le contenu du bundle est vérifié par `scripts/check-bundle.sh`, pas l'affichage) (S-64, revue 1 et revue 2)
+- [ ] Tester à la main le vrai trousseau macOS dans l'application livrée : générer une clé avec passphrase, relancer Octogit, vérifier que la passphrase n'est pas redemandée (CA-15 ; aucun test automatique ne l'exerce, voir README « Profils ») (S-8, revue 1 et revue 2)
 
 ## Limites et risques acceptés
 
@@ -17,3 +18,5 @@
 - Avis GHSA-gcqx-w48m-w2h4 (`deepmerge` ≤ 4.3.1, gravité faible, outil de build seulement, sans correctif) ignoré dans `auditConfig.ignoreGhsas` de `pnpm-workspace.yaml` : accepté par l'humain (2a), exception à retirer dès qu'un correctif sort (S-1, écarts du passage 1)
 - `History` lit au plus 10 000 commits : au-delà, le graphe s'arrête sans signe, les lanes encore ouvertes descendent jusqu'en bas et rien n'indique que l'historique est tronqué ; une branche, un tag ou un stash plus ancien que cette limite reste dans `BranchSidebar` mais n'a ni nœud ni étiquette dans le graphe (S-4, revue 1, pour information ; S-5, revue 1, d'office, et revue 2)
 - Un échec d'écriture du fichier de préférences (`preferences.json`) est ignoré sans message : une colonne masquée paraît mémorisée mais réapparaît à la relance (S-4, revue 1, pour information). Même chose pour l'état des dossiers de `BranchSidebar` dans `repositories.json`, écrit par lecture-modification-écriture du fichier entier : deux clics très rapprochés peuvent perdre l'un des deux états (S-57, revue 1 et revue 2, pour information)
+- La passphrase d'une clé SSH est transmise à `ssh-keygen` par l'environnement du sous-processus (`SSH_ASKPASS`) : un autre processus du même utilisateur peut la lire pendant la durée de l'appel ; jamais sur la ligne de commande ni dans un fichier. Accepté d'office pour S-8, à reconsidérer en S-9 (S-8, revue 1)
+- Une clé générée pendant qu'on change de profil reste sur disque et dans le trousseau, rattachée à aucun profil, sans message (S-8, passage 3, d'office)

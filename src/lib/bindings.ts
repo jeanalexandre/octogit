@@ -39,6 +39,18 @@ export const commands = {
 	saveProfile: (profile: ProfileView) => typedError<ProfileView, string>(__TAURI_INVOKE("save_profile", { profile })),
 	/**  Déplace un profil d'un rang (`delta` négatif : vers le haut) ; rend la liste dans le nouvel ordre. */
 	moveProfile: (id: string, delta: number) => typedError<ProfileView[], string>(__TAURI_INVOKE("move_profile", { id, delta })),
+	/**  Sélecteur de fichier natif ouvert dans le dossier SSH ; `None` si annulé. En mode test, le pont répond à sa place. */
+	chooseSshKey: () => __TAURI_INVOKE<string | null>("choose_ssh_key"),
+	/**  Chemin et empreinte d'une clé privée ; écrit le `.pub` manquant quand aucune passphrase n'est nécessaire. */
+	inspectSshKey: (path: string) => typedError<SshKeyView_Serialize, string>(__TAURI_INVOKE("inspect_ssh_key", { path })),
+	/**  Passphrase d'une clé protégée sans `.pub`, saisie une fois : écrit le `.pub`, garde la passphrase dans le trousseau. */
+	unlockSshKey: (path: string, passphrase: string) => typedError<SshKeyView_Serialize, string>(__TAURI_INVOKE("unlock_ssh_key", { path, passphrase })),
+	/**  Fichier proposé par Generate ed25519… pour le profil `name`. */
+	proposeSshKey: (name: string) => __TAURI_INVOKE<string>("propose_ssh_key", { name }),
+	/**  Génère la clé ed25519 du profil `name` ; la passphrase (facultative) va dans le trousseau. */
+	generateSshKey: (name: string, passphrase: string) => typedError<SshKeyView_Serialize, string>(__TAURI_INVOKE("generate_ssh_key", { name, passphrase })),
+	/**  Copie la clé publique de la clé `path` (une ligne) dans le presse-papiers. */
+	copyPublicKey: (path: string) => typedError<null, string>(__TAURI_INVOKE("copy_public_key", { path })),
 };
 
 /* Types */
@@ -186,6 +198,34 @@ export type RepositoryView_Serialize = {
 export type SectionLayoutView = {
 	heights: { [key in string]: number },
 	collapsed: string[],
+};
+
+/**
+ *  Clé choisie ou générée : chemins, empreinte, et si sa passphrase doit être demandée (clé protégée
+ *  dont le `.pub` manque et que le trousseau ne sait pas déverrouiller).
+ */
+export type SshKeyView = SshKeyView_Serialize | SshKeyView_Deserialize;
+
+/**
+ *  Clé choisie ou générée : chemins, empreinte, et si sa passphrase doit être demandée (clé protégée
+ *  dont le `.pub` manque et que le trousseau ne sait pas déverrouiller).
+ */
+export type SshKeyView_Deserialize = {
+	path: string,
+	publicPath: string,
+	fingerprint?: string | null,
+	needsPassphrase: boolean,
+};
+
+/**
+ *  Clé choisie ou générée : chemins, empreinte, et si sa passphrase doit être demandée (clé protégée
+ *  dont le `.pub` manque et que le trousseau ne sait pas déverrouiller).
+ */
+export type SshKeyView_Serialize = {
+	path: string,
+	publicPath: string,
+	fingerprint: string | null,
+	needsPassphrase: boolean,
 };
 
 /* Tauri Specta runtime */

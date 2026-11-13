@@ -3,6 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod ssh;
+
 /// Profil d'identité : qui commite (`user.name`, `user.email`), avec quelle clé SSH, signé ou non.
 /// L'ordre de la liste des profils est porté par la liste, pas par le profil.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

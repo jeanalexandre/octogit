@@ -149,9 +149,48 @@ export class Workspace {
     }
   }
 
-  /** Adresse de l'interface qui lit et écrit dans le dossier de données de ce test. */
+  /** Dossier SSH de ce test (jamais le vrai `~/.ssh`), créé à la demande. */
+  get sshDir(): string {
+    const dir = join(this.root, "ssh");
+    mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  /** Clé ed25519 fabriquée par `ssh-keygen` dans le dossier SSH ; `withPub: false` retire son `.pub`. Rend son chemin. */
+  sshKey(name: string, { passphrase = "", withPub = true } = {}): string {
+    const path = join(this.sshDir, name);
+    execFileSync("/usr/bin/ssh-keygen", [
+      "-q",
+      "-t",
+      "ed25519",
+      "-C",
+      name,
+      "-N",
+      passphrase,
+      "-f",
+      path,
+    ]);
+    if (!withPub) rmSync(`${path}.pub`);
+    return path;
+  }
+
+  /** Empreinte `SHA256:…` d'un fichier de clé, par `ssh-keygen -lf`. */
+  fingerprintOf(path: string): string {
+    return execFileSync("/usr/bin/ssh-keygen", ["-lf", path], { encoding: "utf8" }).split(" ")[1];
+  }
+
+  /** Contenu du faux trousseau du pont de test (passphrases par chemin de clé), hors du dossier de données. */
+  fakeKeychain(): Record<string, string> {
+    try {
+      return JSON.parse(readFileSync(`${this.dataDir}.keychain-fake.json`, "utf8"));
+    } catch {
+      return {};
+    }
+  }
+
+  /** Adresse de l'interface qui lit et écrit dans le dossier de données et le dossier SSH de ce test. */
   get url(): string {
-    return `/?data_dir=${encodeURIComponent(this.dataDir)}`;
+    return `/?data_dir=${encodeURIComponent(this.dataDir)}&ssh_dir=${encodeURIComponent(this.sshDir)}`;
   }
 
   /** Comme `url`, avec le fetch automatique toutes les `ms` millisecondes (au lieu de 60 s). */

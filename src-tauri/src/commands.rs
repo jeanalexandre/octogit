@@ -12,6 +12,7 @@ use crate::launch::{self, LaunchState, RepositoryView};
 use crate::open::{self, OpenError, RecentView};
 use crate::preferences::{self, Column, SectionLayoutView};
 use crate::profiles::{self, ProfileView};
+use crate::ssh_keys::{self, SshKeyView};
 
 #[tauri::command]
 #[specta::specta]
@@ -151,4 +152,51 @@ pub async fn fetch_repository(path: String) -> Result<Option<RepositoryView>, St
     tauri::async_runtime::spawn_blocking(move || fetch::fetch_repository(Path::new(&path)))
         .await
         .map_err(|_| "Fetch was interrupted.".to_string())?
+}
+
+/// Sélecteur de fichier natif ouvert dans le dossier SSH ; `None` si annulé. En mode test, le pont répond à sa place.
+#[tauri::command]
+#[specta::specta]
+pub async fn choose_ssh_key(app: tauri::AppHandle) -> Option<String> {
+    octogit_platform::pick_file(&app, &crate::ssh_dir()).map(|p| p.to_string_lossy().into_owned())
+}
+
+/// Chemin et empreinte d'une clé privée ; écrit le `.pub` manquant quand aucune passphrase n'est nécessaire.
+#[tauri::command]
+#[specta::specta]
+pub fn inspect_ssh_key(path: String) -> Result<SshKeyView, String> {
+    ssh_keys::inspect(&path, &*crate::passphrase_store())
+}
+
+/// Passphrase d'une clé protégée sans `.pub`, saisie une fois : écrit le `.pub`, garde la passphrase dans le trousseau.
+#[tauri::command]
+#[specta::specta]
+pub fn unlock_ssh_key(path: String, passphrase: String) -> Result<SshKeyView, String> {
+    ssh_keys::unlock(&path, &passphrase, &*crate::passphrase_store())
+}
+
+/// Fichier proposé par Generate ed25519… pour le profil `name`.
+#[tauri::command]
+#[specta::specta]
+pub fn propose_ssh_key(name: String) -> String {
+    ssh_keys::propose(&crate::ssh_dir(), &name)
+}
+
+/// Génère la clé ed25519 du profil `name` ; la passphrase (facultative) va dans le trousseau.
+#[tauri::command]
+#[specta::specta]
+pub fn generate_ssh_key(name: String, passphrase: String) -> Result<SshKeyView, String> {
+    ssh_keys::generate(
+        &crate::ssh_dir(),
+        &name,
+        &passphrase,
+        &*crate::passphrase_store(),
+    )
+}
+
+/// Copie la clé publique de la clé `path` (une ligne) dans le presse-papiers.
+#[tauri::command]
+#[specta::specta]
+pub fn copy_public_key(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    octogit_platform::write_clipboard(&app, &ssh_keys::public_key(&path)?)
 }

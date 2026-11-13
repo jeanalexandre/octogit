@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
   import type { ProfileView } from "../bindings";
   import ProfileForm from "../components/ProfileForm.svelte";
+  import type { SshApi } from "../sshKeys";
 
   let {
     profiles,
@@ -9,7 +10,10 @@
     onsave,
     onmove,
     onclose,
+    ssh,
   }: {
+    /** Clé SSH du profil : sélecteur, génération, empreinte, passphrase, presse-papiers. */
+    ssh: SshApi;
     /** Profils dans leur ordre mémorisé. */
     profiles: ProfileView[];
     /** Écran d'origine, nommé dans le bouton de retour (« History », « Welcome »). */
@@ -235,6 +239,7 @@
         mode={creating ? "create" : "edit"}
         {canSubmit}
         onsubmit={submit}
+        {ssh}
       />
     </section>
   </div>

@@ -2,7 +2,8 @@
 //! Usage : `octogit-bridge <commande>` ; arguments en JSON sur l'entrée standard,
 //! résultat en JSON sur la sortie standard. Données dans `OCTOGIT_DATA_DIR`.
 //! Code de sortie 3 : la commande a rendu une erreur métier (JSON sur la sortie standard).
-//! `choose_folder` (fenêtre native) n'existe pas ici : l'interface de test répond à sa place.
+//! `choose_folder`, `choose_ssh_key` (fenêtres natives) et `copy_public_key` (presse-papiers) n'existent
+//! pas ici : l'interface de test répond à leur place. Dossier SSH : `OCTOGIT_SSH_DIR`, sinon `<données>/ssh`.
 
 use std::io::Read;
 
@@ -63,6 +64,74 @@ struct SaveProfileArgs {
 struct MoveProfileArgs {
     id: String,
     delta: i32,
+}
+
+#[derive(Deserialize)]
+struct KeyPathArgs {
+    path: String,
+}
+
+#[derive(Deserialize)]
+struct UnlockArgs {
+    path: String,
+    passphrase: String,
+}
+
+#[derive(Deserialize)]
+struct NameArgs {
+    name: String,
+}
+
+#[derive(Deserialize)]
+struct GenerateArgs {
+    name: String,
+    passphrase: String,
+}
+
+/// Dossier SSH du pont : `OCTOGIT_SSH_DIR`, sinon `ssh/` sous le dossier de données (ignoré par Git
+/// en développement). Le pont n'écrit jamais dans le vrai `~/.ssh`.
+fn bridge_ssh_dir() -> std::path::PathBuf {
+    match std::env::var_os("OCTOGIT_SSH_DIR") {
+        Some(dir) => std::path::PathBuf::from(dir),
+        None => octogit_app::data_dir().join("ssh"),
+    }
+}
+
+/// Faux trousseau du pont de test : le pont lance un processus par commande, la mémoire ne survivrait pas.
+/// Fichier `<OCTOGIT_DATA_DIR>.keychain-fake.json`, hors du dossier de données (aucune passphrase n'y entre) ;
+/// le motif `*.keychain-fake.json` de `.gitignore` empêche Git de le suivre.
+/// N'existe que dans cet exemple : l'application livrée utilise toujours `KeychainStore`.
+struct FileKeychain(std::path::PathBuf);
+
+impl FileKeychain {
+    fn new() -> Self {
+        let mut path = octogit_app::data_dir().into_os_string();
+        path.push(".keychain-fake.json");
+        FileKeychain(path.into())
+    }
+
+    fn read(&self) -> std::collections::HashMap<String, String> {
+        std::fs::read_to_string(&self.0)
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or_default()
+    }
+}
+
+impl octogit_platform::PassphraseStore for FileKeychain {
+    fn get(&self, key_path: &str) -> Result<Option<String>, String> {
+        Ok(self.read().get(key_path).cloned())
+    }
+
+    fn set(&self, key_path: &str, passphrase: &str) -> Result<(), String> {
+        let mut all = self.read();
+        all.insert(key_path.to_string(), passphrase.to_string());
+        std::fs::write(
+            &self.0,
+            serde_json::to_string(&all).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())
+    }
 }
 
 fn main() {
@@ -177,6 +246,53 @@ fn main() {
                 serde_json::from_str(&input).expect("arguments { id, delta }");
             match octogit_app::commands::move_profile(args.id, args.delta) {
                 Ok(views) => (serde_json::to_string(&views), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "inspect_ssh_key" => {
+            let args: KeyPathArgs = serde_json::from_str(&input).expect("arguments { path }");
+            match octogit_app::ssh_keys::inspect(&args.path, &FileKeychain::new()) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "unlock_ssh_key" => {
+            let args: UnlockArgs =
+                serde_json::from_str(&input).expect("arguments { path, passphrase }");
+            match octogit_app::ssh_keys::unlock(&args.path, &args.passphrase, &FileKeychain::new())
+            {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "propose_ssh_key" => {
+            let args: NameArgs = serde_json::from_str(&input).expect("arguments { name }");
+            (
+                serde_json::to_string(&octogit_app::ssh_keys::propose(
+                    &bridge_ssh_dir(),
+                    &args.name,
+                )),
+                0,
+            )
+        }
+        "generate_ssh_key" => {
+            let args: GenerateArgs =
+                serde_json::from_str(&input).expect("arguments { name, passphrase }");
+            match octogit_app::ssh_keys::generate(
+                &bridge_ssh_dir(),
+                &args.name,
+                &args.passphrase,
+                &FileKeychain::new(),
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        // Le presse-papiers n'existe pas dans le navigateur : l'interface de test lit la ligne ici et la garde.
+        "read_public_key" => {
+            let args: KeyPathArgs = serde_json::from_str(&input).expect("arguments { path }");
+            match octogit_app::ssh_keys::public_key(&args.path) {
+                Ok(line) => (serde_json::to_string(&line), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }
         }

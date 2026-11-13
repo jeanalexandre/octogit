@@ -19,6 +19,32 @@ Dans `ProfileSettings`, choisir une clé privée dans `~/.ssh` (empreinte affich
 - **configurer-les-profils CA-15** : Étant donné une clé générée avec passphrase, quand je teste la connexion, y compris après relance d'Octogit, alors la passphrase n'est pas redemandée.
 - **configurer-les-profils CA-16** : Étant donné une clé existante protégée par passphrase et sans `.pub`, quand je la choisis, alors la passphrase est demandée une fois, le `.pub` est écrit à côté de la clé privée, puis Copy public key et Test connection fonctionnent sans nouvelle demande.
 
+## Décisions de l'humain
+### Écarts du passage 1 de dev (13/11/2026)
+1. Dépendances `keyring` 3 (feature `apple-native`) et `tauri-plugin-clipboard-manager` 2 : acceptées, prévues par `stack.md` « Intégrations macOS » (d'office).
+2. Variable `OCTOGIT_SSH_DIR` (dossier SSH injectable en test) : acceptée, documentée dans `.env.example` et le README (d'office).
+3. Pas de champ `.pub` dans `profiles.json` : chemin dérivé `<clé>.pub`, schéma inchangé (d'office).
+4. Faux trousseau du pont de test dans `<data_dir>.keychain-fake.json` (le pont lance un processus par commande) : accepté seulement en test ; l'application livrée utilise toujours le vrai trousseau par `keyring`, et le faux ne peut jamais être choisi hors du pont de test (d'office).
+5. Fichier proposé par Generate ed25519… calculé par Rust (`id_ed25519_<nom>`), non éditable : accepté, conforme à CA-6 (d'office).
+
+### Après la revue 1
+6. Problème 3 (`set_var` / `remove_var` dans un test parallèle) : traiter, en testant sans modifier l'environnement du processus (d'office).
+7. Problème 4 (libellé « Choose… » contre « Choose in ~/.ssh… » de la maquette section 2) : garder « Choose… », imposé par la spec CA-5 et la section 1 de la maquette ; renvoi vers `/ksm:ux` pour aligner la section 2 (d'office).
+8. Problème 5 (chemins absolus) : traiter, afficher `~` à la place du dossier personnel, chemin enregistré inchangé (d'office).
+9. Pont de test sans `OCTOGIT_SSH_DIR` ni `?ssh_dir` (problème 2) : le pont n'écrit jamais dans le vrai `~/.ssh` ; il utilise un dossier SSH sous le dossier de données du pont (ignoré par Git) ; faux trousseau placé dans un chemin ignoré par Git (d'office).
+10. Passphrase lue dans l'environnement du sous-processus `ssh-keygen` pendant l'appel : pris en compte (pour information), exposition acceptée à l'utilisateur lui-même, à reconsidérer en S-9 (d'office).
+11. Test manuel du vrai trousseau macOS (CA-15 dans l'application livrée) : pris en compte (pour information), ajouté aux notes de production.
+
+### Après la revue 2
+12. Problème 1 (clé générée rattachée au brouillon d'un autre profil si on change de profil pendant la génération) : traiter, ignorer le résultat si `profile.id` a changé pendant l'appel (d'office).
+13. Problème 2 (`tildify` remplace tout `/Users/<nom>`, `/Users/Shared/…` affiché `~/…`) : traiter, ne remplacer que le dossier personnel réel (d'office).
+14. Problème 3 (`.env.example` contredit le README sur `OCTOGIT_SSH_DIR`) : traiter, aligner `.env.example` sur le README : défaut `~/.ssh` pour l'application, `<données>/ssh` pour le pont, la variable vaut aussi pour `pnpm dev:web` (d'office).
+15. Note de production du test manuel du vrai trousseau (décision 11) : pris en compte (pour information), écrite à la Fin par l'orchestrateur.
+
+### Écarts du passage 3 de dev
+16. Décision 13 appliquée par l'option « exclure `/Users/Shared` » : `/Users/<autre utilisateur>/…` reste abrégé en `~`. Accepté : simple affichage, fournir le vrai dossier personnel demanderait une nouvelle commande du contrat (d'office).
+17. Décision 12 : une clé générée pendant un changement de profil reste sur disque et au trousseau, rattachée à aucun profil, sans message. Accepté : les clés ne sont jamais supprimées (hors périmètre), cas d'une fenêtre de quelques dizaines de ms (d'office).
+
 ## Contexte technique
 - Dépend de S-7 : types de profil dans `crates/identity`, `profiles.json` du crate `store`, écran `ProfileSettings` et `ProfileForm`. Le champ « SSH key » saisi en chemin par S-7 (décision de l'humain de S-7) est remplacé ici par Choose… et Generate ed25519… ; il reste obligatoire pour Create profile (CA-2).
 - `stack.md` « Intégrations » : OpenSSH du système en sous-processus : génération ed25519 et empreinte par `/usr/bin/ssh-keygen` (`ssh-keygen -t ed25519`, `ssh-keygen -lf`), dérivation d'un `.pub` manquant par `ssh-keygen -y`. Code dans le crate `identity` ; sélecteur de fichier = plugin `dialog`, presse-papiers = plugin `clipboard-manager`, passphrase = crate `keyring` (trousseau macOS) : tous trois par le crate `platform`, qui est le seul à les connaître (`stack.md` « Intégrations macOS »).
@@ -55,7 +81,13 @@ Dans `ProfileSettings`, choisir une clé privée dans `~/.ssh` (empreinte affich
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-Référence du diff : à noter au lancement de la boucle
+Référence du diff : 0f8fd9d
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (repris après le mode plan, écarts 1 à 5 tranchés d'office), vérifications relancées ✅ | — |
+| 1 | reviewer | `stories/S-08-revue-1.md` : 2 bloquants (fichier proposé ≠ fichier créé ; faux trousseau dans un chemin non ignoré et pont sur le vrai `~/.ssh`), 3 mineurs | à corriger |
+| 2 | dev | terminé (bloquants 1 et 2, mineurs 3 et 5), vérifications relancées ✅ | — |
+| 2 | reviewer | `stories/S-08-revue-2.md` : bloquants levés, 3 mineurs (génération pendant un changement de profil, `tildify`, `.env.example`) | validé |
+| 3 | dev | terminé (mineurs 1 à 3 de la revue 2, écarts 16 et 17 acceptés d'office), vérifications relancées ✅ | — |
+| 3 | reviewer | `stories/S-08-revue-3.md` : mineurs levés, aucun problème | validé |

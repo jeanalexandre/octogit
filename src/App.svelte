@@ -5,6 +5,7 @@
     events,
     type Column,
     type LaunchState,
+    type MismatchView,
     type ProfileView,
     type RecentView,
     type SectionLayoutView,
@@ -123,6 +124,66 @@
         mismatch: screen.repository.mismatch,
       } satisfies RepositoryView,
     };
+  }
+
+  /** Écart actuel entre le `.git/config` local du dépôt ouvert et son profil (`WorkingChanges` bloqué). */
+  let blocked: MismatchView | null = $state(null);
+
+  /**
+   * Relit l'écart : le badge et l'état bloqué suivent le `.git/config` tel qu'il est maintenant
+   * (changement fait au terminal, ou « Fix repository identity »).
+   */
+  async function refreshIdentity(path: string) {
+    const found = await commands.getIdentityMismatch(path);
+    if (openPath !== path || screen?.screen !== "history") return;
+    blocked = found;
+    const profile = screen.repository.profile;
+    if (profile && profile.conform !== (found === null)) {
+      screen = {
+        screen: "history",
+        repository: {
+          ...screen.repository,
+          profile: { ...profile, conform: found === null },
+          mismatch: found === null ? null : screen.repository.mismatch,
+        },
+      };
+    }
+  }
+
+  // Un changement du `.git/config` (événement du cœur) ou le retour dans la fenêtre relit l'écart.
+  $effect(() => {
+    const path = openPath;
+    void openCount;
+    blocked = null;
+    if (path === null) return;
+    let stale = false;
+    let unlisten: (() => void) | undefined;
+    const refresh = () => {
+      if (!stale) void refreshIdentity(path);
+    };
+    void (async () => {
+      const off = await events.repoConfigChanged.listen((event) => {
+        if (event.payload.path === path) refresh();
+      });
+      if (stale) return off();
+      unlisten = off;
+      refresh();
+    })();
+    window.addEventListener("focus", refresh);
+    return () => {
+      stale = true;
+      unlisten?.();
+      window.removeEventListener("focus", refresh);
+    };
+  });
+
+  /** « Fix repository identity » : écrit les valeurs du profil dans le `.git/config` local, puis relit l'écart. */
+  async function fixIdentity() {
+    const path = openPath;
+    if (path === null) return;
+    const result = await commands.overwriteIdentity(path);
+    if (result.status !== "ok") throw result.error;
+    await refreshIdentity(path);
   }
 
   /** Adresse e-mail effective des commits du dépôt ouvert (`.git/config` local), relue si le profil change d'état. */
@@ -388,6 +449,8 @@
     onunstageall={() => moveAll(commands.unstageAll)}
     oncommit={commit}
     {commitEmail}
+    {blocked}
+    onfixidentity={fixIdentity}
   />
 {:else if screen?.screen === "welcome"}
   <Welcome {recent} {error} onopen={open} onchoose={chooseFolder} />

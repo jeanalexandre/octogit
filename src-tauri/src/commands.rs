@@ -238,10 +238,29 @@ pub async fn commit(
     amend: bool,
 ) -> Result<CommittedView, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        working_tree::commit(Path::new(&path), &summary, &description, amend)
+        working_tree::commit_checked(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+            &summary,
+            &description,
+            amend,
+        )
     })
     .await
     .map_err(|_| "The commit was interrupted.".to_string())?
+}
+
+/// Écart actuel entre le `.git/config` local de `path` et son profil (`WorkingChanges` bloqué, badge) ;
+/// `None` : conforme ou sans profil. Relu à chaque appel, rien n'est écrit.
+#[tauri::command]
+#[specta::specta]
+pub fn get_identity_mismatch(path: String) -> Option<attach::MismatchView> {
+    attach::current_mismatch(
+        &Store::new(data_dir()),
+        Path::new(&path),
+        &crate::home_dir(),
+    )
 }
 
 /// Adresse e-mail effective des commits de `path` (`user.email` du `.git/config` local).
@@ -261,10 +280,18 @@ pub async fn watch_working_tree(app: tauri::AppHandle, path: String) -> Result<(
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<WatchState>();
         let emitter = app.clone();
+        let config_emitter = app.clone();
         let mut slot = state.0.lock().map_err(|_| "Watching failed.".to_string())?;
-        working_tree::replace_watch(&mut slot, &path, move |event| {
-            let _ = tauri_specta::Event::emit(&event, &emitter);
-        })
+        working_tree::replace_watch(
+            &mut slot,
+            &path,
+            move |event| {
+                let _ = tauri_specta::Event::emit(&event, &emitter);
+            },
+            move |event| {
+                let _ = tauri_specta::Event::emit(&event, &config_emitter);
+            },
+        )
     })
     .await
     .map_err(|_| "Watching was interrupted.".to_string())?

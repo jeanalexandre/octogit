@@ -180,15 +180,17 @@ fn put_fake_ssh_first() {
 /// celui-ci reste vivant, c'est l'écouteur d'événements du navigateur.
 fn watch_working_tree(path: &str) -> ! {
     use std::io::Write;
-    let watcher = octogit_app::working_tree::watch(std::path::Path::new(path), |event| {
+    fn print(line: String) {
         let mut out = std::io::stdout().lock();
-        let _ = writeln!(
-            out,
-            "{}",
-            serde_json::to_string(&event).expect("serializable event")
-        );
+        let _ = writeln!(out, "{line}");
         let _ = out.flush();
-    });
+    }
+    let watcher = octogit_app::working_tree::watch(
+        std::path::Path::new(path),
+        |event| print(serde_json::to_string(&event).expect("serializable event")),
+        // Charge sans `tree` : l'interface y reconnaît `repo-config-changed`.
+        |event| print(serde_json::to_string(&event).expect("serializable event")),
+    );
     match watcher {
         Ok(watcher) => {
             println!("{{\"ready\":true}}");
@@ -335,7 +337,9 @@ fn main() {
             let args: CommitArgs = serde_json::from_str(&input)
                 .expect("arguments { path, summary, description, amend }");
             // La commande Tauri est asynchrone : le pont appelle directement ce qu'elle délègue.
-            match octogit_app::working_tree::commit(
+            match octogit_app::working_tree::commit_checked(
+                &octogit_store::Store::new(octogit_app::data_dir()),
+                &octogit_app::home_dir(),
                 std::path::Path::new(&args.path),
                 &args.summary,
                 &args.description,
@@ -349,6 +353,13 @@ fn main() {
             let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
             (
                 serde_json::to_string(&octogit_app::commands::get_commit_email(args.path)),
+                0,
+            )
+        }
+        "get_identity_mismatch" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            (
+                serde_json::to_string(&octogit_app::commands::get_identity_mismatch(args.path)),
                 0,
             )
         }

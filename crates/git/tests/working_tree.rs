@@ -254,6 +254,32 @@ fn a_stage_made_in_a_terminal_is_reported_as_a_change() {
 }
 
 #[test]
+fn proteger_l_identite_ca_17_a_change_of_dot_git_config_made_outside_octogit_is_reported() {
+    let fx = Fixture::new("wip");
+    let (tx, rx) = mpsc::channel();
+    let _watcher = WorkingTreeWatcher::start_with_config(
+        &fx.0,
+        |_| {},
+        move || {
+            let _ = tx.send(());
+        },
+    )
+    .unwrap();
+    // Un fichier du dépôt qui change n'est pas un changement de configuration.
+    std::fs::write(fx.0.join("outside.txt"), "x\n").unwrap();
+    assert!(rx.recv_timeout(Duration::from_millis(700)).is_err());
+    let started = Instant::now();
+    fx.git(&["config", "--local", "user.email", "perso@example.org"]);
+    rx.recv_timeout(Duration::from_secs(5))
+        .expect("the config change is reported");
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
+#[test]
 fn a_folder_that_is_not_a_repository_cannot_be_read() {
     let dir = std::env::temp_dir().join(format!("octogit-wt-notrepo-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();

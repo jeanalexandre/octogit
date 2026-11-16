@@ -3,6 +3,7 @@
 
 use std::path::Path;
 
+use octogit_store::Store;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -95,18 +96,51 @@ pub fn commit(
     })
 }
 
-/// Surveille `path` : `on_change` reçoit l'événement à chaque changement hors d'Octogit.
+/// Commit ou amend refusé tant que l'identité locale diffère du profil rattaché : le contrôle est refait
+/// ici, au moment du commit, sans se fier à ce que l'interface affiche. Rien n'est créé en cas de refus.
+pub fn commit_checked(
+    store: &Store,
+    home: &Path,
+    path: &Path,
+    summary: &str,
+    description: &str,
+    amend: bool,
+) -> Result<CommittedView, String> {
+    crate::attach::ensure_conform(store, path, home)?;
+    commit(path, summary, description, amend)
+}
+
+/// Événement `repo-config-changed` (typé par tauri-specta) : le `.git/config` du dépôt surveillé a changé
+/// (l'identité est à relire).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoConfigChanged {
+    pub path: String,
+}
+
+/// Surveille `path` : `on_change` reçoit l'événement à chaque changement hors d'Octogit, `on_config`
+/// quand le `.git/config` a changé.
 pub fn watch(
     path: &Path,
     on_change: impl Fn(WorkingTreeChanged) + Send + 'static,
+    on_config: impl Fn(RepoConfigChanged) + Send + 'static,
 ) -> Result<octogit_git::WorkingTreeWatcher, String> {
     let key = path.to_string_lossy().into_owned();
-    octogit_git::WorkingTreeWatcher::start(path, move |tree| {
-        on_change(WorkingTreeChanged {
-            path: key.clone(),
-            tree: tree.into(),
-        });
-    })
+    let config_key = key.clone();
+    octogit_git::WorkingTreeWatcher::start_with_config(
+        path,
+        move |tree| {
+            on_change(WorkingTreeChanged {
+                path: key.clone(),
+                tree: tree.into(),
+            });
+        },
+        move || {
+            on_config(RepoConfigChanged {
+                path: config_key.clone(),
+            });
+        },
+    )
     .map_err(|e| e.to_string())
 }
 
@@ -116,10 +150,11 @@ pub fn replace_watch(
     slot: &mut Option<octogit_git::WorkingTreeWatcher>,
     path: &str,
     on_change: impl Fn(WorkingTreeChanged) + Send + 'static,
+    on_config: impl Fn(RepoConfigChanged) + Send + 'static,
 ) -> Result<(), String> {
     *slot = None;
     if !path.is_empty() {
-        *slot = Some(watch(Path::new(path), on_change)?);
+        *slot = Some(watch(Path::new(path), on_change, on_config)?);
     }
     Ok(())
 }
@@ -195,12 +230,17 @@ mod tests {
         let repo = repo("stop");
         let (tx, rx) = mpsc::channel();
         let mut slot = None;
-        replace_watch(&mut slot, &repo.to_string_lossy(), move |event| {
-            let _ = tx.send(event);
-        })
+        replace_watch(
+            &mut slot,
+            &repo.to_string_lossy(),
+            move |event| {
+                let _ = tx.send(event);
+            },
+            |_| {},
+        )
         .unwrap();
         assert!(slot.is_some());
-        replace_watch(&mut slot, "", |_| {}).unwrap();
+        replace_watch(&mut slot, "", |_| {}, |_| {}).unwrap();
         assert!(slot.is_none());
         std::fs::write(repo.join("after-stop.txt"), "x\n").unwrap();
         assert!(rx.recv_timeout(Duration::from_millis(1500)).is_err());
@@ -211,9 +251,13 @@ mod tests {
     fn preparer_un_commit_ca_4_the_event_carries_the_path_and_the_new_state() {
         let repo = repo("event");
         let (tx, rx) = mpsc::channel();
-        let _watcher = watch(&repo, move |event| {
-            let _ = tx.send(event);
-        })
+        let _watcher = watch(
+            &repo,
+            move |event| {
+                let _ = tx.send(event);
+            },
+            |_| {},
+        )
         .unwrap();
         std::fs::write(repo.join("outside.txt"), "x\n").unwrap();
         let event = rx.recv_timeout(Duration::from_secs(5)).expect("an event");

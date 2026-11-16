@@ -259,8 +259,20 @@ impl WorkingTreeWatcher {
         path: &Path,
         on_change: impl Fn(WorkingTree) + Send + 'static,
     ) -> Result<Self, GitError> {
+        Self::start_with_config(path, on_change, || {})
+    }
+
+    /// Comme `start`, et `on_config` est appelé quand le contenu de `.git/config` a changé (identité
+    /// modifiée au terminal, par exemple), qu'une écriture vienne d'Octogit ou d'ailleurs.
+    pub fn start_with_config(
+        path: &Path,
+        on_change: impl Fn(WorkingTree) + Send + 'static,
+        on_config: impl Fn() + Send + 'static,
+    ) -> Result<Self, GitError> {
         let initial = read_working_tree(path)?;
         remember(path, &initial);
+        let config_file = path.join(".git").join("config");
+        let mut last_config = std::fs::read(&config_file).ok();
         let (tx, rx) = mpsc::channel();
         let mut watcher = notify::recommended_watcher(tx).map_err(|e| read_error(&e))?;
         watcher
@@ -292,6 +304,11 @@ impl WorkingTreeWatcher {
                         continue;
                     }
                     burst = None;
+                    let config = std::fs::read(&config_file).ok();
+                    if config != last_config {
+                        last_config = config;
+                        on_config();
+                    }
                     let Ok(tree) = read_working_tree(&path) else {
                         continue;
                     };

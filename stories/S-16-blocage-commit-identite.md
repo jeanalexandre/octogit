@@ -21,6 +21,11 @@ Bloquer la création de commit quand l'identité locale diffère du profil, y co
 ### Fiche (16/11/2026)
 1. Rien à confirmer.
 
+### Passage 1 (écarts de dev) (16/11/2026)
+1. Contrat élargi (événement `repo-config-changed`, commande `get_identity_mismatch`, `bindings.ts` régénéré) : accepté (1a).
+2. `repo-config-changed` aussi sur les écritures d'Octogit : écart accepté, amender `stack.md` (2a).
+3. Signatures internes (`on_config` sur `working_tree::watch` et `replace_watch`, `WorkingTreeWatcher::start_with_config`) : confirmées.
+
 ## Contexte technique
 - `stack.md` : détection des changements de `.git/config` faits hors d'Octogit par `notify` (crate `git`) ; écriture ciblée dans `.git/config` local sans toucher au reste ; rien dans `~/.gitconfig`.
 - Dépend de S-15 (commit, `WorkingChanges` avec saisie) et de S-12 (conformité du badge, `badge_of` dans `src-tauri/src/attach.rs`).
@@ -52,7 +57,14 @@ Bloquer la création de commit quand l'identité locale diffère du profil, y co
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<à noter avant le premier passage>`
+- Référence : `3cbd129`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (tests, lint, build, e2e verts). Écarts de contrat à trancher avant revue : événement `repo-config-changed`, commande `get_identity_mismatch`, signatures `working_tree::watch`/`replace_watch` ; événement aussi émis sur les écritures d'Octogit (écart `stack.md`). Tests rouge non constaté : `commit_guard.rs` (4), e2e `identity-block.spec.ts`. | question à l'humain (réponses 1a, 2a, 3 consignées) |
+| 1 | dev | écarts acceptés, code conservé | — |
+| 1 | reviewer | 1 bloquant : bloc bloqué rendu après Commit au lieu d'avant (maquette). Rouge des tests commit_guard et e2e jugé probant. | à corriger |
+| 2 | dev | terminé (bloc bloqué avant Commit ; test d'ordre ajouté, rouge non constaté) | — |
+| 2 | reviewer | aucun problème ; test d'ordre jugé probant | validé |
+
+Amendement de `stack.md` à faire par `/ksm:stack` (décision 2a) : `repo-config-changed` aussi émis sur les écritures d'Octogit.

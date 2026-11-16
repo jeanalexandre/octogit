@@ -3,6 +3,7 @@
   import type {
     Column,
     CommitDetailView,
+    MismatchView,
     RecentView,
     RepositoryView,
     WorkingTreeView,
@@ -43,7 +44,13 @@
     onunstageall,
     oncommit,
     commitEmail = null,
+    blocked = null,
+    onfixidentity,
   }: {
+    /** Écart actuel entre le `.git/config` local et le profil (état bloqué de `WorkingChanges`), ou `null`. */
+    blocked?: MismatchView | null;
+    /** « Fix repository identity » : écrit les valeurs du profil ; rejette avec un message si l'écriture échoue. */
+    onfixidentity?: () => Promise<void>;
     /** Fichiers non indexés et indexés du dépôt (ligne WIP, `WorkingChanges`), ou `null` tant qu'ils ne sont pas lus. */
     workingTree?: WorkingTreeView | null;
     /** Stage all de `WorkingChanges`. */
@@ -228,6 +235,8 @@
             onloadlast={lastMessage}
             canAmend={current !== undefined}
             {identity}
+            {blocked}
+            onfix={async () => onfixidentity?.()}
           />
         {/if}
       </aside>

@@ -68,7 +68,11 @@ function watchWorkingTree(path: unknown): Promise<null> {
     `/__bridge-events/working-tree-changed?path=${encodeURIComponent(String(path))}`,
   );
   watching = source;
-  source.onmessage = (message) => emit("working-tree-changed", JSON.parse(message.data));
+  source.onmessage = (message) => {
+    const payload = JSON.parse(message.data) as Record<string, unknown>;
+    // Seul l'événement de l'arbre de travail porte `tree` ; l'autre est le changement de `.git/config`.
+    emit("tree" in payload ? "working-tree-changed" : "repo-config-changed", payload);
+  };
   return new Promise((resolve, reject) => {
     source.addEventListener("ready", () => resolve(null), { once: true });
     source.onerror = () => reject("Watching failed.");

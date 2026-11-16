@@ -242,4 +242,99 @@ describe("WorkingChanges", () => {
     render(WorkingChanges, props({ canAmend: false }));
     expect(screen.getByRole("checkbox", { name: "Amend last commit" })).toBeDisabled();
   });
+
+  const row = (setting: string, profile: string, local: string | null, differs: boolean) => ({
+    setting,
+    profile,
+    local,
+    differs,
+  });
+  const blocked = (
+    rows = [row("user.email", "jag@work-company.fr", "jag@personal.dev", true)],
+  ) => ({
+    profileName: "Work",
+    rows: [
+      ...rows,
+      row("user.name", "Jag", "Jag", false),
+      row("core.sshCommand", "ssh -i k", "ssh -i k", false),
+    ],
+  });
+
+  it("proteger-l-identite CA-15: the blocked block comes before the Commit button", () => {
+    render(WorkingChanges, props({ blocked: blocked(), onfix: vi.fn(async () => {}) }));
+    const title = screen.getByText("Identity does not match profile Work.");
+    const commit = screen.getByRole("button", { name: /^Commit/ });
+    expect(title.compareDocumentPosition(commit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("proteger-l-identite CA-15: a differing value shows the blocked state with its Expected and Found lines, Fix repository identity, and no identity line", () => {
+    render(WorkingChanges, props({ blocked: blocked(), onfix: vi.fn(async () => {}) }));
+    const panel = screen.getByRole("region", { name: "Working changes" });
+    expect(within(panel).getByText("Identity does not match profile Work.")).toBeInTheDocument();
+    expect(
+      within(panel)
+        .getAllByText(/^Expected: /)
+        .map((e) => e.textContent),
+    ).toEqual(["Expected: jag@work-company.fr"]);
+    expect(
+      within(panel)
+        .getAllByText(/^Found in \.git\/config: /)
+        .map((e) => e.textContent),
+    ).toEqual(["Found in .git/config: jag@personal.dev"]);
+    expect(
+      within(panel).getByRole("button", { name: "Fix repository identity" }),
+    ).toBeInTheDocument();
+    expect(within(panel).queryByText(/Identity matches profile/)).toBeNull();
+  });
+
+  it("proteger-l-identite CA-15: several differing values give one Expected and one Found line each; an absent local value is not set", () => {
+    render(
+      WorkingChanges,
+      props({
+        blocked: blocked([
+          row("user.email", "jag@work-company.fr", "jag@personal.dev", true),
+          row("signing", "on (profile SSH key)", null, true),
+        ]),
+        onfix: vi.fn(async () => {}),
+      }),
+    );
+    expect(screen.getAllByText(/^Expected: /).map((e) => e.textContent)).toEqual([
+      "Expected: jag@work-company.fr",
+      "Expected: on (profile SSH key)",
+    ]);
+    expect(screen.getAllByText(/^Found in \.git\/config: /).map((e) => e.textContent)).toEqual([
+      "Found in .git/config: jag@personal.dev",
+      "Found in .git/config: (not set)",
+    ]);
+  });
+
+  it("proteger-l-identite CA-15: Commit is disabled, ⌘↵ and Amend create nothing", async () => {
+    const p = props({ blocked: blocked(), onfix: vi.fn(async () => {}) });
+    render(WorkingChanges, p);
+    await fireEvent.input(summary(), { target: { value: "feat: blocked" } });
+    expect(commitButton()).toBeDisabled();
+    await fireEvent.keyDown(summary(), { key: "Enter", metaKey: true });
+    await fireEvent.click(screen.getByRole("checkbox", { name: "Amend last commit" }));
+    await waitFor(() => expect(summary().value).toBe("Add keep"));
+    await fireEvent.keyDown(summary(), { key: "Enter", metaKey: true });
+    await fireEvent.click(commitButton());
+    expect(p.oncommit).not.toHaveBeenCalled();
+  });
+
+  it("proteger-l-identite CA-18: clicking Fix repository identity asks the fix once", async () => {
+    const onfix = vi.fn(async () => {});
+    render(WorkingChanges, props({ blocked: blocked(), onfix }));
+    await fireEvent.click(screen.getByRole("button", { name: "Fix repository identity" }));
+    expect(onfix).toHaveBeenCalledTimes(1);
+  });
+
+  it("proteger-l-identite CA-18: a refused fix shows its message and keeps Commit disabled", async () => {
+    render(
+      WorkingChanges,
+      props({ blocked: blocked(), onfix: vi.fn(async () => Promise.reject("No key.")) }),
+    );
+    await fireEvent.click(screen.getByRole("button", { name: "Fix repository identity" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No key.");
+    expect(commitButton()).toBeDisabled();
+  });
 });

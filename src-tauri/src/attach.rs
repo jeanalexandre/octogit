@@ -96,6 +96,53 @@ pub(crate) fn resolve(
     ))
 }
 
+/// L'écart entre le `.git/config` local de `repo` et `profile`, ou `None` si une valeur locale ne diffère
+/// pas (ou si les valeurs ne peuvent pas être lues). Ne lit ni n'écrit rien d'autre.
+fn mismatch_of(
+    profile: &Profile,
+    origin: OriginView,
+    repo: &Path,
+    home: &Path,
+) -> Option<MismatchView> {
+    let (Ok(expected), Ok(local)) = (expected_values(profile, home), read_local(repo, home)) else {
+        return None;
+    };
+    (compare(&expected, &local) == ApplyOutcome::Differs).then(|| MismatchView {
+        profile_name: profile.name.clone(),
+        path: repo.to_string_lossy().into_owned(),
+        origin,
+        rows: setting_rows(&expected, &local)
+            .into_iter()
+            .map(|row| SettingRowView {
+                setting: row.setting.to_string(),
+                profile: row.profile,
+                local: row.local,
+                differs: row.differs,
+            })
+            .collect(),
+    })
+}
+
+/// Écart actuel du `.git/config` local de `repo` avec le profil rattaché, relu à chaque appel (identité
+/// modifiée au terminal depuis l'ouverture comprise) ; `None` : conforme, ou aucun profil rattaché
+/// (« No profile » : S-21). Rien n'est écrit.
+pub fn current_mismatch(store: &Store, repo: &Path, home: &Path) -> Option<MismatchView> {
+    let profiles = store.profiles();
+    let (profile, origin) = resolve(store, &profiles, repo, home)?;
+    mismatch_of(&profile, origin, repo, home)
+}
+
+/// Refuse l'action qui crée un commit quand l'identité locale diffère du profil rattaché.
+pub fn ensure_conform(store: &Store, repo: &Path, home: &Path) -> Result<(), String> {
+    match current_mismatch(store, repo, home) {
+        Some(mismatch) => Err(format!(
+            "Identity does not match profile {}.",
+            mismatch.profile_name
+        )),
+        None => Ok(()),
+    }
+}
+
 /// Profil rattaché à `repo` (`None` : ni choix manuel ni règle, rien n'est écrit). Son identité est écrite
 /// dans le `.git/config` local quand elle manque ; conforme, rien n'est écrit ; une valeur locale qui
 /// diffère n'est jamais écrasée ici : l'écart est rendu pour `IdentityMismatch` (S-11).
@@ -107,33 +154,15 @@ pub fn attach_profile(store: &Store, repo: &Path, home: &Path) -> Option<Attachm
     }
     let (profile, origin) = resolve(store, &profiles, repo, home)?;
     let mut conform = false;
-    let mismatch = match (expected_values(&profile, home), read_local(repo, home)) {
-        (Ok(expected), Ok(local)) if compare(&expected, &local) == ApplyOutcome::Differs => {
-            Some(MismatchView {
-                profile_name: profile.name.clone(),
-                path: repo.to_string_lossy().into_owned(),
-                origin,
-                rows: setting_rows(&expected, &local)
-                    .into_iter()
-                    .map(|row| SettingRowView {
-                        setting: row.setting.to_string(),
-                        profile: row.profile,
-                        local: row.local,
-                        differs: row.differs,
-                    })
-                    .collect(),
-            })
-        }
-        _ => {
-            // Écriture impossible (clé publique absente, échec de `git config`) : rien n'est écrit, le
-            // dépôt reste non conforme pour le badge, sans message.
-            conform = matches!(
-                octogit_identity::apply_profile(repo, &profile, home),
-                Ok(ApplyOutcome::Conform | ApplyOutcome::Written)
-            );
-            None
-        }
-    };
+    let mismatch = mismatch_of(&profile, origin, repo, home);
+    if mismatch.is_none() {
+        // Écriture impossible (clé publique absente, échec de `git config`) : rien n'est écrit, le
+        // dépôt reste non conforme pour le badge, sans message.
+        conform = matches!(
+            octogit_identity::apply_profile(repo, &profile, home),
+            Ok(ApplyOutcome::Conform | ApplyOutcome::Written)
+        );
+    }
     Some(Attachment {
         badge: badge(&profile, conform),
         mismatch,

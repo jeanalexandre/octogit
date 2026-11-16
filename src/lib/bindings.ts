@@ -55,6 +55,11 @@ export const commands = {
 	/**  Adresse e-mail effective des commits de `path` (`user.email` du `.git/config` local). */
 	getCommitEmail: (path: string) => __TAURI_INVOKE<string | null>("get_commit_email", { path }),
 	/**
+	 *  Écart actuel entre le `.git/config` local de `path` et son profil (`WorkingChanges` bloqué, badge) ;
+	 *  `None` : conforme ou sans profil. Relu à chaque appel, rien n'est écrit.
+	 */
+	getIdentityMismatch: (path: string) => __TAURI_INVOKE<MismatchView_Serialize | null>("get_identity_mismatch", { path }),
+	/**
 	 *  Surveille `path` (remplace la surveillance précédente ; un chemin vide l'arrête sans en lancer
 	 *  d'autre, quand plus aucun dépôt n'est ouvert). L'événement `working-tree-changed`
 	 *  (`WorkingTreeChanged`) part à chaque changement fait hors d'Octogit. La surveillance est active
@@ -94,6 +99,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	repoConfigChanged: makeEvent<RepoConfigChanged, RepoConfigChanged>("repo-config-changed"),
 	workingTreeChanged: makeEvent<WorkingTreeChanged, WorkingTreeChanged>("working-tree-changed"),
 };
 
@@ -297,6 +303,14 @@ export type RefView_Serialize = {
 	ahead: number,
 	/**  Commits en retard sur la branche distante suivie. */
 	behind: number,
+};
+
+/**
+ *  Événement `repo-config-changed` (typé par tauri-specta) : le `.git/config` du dépôt surveillé a changé
+ *  (l'identité est à relire).
+ */
+export type RepoConfigChanged = {
+	path: string,
 };
 
 export type RepositoryView = RepositoryView_Serialize | RepositoryView_Deserialize;

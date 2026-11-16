@@ -1,5 +1,10 @@
 <script lang="ts">
-  import type { ChangeStatusView, FileChangeView, WorkingTreeView } from "../bindings";
+  import type {
+    ChangeStatusView,
+    FileChangeView,
+    MismatchView,
+    WorkingTreeView,
+  } from "../bindings";
 
   let {
     tree,
@@ -10,7 +15,13 @@
     onloadlast,
     canAmend = false,
     identity = null,
+    blocked = null,
+    onfix,
   }: {
+    /** L'identité du `.git/config` local diffère du profil : l'état bloqué remplace la ligne d'identité. */
+    blocked?: Pick<MismatchView, "profileName" | "rows"> | null;
+    /** « Fix repository identity » : écrit les valeurs du profil ; rejette avec un message si l'écriture échoue. */
+    onfix?: () => Promise<void>;
     tree: WorkingTreeView;
     /** Branche courante : nomme le bouton Commit. */
     branch?: string | null;
@@ -43,12 +54,29 @@
 
   /** Pourquoi Commit est désactivé, ou `null`. Rien n'est jamais indexé automatiquement. */
   const reason = $derived(
-    tree.staged.length === 0
-      ? "No staged changes"
-      : summary.trim() === ""
-        ? "Summary required"
-        : null,
+    blocked
+      ? `Identity does not match profile ${blocked.profileName}.`
+      : tree.staged.length === 0
+        ? "No staged changes"
+        : summary.trim() === ""
+          ? "Summary required"
+          : null,
   );
+  const differing = $derived(blocked?.rows.filter((row) => row.differs) ?? []);
+  let fixing = $state(false);
+
+  async function fix() {
+    if (fixing || !onfix) return;
+    fixing = true;
+    failure = null;
+    try {
+      await onfix();
+    } catch (e) {
+      failure = (typeof e === "string" ? e : "The identity could not be fixed.").split("\n")[0];
+    } finally {
+      fixing = false;
+    }
+  }
 
   /** Sépare le message d'un commit : première ligne, puis le corps sans ses lignes vides de tête. */
   function split(message: string) {
@@ -125,15 +153,27 @@
       <input type="checkbox" bind:checked={amend} disabled={!canAmend} onchange={toggleAmend} />
       Amend last commit
     </label>
+    {#if blocked}
+      <div class="blocked">
+        <p><strong>{reason}</strong></p>
+        {#each differing as row (row.setting)}
+          <p>Expected: {row.profile}</p>
+          <p>Found in .git/config: {row.local ?? "(not set)"}</p>
+        {/each}
+        <button type="button" disabled={fixing} onclick={fix}>Fix repository identity</button>
+      </div>
+    {/if}
     <button type="button" class="commit" disabled={reason !== null || busy} onclick={commit}>
       {branch ? `Commit to ${branch}` : "Commit"}
       <kbd aria-hidden="true">⌘↵</kbd>
     </button>
-    {#if identity}
-      <p class="identity">✓ Identity matches profile {identity.profile} · {identity.email}</p>
-    {/if}
-    {#if reason}
-      <p class="reason">{reason}</p>
+    {#if !blocked}
+      {#if identity}
+        <p class="identity">✓ Identity matches profile {identity.profile} · {identity.email}</p>
+      {/if}
+      {#if reason}
+        <p class="reason">{reason}</p>
+      {/if}
     {/if}
     {#if failure}
       <p class="failure" role="alert">{failure}</p>
@@ -270,6 +310,23 @@
   .identity {
     color: var(--success);
     font-size: 12px;
+  }
+
+  .blocked {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    border: 1px solid var(--warning);
+    border-radius: 5px;
+    background: var(--surface);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .blocked button {
+    align-self: flex-start;
+    margin-top: 4px;
   }
 
   .reason {

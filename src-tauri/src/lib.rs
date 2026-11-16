@@ -62,7 +62,10 @@ pub fn passphrase_store() -> Box<dyn PassphraseStore> {
 /// Contrat entre Rust et TypeScript : commandes et événements exportés vers `src/lib/bindings.ts`.
 pub fn builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
-        .events(collect_events![working_tree::WorkingTreeChanged])
+        .events(collect_events![
+            working_tree::WorkingTreeChanged,
+            working_tree::RepoConfigChanged
+        ])
         .commands(collect_commands![
             commands::get_launch_state,
             commands::list_recent_repositories,
@@ -88,6 +91,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::unstage_all,
             commands::commit,
             commands::get_commit_email,
+            commands::get_identity_mismatch,
             commands::watch_working_tree,
             commands::fetch_repository,
             commands::list_profiles,

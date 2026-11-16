@@ -281,6 +281,46 @@
     }
   }
 
+  /** Dépôt dont un push lancé par `PushButton` est en cours (`null` : aucun). */
+  let pushingPath: string | null = $state(null);
+  /** Message d'une ligne du dernier push refusé ou échoué, avec le dépôt concerné ; effacé au prochain lancement. */
+  let pushNotice: { path: string; text: string } | null = $state(null);
+
+  /**
+   * Clic sur `PushButton` : pousse la branche courante (ou la publie sur `origin`), un seul push à la fois, sous la
+   * même garde que le fetch (jamais en même temps qu'un fetch du même dépôt). Le dépôt relu remplace l'affichage
+   * (refs, `ahead`, suivi) ; profil et écart sont gardés. Un refus (distante en avance) ou un échec laisse le
+   * dépôt tel quel et affiche son message d'une ligne près du bouton.
+   */
+  async function push() {
+    const path = openPath;
+    if (path === null || pushingPath !== null) return;
+    pushNotice = null;
+    pushingPath = path;
+    try {
+      await runFetchNow(path, async () => {
+        const result = await commands.pushRepository(path);
+        if (screen?.screen !== "history" || screen.repository.path !== path) return;
+        if (result.status !== "ok") {
+          pushNotice = { path, text: result.error };
+          return;
+        }
+        screen = {
+          screen: "history",
+          repository: {
+            ...result.data,
+            profile: screen.repository.profile,
+            mismatch: screen.repository.mismatch,
+          } satisfies RepositoryView,
+        };
+      });
+    } catch {
+      // Échec inattendu : l'affichage garde l'état d'avant.
+    } finally {
+      pushingPath = null;
+    }
+  }
+
   /**
    * Pull (fast-forward only ou rebase) du dépôt ouvert, sous la même garde que le fetch (un seul échange réseau à la
    * fois par dépôt). Le dépôt relu remplace l'affichage (refs, `ahead` / `behind`), l'arbre de travail est relu, et
@@ -597,6 +637,9 @@
     syncNotice={syncNotice !== null && syncNotice.path === openPath ? syncNotice.text : null}
     onsync={sync}
     onsyncaction={chooseSyncAction}
+    pushing={pushingPath !== null && pushingPath === openPath}
+    pushNotice={pushNotice !== null && pushNotice.path === openPath ? pushNotice.text : null}
+    onpush={push}
   />
 {:else if screen?.screen === "welcome"}
   <Welcome

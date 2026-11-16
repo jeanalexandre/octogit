@@ -554,6 +554,55 @@ describe("History", () => {
     expect(screen.queryByRole("group", { name: "Ahead and behind" })).toBeNull();
   });
 
+  it("explorer-l-historique CA-11: a current branch without tracking shows Not published instead of the counter, and PushButton stays active", async () => {
+    const untracked = refs.map((r) =>
+      r.current ? { ...r, upstream: null, ahead: 0, behind: 0 } : r,
+    );
+    const onpush = vi.fn();
+    render(History, props({ repository: { ...repository, refs: untracked }, onpush }));
+    expect(screen.getByText("Not published")).toBeVisible();
+    expect(screen.queryByRole("group", { name: "Ahead and behind" })).toBeNull();
+    expect(screen.queryByText(/↑|↓/)).toBeNull();
+    const push = screen.getByRole("button", { name: "Push" });
+    expect(push).toHaveAttribute("aria-disabled", "false");
+    await fireEvent.click(push);
+    expect(onpush).toHaveBeenCalledTimes(1);
+  });
+
+  it("explorer-l-historique CA-11: a tracked branch shows no Not published, both numbers stay visible and PushButton counts the commits ahead", async () => {
+    const onpush = vi.fn();
+    render(History, props({ onpush }));
+    expect(screen.queryByText("Not published")).toBeNull();
+    const group = screen.getByRole("group", { name: "Ahead and behind" });
+    expect(within(group).getByLabelText("2 commits ahead")).toBeVisible();
+    expect(within(group).getByLabelText("3 commits behind")).toBeVisible();
+    await fireEvent.click(screen.getByRole("button", { name: "Push 2" }));
+    expect(onpush).toHaveBeenCalledTimes(1);
+  });
+
+  it("synchroniser CA-13: without any origin/… ref (origin may exist, never fetched), an unpublished branch keeps an active PushButton", async () => {
+    const noOriginRef = refs
+      .filter((r) => r.kind !== "remote")
+      .map((r) => (r.current ? { ...r, upstream: null, ahead: 0, behind: 0 } : r));
+    const onpush = vi.fn();
+    render(History, props({ repository: { ...repository, refs: noOriginRef }, onpush }));
+    const push = screen.getByRole("button", { name: "Push" });
+    expect(push).toHaveAttribute("aria-disabled", "false");
+    expect(screen.queryByText("No origin remote.")).toBeNull();
+    await fireEvent.click(push);
+    expect(onpush).toHaveBeenCalledTimes(1);
+  });
+
+  it("synchroniser CA-15: the push message and the busy state reach PushButton, never Force push", () => {
+    render(
+      History,
+      props({ pushNotice: "origin has commits you do not have locally.", pushing: true }),
+    );
+    expect(screen.getByText("origin has commits you do not have locally.")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Pushing/ })).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByText(/force push/i)).toBeNull();
+  });
+
   it("explorer-l-historique CA-24: clicking a commit opens CommitDetail on its data", async () => {
     const p = props();
     render(History, p);

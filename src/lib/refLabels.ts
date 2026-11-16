@@ -42,7 +42,13 @@ export function labelsByCommit(refs: RefView[]): Record<string, RefLabelData[]> 
     if (ref.kind === "remote" && merged.includes(ref.name)) continue;
     (map[ref.target] ??= []).push({
       name: ref.name,
-      variant: ref.kind === "branch" ? (ref.ahead > 0 ? "ahead" : "synced") : ref.kind,
+      variant:
+        ref.kind === "branch"
+          ? // La branche courante sans suivi (« Not published ») porte des commits que la distante n'a pas.
+            ref.ahead > 0 || (ref.current && !ref.upstream)
+            ? "ahead"
+            : "synced"
+          : ref.kind,
       published: ref.kind === "branch" && published.includes(ref.name),
     });
   }

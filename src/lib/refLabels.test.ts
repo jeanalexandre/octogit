@@ -52,4 +52,20 @@ describe("labelsByCommit", () => {
     const labels = labelsByCommit([ref({ name: "develop", current: true, ahead: 2 })]);
     expect(labels["a".repeat(40)][0].variant).toBe("ahead");
   });
+
+  it("synchroniser CA-13: a current branch without upstream is ahead (not published), and synced once it tracks a branch", () => {
+    const unpublished = labelsByCommit([ref({ name: "local-only", current: true })]);
+    expect(unpublished["a".repeat(40)][0].variant).toBe("ahead");
+    const published = labelsByCommit([
+      ref({ name: "origin/local-only", kind: "remote" }),
+      ref({ name: "local-only", current: true, upstream: "origin/local-only" }),
+    ]);
+    expect(published["a".repeat(40)][0].variant).toBe("synced");
+    expect(published["a".repeat(40)][0].published).toBe(true);
+  });
+
+  it("synchroniser CA-13: a local branch that is not current keeps its variant without upstream", () => {
+    const labels = labelsByCommit([ref({ name: "feature/profiles" })]);
+    expect(labels["a".repeat(40)][0].variant).toBe("synced");
+  });
 });

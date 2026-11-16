@@ -15,6 +15,7 @@
   import CommitGraph from "../components/CommitGraph.svelte";
   import FetchStatus from "../components/FetchStatus.svelte";
   import ProfileBadge from "../components/ProfileBadge.svelte";
+  import PushButton from "../components/PushButton.svelte";
   import RepoPicker from "../components/RepoPicker.svelte";
   import SyncButton from "../components/SyncButton.svelte";
   import WorkingChanges from "../components/WorkingChanges.svelte";
@@ -59,7 +60,16 @@
     syncNotice = null,
     onsync,
     onsyncaction,
+    pushing = false,
+    pushNotice = null,
+    onpush,
   }: {
+    /** Un push lancé par `PushButton` est en cours. */
+    pushing?: boolean;
+    /** Message d'une ligne du dernier push refusé ou échoué (près de `PushButton`), ou `null`. */
+    pushNotice?: string | null;
+    /** Clic sur `PushButton` : pousse la branche courante (ou la publie sur `origin`). */
+    onpush?: () => void;
     /** Message d'une ligne du dernier Pull refusé ou échoué (près de `SyncButton`), ou `null`. */
     syncNotice?: string | null;
     /** Action par défaut de `SyncButton`, commune à tous les dépôts. */
@@ -225,11 +235,23 @@
         onrun={() => onsync?.()}
         onchoose={onsyncaction}
       />
+      <PushButton
+        ahead={current?.ahead ?? 0}
+        published={current === undefined || current.upstream != null}
+        busy={pushing}
+        notice={pushNotice}
+        onrun={() => onpush?.()}
+      />
       {#if tracking}
         <span class="sync" role="group" aria-label="Ahead and behind">
           <span class="branch">{tracking.name}</span>
           <span aria-label="{tracking.ahead} commits ahead">{tracking.ahead}↑</span>
           <span aria-label="{tracking.behind} commits behind">{tracking.behind}↓</span>
+        </span>
+      {:else if current}
+        <span class="sync">
+          <span class="branch">{current.name}</span>
+          <span>Not published</span>
         </span>
       {/if}
     </div>
@@ -332,6 +354,11 @@
   }
 
   .path {
+    /* Le chemin cède la place aux boutons : coupé par « … » plutôt que de faire passer l'en-tête à la ligne. */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: var(--muted);
     font-family: ui-monospace, "SF Mono", monospace;
     font-size: 12px;
@@ -340,6 +367,7 @@
   .end {
     display: flex;
     align-items: baseline;
+    flex: none;
     gap: 16px;
     margin-left: auto;
   }

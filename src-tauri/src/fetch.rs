@@ -34,6 +34,19 @@ pub fn pull_repository(path: &Path, rebase: bool) -> Result<RepositoryView, Stri
     repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
 }
 
+/// Push de `PushButton` (branche courante vers sa branche suivie, ou publication sur `origin`) puis relecture du
+/// dépôt, toujours rendu : `ahead` et les refs ont bougé. L'erreur est le message d'une ligne affiché près du
+/// bouton (distante en avance, pas d'`origin`…) ; la sortie brute de Git reste dans le crate `git`.
+pub fn push_repository(path: &Path) -> Result<RepositoryView, String> {
+    octogit_git::push(path, octogit_git::FETCH_TIMEOUT).map_err(|e| match e {
+        octogit_git::PushError::TimedOut { .. } => "Push timed out.".to_string(),
+        octogit_git::PushError::Failed { .. } => "Push failed.".to_string(),
+        octogit_git::PushError::Spawn(_) => "Git could not run.".to_string(),
+        refusal => refusal.to_string(),
+    })?;
+    repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
+}
+
 fn run_and_reread(
     path: &Path,
     fetch: fn(&Path, std::time::Duration) -> Result<String, octogit_git::FetchError>,

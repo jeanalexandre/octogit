@@ -22,6 +22,12 @@
 ## Décisions de l'humain
 ### Fiche (16/11/2026)
 1. Branche « Not published » dans un dépôt sans `origin` : a) bouton désactivé avec « No origin remote. » jusqu'à S-55 (proposé, décision de l'humain)
+   - Révisée après la revue 1 (`hasOrigin` déduit des refs, faux pour un `origin` jamais fetché) : a) bouton « Push » actif pour toute branche sans suivi, clic refusé sans `origin` avec « No origin remote. » en message d'une ligne, aucun changement de contrat ; S-55 ajoutera la liste des remotes (décision de l'humain, 16/11/2026).
+
+### Après la revue 2
+- Mineur 1 (README, phrase « bouton désactivé » obsolète) : traiter (d'office), passage 3.
+- Mineur 2 (README, scénario `empty-origin` absent de la liste des fixtures) : traiter (d'office), passage 3.
+- Pour information (pas de captures, coup d'œil à 1280 px) : pris en compte (pour information).
 
 ## Contexte technique
 - Dépend de S-18 (`SyncButton`, Fetch All, emplacement dans l'en-tête de `History`, passerelle et commande Tauri sur le modèle de `fetch_repository`). Fiche : `stories/S-18-syncbutton-fetch-all.md` ; ce que S-18 crée (`SyncButton.svelte`, `e2e/sync.spec.ts`, Fetch All dans `crates/git/src/fetch.rs`) sert de modèle ; relire le code livré avant de coder.
@@ -70,7 +76,13 @@
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `66cf737`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé, tests/lint/build verts ; écart : `hasOrigin` déduit des refs `origin/…` (pas de liste des remotes dans `RepositoryView`) | — |
+| 1 | reviewer | 1 bloquant : `hasOrigin` faux si `origin` sans ref distante locale (CA-13) ; `revue-1` | à corriger |
+| 2 | dev | terminé, tests/lint/build verts ; écart à la décision 1 de la fiche : `hasOrigin` supprimé, bouton actif sans suivi, « No origin remote. » affiché en message d'une ligne après le clic (le crate refuse par `NoOrigin`) au lieu d'un bouton désactivé ; contrat inchangé. Réponse de l'humain : option a) consignée | — |
+| 2 | reviewer | 2 mineurs (README : phrase « bouton désactivé » obsolète, scénario `empty-origin` non listé) ; `revue-2` | validé |
+| 3 | dev | terminé, README seul, `pnpm format:check` vert | — |
+| 3 | reviewer | mineurs levés, aucun problème ; `revue-3` | validé |

@@ -81,6 +81,11 @@ export const commands = {
 	 *  relecture du dépôt. L'erreur est un message d'une ligne (divergence, branche non publiée, conflit abandonné…).
 	 */
 	pullRepository: (path: string, rebase: boolean) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("pull_repository", { path, rebase })),
+	/**
+	 *  Push de `PushButton` en tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne
+	 *  (distante en avance, pas d'`origin`…).
+	 */
+	pushRepository: (path: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("push_repository", { path })),
 	/**  Action par défaut de `SyncButton`, commune à tous les dépôts (Fetch All au premier lancement). */
 	getSyncAction: () => __TAURI_INVOKE<SyncAction>("get_sync_action"),
 	/**  Mémorise l'action par défaut de `SyncButton`. Un échec d'écriture est ignoré. */

@@ -355,6 +355,16 @@ pub async fn pull_repository(path: String, rebase: bool) -> Result<RepositoryVie
         .map_err(|_| "Pull was interrupted.".to_string())?
 }
 
+/// Push de `PushButton` en tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne
+/// (distante en avance, pas d'`origin`…).
+#[tauri::command]
+#[specta::specta]
+pub async fn push_repository(path: String) -> Result<RepositoryView, String> {
+    tauri::async_runtime::spawn_blocking(move || fetch::push_repository(Path::new(&path)))
+        .await
+        .map_err(|_| "Push was interrupted.".to_string())?
+}
+
 /// Action par défaut de `SyncButton`, commune à tous les dépôts (Fetch All au premier lancement).
 #[tauri::command]
 #[specta::specta]

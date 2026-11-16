@@ -11,6 +11,7 @@
 - [ ] Vérifier à l'œil l'icône d'Octogit installée depuis le `.dmg` : Dock, Cmd+Tab, Finder et « À propos » (le contenu du bundle est vérifié par `scripts/check-bundle.sh`, pas l'affichage) (S-64, revue 1 et revue 2)
 - [ ] Tester à la main le vrai trousseau macOS dans l'application livrée : générer une clé avec passphrase, relancer Octogit, vérifier que la passphrase n'est pas redemandée (CA-15 ; aucun test automatique ne l'exerce, voir README « Profils ») (S-8, revue 1 et revue 2)
 - [ ] Vérifier à la main, dans l'application livrée, la mise à jour en moins de 1 s de `WorkingChanges` et de la ligne WIP : modifier un fichier dans un éditeur et voir le compteur changer (CA-4 ; les tests passent par le pont de test, aucun test automatique n'exerce l'événement Tauri réel) (S-14, revue 1)
+- [ ] Regarder à l'œil l'en-tête de `History` à 1280 px : notice, « Not published » et `SyncButton` sont tous en `nowrap`, le chemin du dépôt se coupe par « … » (aucune capture prise) (S-20, revue 2 et revue 3)
 
 ## Limites et risques acceptés
 
@@ -32,3 +33,4 @@
 - « Amend last commit » est inutilisable sans fichier indexé (Commit reste désactivé, « No staged changes ») : on ne peut pas reformuler seulement le message du dernier commit. Lecture littérale de CA-22 ; en attente de la décision de l'humain (S-15, revue 1, « À décider »)
 - Le garde de commit côté Rust laisse passer le commit quand les valeurs attendues ne se calculent pas (profil à signature cochée dont le `.pub` manque), alors que le badge affiche « identity mismatch » ; à trancher, sans doute avec S-21 (S-16, revue 1 et revue 2, pour information)
 - L'événement `repo-config-changed` est aussi émis sur les écritures d'Octogit dans `.git/config`, pas seulement sur celles faites hors d'Octogit : accepté par l'humain (2a) ; amendement de `stack.md` à faire par `/ksm:stack` (S-16, passage 1)
+- `PushButton` reste actif pour une branche sans suivi même sans remote `origin` : le clic est refusé avec « No origin remote. » ; la liste des remotes et le bouton désactivé viennent avec S-55 (S-20, décision 1 de l'humain, 16/11/2026)

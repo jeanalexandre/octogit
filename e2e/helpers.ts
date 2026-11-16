@@ -237,6 +237,16 @@ export class Workspace {
     return path;
   }
 
+  /** Fabrique un dépôt de `fixtures/push.sh` (`ahead`, `published`, `unpublished`, `diverged` ou `no-origin`) ; rend son chemin. */
+  pushRepo(
+    scenario: "ahead" | "published" | "unpublished" | "diverged" | "no-origin" | "empty-origin",
+    name = "my-repo",
+  ): string {
+    const path = join(this.root, name);
+    execFileSync("sh", [resolve("fixtures", "push.sh"), path, scenario]);
+    return path;
+  }
+
   /** Mémorise l'action par défaut de `SyncButton`, comme le ferait une session précédente. */
   rememberSyncAction(action: "fetch_all" | "pull_ff_only" | "pull_rebase"): void {
     writeFileSync(

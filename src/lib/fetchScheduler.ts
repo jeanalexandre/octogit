@@ -5,6 +5,27 @@ export const FETCH_INTERVAL_MS = 60_000;
 const inFlight = new Map<string, Promise<void>>();
 
 /**
+ * Lance `run` (Fetch All manuel de `SyncButton`) pour `path` sous la même garde que le fetch automatique :
+ * il attend la fin d'un fetch en cours du même dépôt, puis part seul. Les fetches périodiques sautent leur tour
+ * pendant ce temps. L'échec de `run` est rendu à l'appelant ; le dépôt est libéré dans tous les cas.
+ */
+export async function runFetchNow(path: string, run: () => Promise<void>): Promise<void> {
+  for (let running = inFlight.get(path); running; running = inFlight.get(path)) await running;
+  let failure: { error: unknown } | null = null;
+  const current = (async () => {
+    try {
+      await run();
+    } catch (error) {
+      failure = { error };
+    }
+  })();
+  inFlight.set(path, current);
+  await current;
+  if (inFlight.get(path) === current) inFlight.delete(path);
+  if (failure) throw (failure as { error: unknown }).error;
+}
+
+/**
  * Planifie le fetch automatique de `path` : un tout de suite, puis un par `intervalMs`.
  * Le fetch d'ouverture attend la fin d'un fetch encore en cours du même dépôt ; les fetches périodiques,
  * eux, sont sautés tant que le précédent n'est pas fini. L'échec de `run` ne coupe pas la planification.

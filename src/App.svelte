@@ -10,9 +10,10 @@
     type RecentView,
     type SectionLayoutView,
     type RepositoryView,
+    type SyncAction,
     type WorkingTreeView,
   } from "./lib/bindings";
-  import { scheduleFetch } from "./lib/fetchScheduler";
+  import { runFetchNow, scheduleFetch } from "./lib/fetchScheduler";
   import { sshApi } from "./lib/sshKeys";
   import IdentityMismatch from "./lib/components/IdentityMismatch.svelte";
   import History from "./lib/screens/History.svelte";
@@ -254,6 +255,48 @@
     await commands.setSectionCollapsed(section, collapsed);
   }
 
+  /** Action par défaut de `SyncButton`, globale : lue au lancement, écrite à chaque choix du menu. */
+  let syncAction: SyncAction = $state("fetchAll");
+  /** Dépôt dont un Fetch All lancé par `SyncButton` est en cours (`null` : aucun). */
+  let syncingPath: string | null = $state(null);
+
+  async function chooseSyncAction(action: SyncAction) {
+    syncAction = action;
+    await commands.setSyncAction(action);
+  }
+
+  /**
+   * Fetch All (tous les remotes, avec prune) du dépôt ouvert, sous la garde du fetch automatique.
+   * Comme lui : le dépôt relu remplace l'affichage si les refs ont changé (profil et écart gardés) et
+   * `FetchStatus` repart de l'instant du succès ; un échec garde le dernier âge (états d'erreur : S-55).
+   */
+  async function fetchAll() {
+    const path = openPath;
+    if (path === null || syncingPath !== null || syncAction !== "fetchAll") return;
+    syncingPath = path;
+    try {
+      await runFetchNow(path, async () => {
+        const result = await commands.fetchAllRepository(path);
+        if (result.status !== "ok") return;
+        if (screen?.screen !== "history" || screen.repository.path !== path) return;
+        if (result.data !== null)
+          screen = {
+            screen: "history",
+            repository: {
+              ...result.data,
+              profile: screen.repository.profile,
+              mismatch: screen.repository.mismatch,
+            } satisfies RepositoryView,
+          };
+        lastFetched = Date.now() / 1000;
+      });
+    } catch {
+      // Échec : l'affichage garde le dernier fetch réussi.
+    } finally {
+      syncingPath = null;
+    }
+  }
+
   /** Panneau `BranchSidebar` replié en bande d'icônes, global : lu au lancement, écrit au clic. */
   let panelCollapsed = $state(false);
 
@@ -271,6 +314,7 @@
     hiddenColumns = await commands.getHiddenColumns();
     sectionLayout = await commands.getSectionLayout();
     panelCollapsed = await commands.getPanelCollapsed();
+    syncAction = await commands.getSyncAction();
     profiles = await commands.listProfiles();
     screen = await commands.getLaunchState();
   });
@@ -505,6 +549,10 @@
     onchooseprofile={chooseProfile}
     onresetprofile={resetToRules}
     oneditprofiles={() => (settingsOpen = true)}
+    {syncAction}
+    syncing={syncingPath !== null && syncingPath === openPath}
+    onsync={fetchAll}
+    onsyncaction={chooseSyncAction}
   />
 {:else if screen?.screen === "welcome"}
   <Welcome

@@ -7,7 +7,7 @@ mod working_tree;
 use std::fmt;
 use std::path::Path;
 
-pub use fetch::{fetch, FetchError, FETCH_TIMEOUT};
+pub use fetch::{fetch, fetch_all, FetchError, FETCH_TIMEOUT};
 pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};
 pub use working_tree::{
     commit, commit_with_home, read_working_tree, stage_all, unstage_all, WorkingTree,

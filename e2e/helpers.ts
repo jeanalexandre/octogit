@@ -198,6 +198,48 @@ export class Workspace {
   }
 
   /**
+   * Fixture `sidebar` : l'autre clone pousse une nouvelle branche d'un commit sur le remote `upstream`
+   * (`<repo>-upstream.git`), que `repo` ne connaît pas avant un Fetch All.
+   */
+  pushBranchToUpstreamFromOther(repo: string, branch: string): void {
+    const other = `${repo}-other`;
+    const git = (...args: string[]) =>
+      execFileSync("git", ["-C", other, ...args], {
+        env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+      });
+    git("remote", "add", "upstream", `${repo}-upstream.git`);
+    git("checkout", "-q", "-b", branch, "origin/develop");
+    git("commit", "-q", "--allow-empty", "-m", `Upstream work on ${branch}`);
+    git("push", "-q", "upstream", branch);
+  }
+
+  /** Supprime une branche de l'`origin` (`<repo>-origin.git`) : l'`origin/…` de `repo` reste jusqu'au prochain fetch avec prune. */
+  deleteOriginBranch(repo: string, branch: string): void {
+    execFileSync("git", ["-C", `${repo}-origin.git`, "update-ref", "-d", `refs/heads/${branch}`], {
+      env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+    });
+  }
+
+  /** Branches locales et HEAD d'un dépôt (`for-each-ref refs/heads` et `rev-parse HEAD`), pour comparer avant et après. */
+  localHeads(repo: string): string {
+    const git = (...args: string[]) =>
+      execFileSync("git", ["-C", repo, ...args], {
+        encoding: "utf8",
+        env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+      });
+    return git("for-each-ref", "refs/heads") + git("rev-parse", "HEAD");
+  }
+
+  /** Contenu décodé de `preferences.json` (vide tant que rien n'est écrit). */
+  storedPreferences(): { version?: number; sync_action?: string } {
+    try {
+      return JSON.parse(readFileSync(join(this.dataDir, "preferences.json"), "utf8"));
+    } catch {
+      return {};
+    }
+  }
+
+  /**
    * Comme `pushBranchFromOther`, pour `count` branches `wide-01`… qui partent toutes du même commit :
    * `repo` les connaît après son prochain fetch, avec autant de lanes de plus.
    */

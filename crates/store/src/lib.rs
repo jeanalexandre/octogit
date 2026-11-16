@@ -12,7 +12,7 @@ pub const REPOSITORIES_FILE: &str = "repositories.json";
 pub const REPOSITORIES_VERSION: u32 = 5;
 
 pub const PREFERENCES_FILE: &str = "preferences.json";
-pub const PREFERENCES_VERSION: u32 = 3;
+pub const PREFERENCES_VERSION: u32 = 4;
 
 pub const PROFILES_FILE: &str = "profiles.json";
 pub const PROFILES_VERSION: u32 = 2;
@@ -40,7 +40,14 @@ struct PreferencesFile {
     /// `BranchSidebar` replié en bande d'icônes (version 3 ; absent avant : déplié).
     #[serde(default)]
     panel_collapsed: bool,
+    /// Action par défaut de `SyncButton` : `fetch_all`, `pull_ff_only` ou `pull_rebase` (version 4 ;
+    /// absente avant : Fetch All).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sync_action: Option<String>,
 }
+
+/// Action par défaut de `SyncButton` tant que rien n'est mémorisé.
+pub const DEFAULT_SYNC_ACTION: &str = "fetch_all";
 
 /// Mise en page mémorisée des sections de `BranchSidebar`, commune à tous les dépôts.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -258,13 +265,14 @@ impl Store {
     }
 
     /// Préférences au format courant. Fichier absent, illisible ou d'une version inconnue : vides.
-    /// Les versions 1 et 2 sont migrées à la lecture (sans hauteurs ni repli, puis sans repli du panneau).
+    /// Les versions 1 à 3 sont migrées à la lecture (sans hauteurs ni repli, puis sans repli du panneau,
+    /// puis sans action de `SyncButton`).
     fn read_preferences(&self) -> PreferencesFile {
         let Ok(content) = fs::read_to_string(self.dir.join(PREFERENCES_FILE)) else {
             return PreferencesFile::default();
         };
         match serde_json::from_str::<PreferencesFile>(&content) {
-            Ok(file) if matches!(file.version, 1..=3) => file,
+            Ok(file) if matches!(file.version, 1..=4) => file,
             _ => PreferencesFile::default(),
         }
     }
@@ -325,6 +333,20 @@ impl Store {
     pub fn set_panel_collapsed(&self, collapsed: bool) -> io::Result<()> {
         let mut file = self.read_preferences();
         file.panel_collapsed = collapsed;
+        self.write_preferences(file)
+    }
+
+    /// Action par défaut de `SyncButton`, commune à tous les dépôts ; absente : Fetch All.
+    pub fn sync_action(&self) -> String {
+        self.read_preferences()
+            .sync_action
+            .unwrap_or_else(|| DEFAULT_SYNC_ACTION.to_string())
+    }
+
+    /// Mémorise l'action par défaut de `SyncButton`.
+    pub fn set_sync_action(&self, action: &str) -> io::Result<()> {
+        let mut file = self.read_preferences();
+        file.sync_action = Some(action.to_string());
         self.write_preferences(file)
     }
 
@@ -597,7 +619,59 @@ mod tests {
     }
 
     #[test]
-    fn version_2_preferences_are_migrated_then_written_as_version_3() {
+    fn synchroniser_ca_2_sync_action_defaults_to_fetch_all_and_survives_a_new_store() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        assert_eq!(Store::new(&data).sync_action(), "fetch_all");
+        let store = Store::new(&data);
+        store.set_hidden_columns(&["sha".to_string()]).unwrap();
+        store.set_panel_collapsed(true).unwrap();
+        store.set_sync_action("pull_rebase").unwrap();
+        assert_eq!(Store::new(&data).sync_action(), "pull_rebase");
+        assert_eq!(Store::new(&data).hidden_columns(), ["sha"]);
+        assert!(Store::new(&data).panel_collapsed());
+        Store::new(&data).set_sync_action("fetch_all").unwrap();
+        assert_eq!(Store::new(&data).sync_action(), "fetch_all");
+    }
+
+    #[test]
+    fn synchroniser_ca_2_preferences_of_versions_1_to_3_are_migrated_to_version_4_with_fetch_all() {
+        for (name, example) in [
+            ("v1", include_str!("../tests-data/preferences-v1.json")),
+            ("v2", include_str!("../tests-data/preferences-v2.json")),
+            ("v3", include_str!("../tests-data/preferences-v3.json")),
+        ] {
+            let tmp = TempDir::new();
+            let store = Store::new(&tmp.0);
+            fs::write(tmp.0.join(PREFERENCES_FILE), example).unwrap();
+            assert_eq!(store.sync_action(), "fetch_all", "{name}");
+            store.set_sync_action("pull_ff_only").unwrap();
+            let json: serde_json::Value =
+                serde_json::from_str(&fs::read_to_string(tmp.0.join(PREFERENCES_FILE)).unwrap())
+                    .unwrap();
+            assert_eq!(json["version"], 4, "{name}");
+            assert_eq!(json["sync_action"], "pull_ff_only", "{name}");
+            assert!(!store.hidden_columns().is_empty(), "{name}");
+        }
+    }
+
+    #[test]
+    fn synchroniser_ca_2_version_4_preferences_example_file_is_read() {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(PREFERENCES_FILE),
+            include_str!("../tests-data/preferences-v4.json"),
+        )
+        .unwrap();
+        assert_eq!(store.sync_action(), "pull_rebase");
+        assert!(store.panel_collapsed());
+        assert_eq!(store.hidden_columns(), ["date"]);
+        assert_eq!(store.section_layout().collapsed, ["tags"]);
+    }
+
+    #[test]
+    fn version_2_preferences_are_migrated_then_written_as_the_current_version() {
         let tmp = TempDir::new();
         let store = Store::new(&tmp.0);
         fs::write(
@@ -610,7 +684,7 @@ mod tests {
         let json: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(tmp.0.join(PREFERENCES_FILE)).unwrap())
                 .unwrap();
-        assert_eq!(json["version"], 3);
+        assert_eq!(json["version"], PREFERENCES_VERSION);
         assert_eq!(store.hidden_columns(), ["date"]);
         assert_eq!(store.section_layout().heights["local"], 192);
     }

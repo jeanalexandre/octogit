@@ -22,6 +22,9 @@
 ### Fiche
 1. Clic sur `SyncButton` quand l'action par défaut est un Pull (livré en S-19) : a) bouton désactivé avec « Pull is not available yet. » (proposé, décision de l'humain)
 
+### Après la revue 1
+- Titre « Pull is not available yet. » visible au survol seulement : pris en compte (pour information), S-19 remplace cet état.
+
 ## Contexte technique
 - Dépend de S-6 (fetch automatique, `FetchStatus`) et de S-10 (`core.sshCommand` écrit dans le `.git/config` local). Fiche de S-6 : `stories/S-06-fetch-automatique.md`.
 - Existant à réutiliser :
@@ -66,8 +69,10 @@
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `d376d10`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : tests, lint, build verts ; rouge non constaté sur le test de la passerelle `preferences.rs` (CA-2), transmis au reviewer | — |
+| 1 | reviewer | `stories/S-18-revue-1.md` : aucun problème | validé |

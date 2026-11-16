@@ -8,8 +8,20 @@ use crate::launch::{repository_view, RepositoryView};
 /// Rend `None` si les refs sont les mêmes qu'avant (cas courant : rien à redessiner, rien à relire),
 /// sinon le dépôt relu. L'erreur est le message d'une ligne ; la sortie brute de Git reste dans le crate `git`.
 pub fn fetch_repository(path: &Path) -> Result<Option<RepositoryView>, String> {
+    run_and_reread(path, octogit_git::fetch)
+}
+
+/// Fetch All de `SyncButton` : comme `fetch_repository`, pour tous les remotes.
+pub fn fetch_all_repository(path: &Path) -> Result<Option<RepositoryView>, String> {
+    run_and_reread(path, octogit_git::fetch_all)
+}
+
+fn run_and_reread(
+    path: &Path,
+    fetch: fn(&Path, std::time::Duration) -> Result<String, octogit_git::FetchError>,
+) -> Result<Option<RepositoryView>, String> {
     let before = octogit_git::read_refs(path).ok();
-    octogit_git::fetch(path, octogit_git::FETCH_TIMEOUT).map_err(|e| match e {
+    fetch(path, octogit_git::FETCH_TIMEOUT).map_err(|e| match e {
         octogit_git::FetchError::TimedOut { .. } => "Fetch timed out.".to_string(),
         octogit_git::FetchError::Failed { .. } => "Fetch failed.".to_string(),
         octogit_git::FetchError::Spawn(_) => "Git could not run.".to_string(),

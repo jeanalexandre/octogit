@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FETCH_INTERVAL_MS, scheduleFetch } from "./fetchScheduler";
+import { FETCH_INTERVAL_MS, runFetchNow, scheduleFetch } from "./fetchScheduler";
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
@@ -91,6 +91,48 @@ describe("scheduleFetch", () => {
     finish();
     await vi.advanceTimersByTimeAsync(0);
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("synchroniser CA-3: a manual Fetch All waits for the automatic fetch of the repository, then runs alone", async () => {
+    let finishAuto = () => {};
+    const auto = vi.fn(() => new Promise<void>((resolve) => (finishAuto = resolve)));
+    const manual = vi.fn(async () => {});
+    const stop = scheduleFetch({ path: "/m", run: auto, intervalMs: 1000 });
+    const done = runFetchNow("/m", manual);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(manual).not.toHaveBeenCalled();
+    finishAuto();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(manual).toHaveBeenCalledTimes(1);
+    await done;
+    stop();
+  });
+
+  it("synchroniser CA-3: the periodic fetch is skipped while a manual Fetch All runs", async () => {
+    let finishManual = () => {};
+    const manual = vi.fn(() => new Promise<void>((resolve) => (finishManual = resolve)));
+    const auto = vi.fn(async () => {});
+    const done = runFetchNow("/n", manual);
+    const stop = scheduleFetch({ path: "/n", run: auto, intervalMs: 1000 });
+    // Le fetch d'ouverture attend ; le périodique est sauté.
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(auto).not.toHaveBeenCalled();
+    finishManual();
+    await done;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(auto).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it("synchroniser CA-3: a failing manual Fetch All rejects and frees the repository", async () => {
+    await expect(
+      runFetchNow("/o", async () => {
+        throw new Error("offline");
+      }),
+    ).rejects.toThrow("offline");
+    const next = vi.fn(async () => {});
+    await runFetchNow("/o", next);
+    expect(next).toHaveBeenCalledTimes(1);
   });
 
   it("explorer-l-historique CA-4: stopping (switching repository) ends the old schedule", async () => {

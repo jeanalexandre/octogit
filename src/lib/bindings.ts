@@ -74,6 +74,12 @@ export const commands = {
 	watchWorkingTree: (path: string) => typedError<null, string>(__TAURI_INVOKE("watch_working_tree", { path })),
 	/**  Fetch automatique de `path` en tâche de fond (sans bloquer l'interface), puis relecture du dépôt s'il a changé. */
 	fetchRepository: (path: string) => typedError<RepositoryView_Serialize | null, string>(__TAURI_INVOKE("fetch_repository", { path })),
+	/**  Fetch All de `SyncButton` (tous les remotes, avec prune) en tâche de fond, puis relecture du dépôt s'il a changé. */
+	fetchAllRepository: (path: string) => typedError<RepositoryView_Serialize | null, string>(__TAURI_INVOKE("fetch_all_repository", { path })),
+	/**  Action par défaut de `SyncButton`, commune à tous les dépôts (Fetch All au premier lancement). */
+	getSyncAction: () => __TAURI_INVOKE<SyncAction>("get_sync_action"),
+	/**  Mémorise l'action par défaut de `SyncButton`. Un échec d'écriture est ignoré. */
+	setSyncAction: (action: SyncAction) => __TAURI_INVOKE<void>("set_sync_action", { action }),
 	/**  Profils dans l'ordre de `ProfileSettings`. */
 	listProfiles: () => __TAURI_INVOKE<ProfileView[]>("list_profiles"),
 	/**
@@ -456,6 +462,9 @@ export type SshKeyView_Serialize = {
 	fingerprint: string | null,
 	needsPassphrase: boolean,
 };
+
+/**  Action par défaut de `SyncButton` (Pull : exécution en S-19). */
+export type SyncAction = "fetchAll" | "pullFfOnly" | "pullRebase";
 
 /**  Événement `working-tree-changed` (typé par tauri-specta) : le dépôt surveillé et son nouvel état. */
 export type WorkingTreeChanged = {

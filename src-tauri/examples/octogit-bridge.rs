@@ -57,6 +57,11 @@ struct PanelCollapsedArgs {
 }
 
 #[derive(Deserialize)]
+struct SyncActionArgs {
+    action: octogit_app::preferences::SyncAction,
+}
+
+#[derive(Deserialize)]
 struct CommitArgs {
     path: String,
     summary: String,
@@ -391,6 +396,22 @@ fn main() {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }
+        }
+        "fetch_all_repository" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            match octogit_app::fetch::fetch_all_repository(std::path::Path::new(&args.path)) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "get_sync_action" => (
+            serde_json::to_string(&octogit_app::commands::get_sync_action()),
+            0,
+        ),
+        "set_sync_action" => {
+            let args: SyncActionArgs = serde_json::from_str(&input).expect("arguments { action }");
+            octogit_app::commands::set_sync_action(args.action);
+            (serde_json::to_string(&()), 0)
         }
         "list_profiles" => (
             serde_json::to_string(&octogit_app::commands::list_profiles()),

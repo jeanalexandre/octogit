@@ -44,6 +44,39 @@ pub fn set_hidden_columns(store: &Store, columns: &[Column]) {
     let _ = store.set_hidden_columns(&names);
 }
 
+/// Action par défaut de `SyncButton` (Pull : exécution en S-19).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum SyncAction {
+    FetchAll,
+    PullFfOnly,
+    PullRebase,
+}
+
+impl SyncAction {
+    fn name(self) -> &'static str {
+        match self {
+            SyncAction::FetchAll => "fetch_all",
+            SyncAction::PullFfOnly => "pull_ff_only",
+            SyncAction::PullRebase => "pull_rebase",
+        }
+    }
+}
+
+/// Action par défaut de `SyncButton`, commune à tous les dépôts ; une valeur absente ou inconnue du fichier donne Fetch All.
+pub fn sync_action(store: &Store) -> SyncAction {
+    match store.sync_action().as_str() {
+        "pull_ff_only" => SyncAction::PullFfOnly,
+        "pull_rebase" => SyncAction::PullRebase,
+        _ => SyncAction::FetchAll,
+    }
+}
+
+/// Mémorise l'action par défaut. Une préférence est une aide : un échec d'écriture est ignoré.
+pub fn set_sync_action(store: &Store, action: SyncAction) {
+    let _ = store.set_sync_action(action.name());
+}
+
 /// Hauteurs (pixels, par identifiant de section) et sections repliées de `BranchSidebar`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub struct SectionLayoutView {
@@ -102,6 +135,23 @@ mod tests {
         assert_eq!(hidden_columns(&again), [Column::Author, Column::Sha]);
         set_hidden_columns(&again, &[]);
         assert!(hidden_columns(&Store::new(store.dir())).is_empty());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn synchroniser_ca_2_sync_action_is_fetch_all_then_remembered_and_an_unknown_value_means_fetch_all(
+    ) {
+        let (store, dir) = store("sync");
+        assert_eq!(sync_action(&store), SyncAction::FetchAll);
+        set_sync_action(&store, SyncAction::PullRebase);
+        assert_eq!(
+            sync_action(&Store::new(store.dir())),
+            SyncAction::PullRebase
+        );
+        set_sync_action(&store, SyncAction::PullFfOnly);
+        assert_eq!(sync_action(&store), SyncAction::PullFfOnly);
+        store.set_sync_action("rebase-everything").unwrap();
+        assert_eq!(sync_action(&store), SyncAction::FetchAll);
         let _ = std::fs::remove_dir_all(dir);
     }
 

@@ -12,7 +12,7 @@ use crate::detail::{self, CommitDetailView};
 use crate::fetch;
 use crate::launch::{self, LaunchState, RepositoryView};
 use crate::open::{self, OpenError, RecentView};
-use crate::preferences::{self, Column, SectionLayoutView};
+use crate::preferences::{self, Column, SectionLayoutView, SyncAction};
 use crate::profiles::{self, ProfileView};
 use crate::propagate::{self, SavedProfileView};
 use crate::ssh_keys::{self, ConnectionTestView, SshKeyView};
@@ -334,6 +334,29 @@ pub async fn fetch_repository(path: String) -> Result<Option<RepositoryView>, St
     tauri::async_runtime::spawn_blocking(move || fetch::fetch_repository(Path::new(&path)))
         .await
         .map_err(|_| "Fetch was interrupted.".to_string())?
+}
+
+/// Fetch All de `SyncButton` (tous les remotes, avec prune) en tâche de fond, puis relecture du dépôt s'il a changé.
+#[tauri::command]
+#[specta::specta]
+pub async fn fetch_all_repository(path: String) -> Result<Option<RepositoryView>, String> {
+    tauri::async_runtime::spawn_blocking(move || fetch::fetch_all_repository(Path::new(&path)))
+        .await
+        .map_err(|_| "Fetch was interrupted.".to_string())?
+}
+
+/// Action par défaut de `SyncButton`, commune à tous les dépôts (Fetch All au premier lancement).
+#[tauri::command]
+#[specta::specta]
+pub fn get_sync_action() -> SyncAction {
+    preferences::sync_action(&Store::new(data_dir()))
+}
+
+/// Mémorise l'action par défaut de `SyncButton`. Un échec d'écriture est ignoré.
+#[tauri::command]
+#[specta::specta]
+pub fn set_sync_action(action: SyncAction) {
+    preferences::set_sync_action(&Store::new(data_dir()), action);
 }
 
 /// Sélecteur de fichier natif ouvert dans le dossier SSH ; `None` si annulé. En mode test, le pont répond à sa place.

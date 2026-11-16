@@ -47,11 +47,29 @@ fn capture_file() -> std::io::Result<(File, PathBuf)> {
 /// (`git fetch` ne touche que `refs/remotes/…` et les tags ; il n'écrit pas `.git/config`).
 /// Rend la sortie brute de `git`. Ne demande jamais de saisie ; tué après `timeout`.
 pub fn fetch(path: &Path, timeout: Duration) -> Result<String, FetchError> {
+    fetch_with(
+        path,
+        timeout,
+        &["fetch", "--prune", "--no-recurse-submodules"],
+    )
+}
+
+/// Fetch All (`SyncButton`) : comme `fetch`, mais pour tous les remotes (`--all`), toujours avec prune.
+/// Même sous-processus `git` : il suit le `core.sshCommand` du `.git/config` local, `~/.gitconfig` n'est pas touché.
+pub fn fetch_all(path: &Path, timeout: Duration) -> Result<String, FetchError> {
+    fetch_with(
+        path,
+        timeout,
+        &["fetch", "--all", "--prune", "--no-recurse-submodules"],
+    )
+}
+
+fn fetch_with(path: &Path, timeout: Duration, args: &[&str]) -> Result<String, FetchError> {
     let (file, log) = capture_file().map_err(|e| FetchError::Spawn(e.to_string()))?;
     let stderr = file
         .try_clone()
         .map_err(|e| FetchError::Spawn(e.to_string()))?;
-    let result = run(path, timeout, file, stderr, &log);
+    let result = run(path, timeout, args, file, stderr, &log);
     let _ = std::fs::remove_file(&log);
     result
 }
@@ -59,6 +77,7 @@ pub fn fetch(path: &Path, timeout: Duration) -> Result<String, FetchError> {
 fn run(
     path: &Path,
     timeout: Duration,
+    args: &[&str],
     stdout: File,
     stderr: File,
     log: &Path,
@@ -66,7 +85,7 @@ fn run(
     let mut child = Command::new("git")
         .arg("-C")
         .arg(path)
-        .args(["fetch", "--prune", "--no-recurse-submodules"])
+        .args(args)
         .env("GIT_TERMINAL_PROMPT", "0")
         .stdin(Stdio::null())
         .stdout(Stdio::from(stdout))
@@ -106,13 +125,22 @@ mod tests {
 
     impl Fixture {
         fn new() -> Self {
+            Self::from_script("refs.sh")
+        }
+        /// Comme `new`, avec `sidebar.sh` : remotes `upstream` et `backup` en plus d'`origin`.
+        fn with_remotes() -> Self {
+            Self::from_script("sidebar.sh")
+        }
+        fn from_script(name: &str) -> Self {
             static N: AtomicU32 = AtomicU32::new(0);
             let dir = std::env::temp_dir().join(format!(
                 "octogit-fetch-test-{}-{}",
                 std::process::id(),
                 N.fetch_add(1, Ordering::SeqCst)
             ));
-            let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/refs.sh");
+            let script = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../fixtures")
+                .join(name);
             assert!(Command::new(script)
                 .arg(dir.join("repo"))
                 .status()
@@ -236,6 +264,75 @@ mod tests {
         assert!(fx.remote_names().contains(&"origin/develop".to_string()));
         assert_eq!(heads, Fixture::git(&repo, &["for-each-ref", "refs/heads"]));
         assert_eq!(config, std::fs::read(repo.join(".git/config")).unwrap());
+    }
+
+    #[test]
+    fn synchroniser_ca_3_fetch_all_gets_every_remote_prunes_and_changes_nothing_local() {
+        let fx = Fixture::with_remotes();
+        let repo = fx.repo();
+        let other = fx.other();
+        // Un autre clone pousse `fresh` sur origin et `fresh-up` sur le second remote.
+        Fixture::git(
+            &other,
+            &[
+                "remote",
+                "add",
+                "upstream",
+                fx.0.join("repo-upstream.git").to_str().unwrap(),
+            ],
+        );
+        fx.push_from_other();
+        Fixture::git(&other, &["push", "-q", "upstream", "fresh:fresh-up"]);
+        Fixture::git(&fx.origin(), &["update-ref", "-d", "refs/heads/spike/gix"]);
+        assert!(fx.remote_names().contains(&"origin/spike/gix".to_string()));
+        let state = |repo: &Path| {
+            (
+                Fixture::git(repo, &["for-each-ref", "refs/heads", "refs/stash"]),
+                Fixture::git(repo, &["rev-parse", "HEAD"]),
+                Fixture::git(repo, &["symbolic-ref", "HEAD"]),
+                std::fs::read(repo.join(".git/config")).unwrap(),
+                std::fs::read(repo.join("file.txt")).unwrap(),
+                Fixture::git(repo, &["status", "--porcelain=v2"]),
+            )
+        };
+        let before = state(&repo);
+        fetch_all(&repo, Duration::from_secs(20)).unwrap();
+        let names = fx.remote_names();
+        assert!(names.contains(&"origin/fresh".to_string()), "{names:?}");
+        assert!(
+            names.contains(&"upstream/fresh-up".to_string()),
+            "{names:?}"
+        );
+        assert!(
+            !names.contains(&"origin/spike/gix".to_string()),
+            "{names:?}"
+        );
+        assert!(names.contains(&"backup/main".to_string()), "{names:?}");
+        assert_eq!(before, state(&repo));
+    }
+
+    #[test]
+    fn synchroniser_ca_3_the_automatic_fetch_still_leaves_the_other_remotes_alone() {
+        let fx = Fixture::with_remotes();
+        let other = fx.other();
+        Fixture::git(
+            &other,
+            &[
+                "remote",
+                "add",
+                "upstream",
+                fx.0.join("repo-upstream.git").to_str().unwrap(),
+            ],
+        );
+        fx.push_from_other();
+        Fixture::git(&other, &["push", "-q", "upstream", "fresh:fresh-up"]);
+        fetch(&fx.repo(), Duration::from_secs(20)).unwrap();
+        let names = fx.remote_names();
+        assert!(names.contains(&"origin/fresh".to_string()));
+        assert!(
+            !names.contains(&"upstream/fresh-up".to_string()),
+            "{names:?}"
+        );
     }
 
     #[test]

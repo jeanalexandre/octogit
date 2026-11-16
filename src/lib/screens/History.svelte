@@ -7,6 +7,7 @@
     ProfileView,
     RecentView,
     RepositoryView,
+    SyncAction,
     WorkingTreeView,
   } from "../bindings";
   import BranchSidebar from "../components/BranchSidebar.svelte";
@@ -15,6 +16,7 @@
   import FetchStatus from "../components/FetchStatus.svelte";
   import ProfileBadge from "../components/ProfileBadge.svelte";
   import RepoPicker from "../components/RepoPicker.svelte";
+  import SyncButton from "../components/SyncButton.svelte";
   import WorkingChanges from "../components/WorkingChanges.svelte";
 
   let {
@@ -52,7 +54,19 @@
     onchooseprofile,
     onresetprofile,
     oneditprofiles,
+    syncAction = "fetchAll",
+    syncing = false,
+    onsync,
+    onsyncaction,
   }: {
+    /** Action par défaut de `SyncButton`, commune à tous les dépôts. */
+    syncAction?: SyncAction;
+    /** Un Fetch All lancé par `SyncButton` est en cours. */
+    syncing?: boolean;
+    /** Clic sur `SyncButton` : lance l'action par défaut. */
+    onsync?: () => void;
+    /** Le menu de `SyncButton` choisit une nouvelle action par défaut (sans la lancer). */
+    onsyncaction?: (action: SyncAction) => void;
     /** Profils dans l'ordre de la liste (menu de `ProfileBadge`). */
     profiles?: ProfileView[];
     /** Un choix manuel de profil est mémorisé pour ce dépôt (« Reset to rules » actif). */
@@ -200,6 +214,12 @@
         onfix={async () => onfixidentity?.()}
       />
       <FetchStatus {lastFetched} />
+      <SyncButton
+        action={syncAction}
+        busy={syncing}
+        onrun={() => onsync?.()}
+        onchoose={onsyncaction}
+      />
       {#if tracking}
         <span class="sync" role="group" aria-label="Ahead and behind">
           <span class="branch">{tracking.name}</span>

@@ -2,12 +2,14 @@
   import { onMount } from "svelte";
   import {
     commands,
+    events,
     type Column,
     type LaunchState,
     type ProfileView,
     type RecentView,
     type SectionLayoutView,
     type RepositoryView,
+    type WorkingTreeView,
   } from "./lib/bindings";
   import { scheduleFetch } from "./lib/fetchScheduler";
   import { sshApi } from "./lib/sshKeys";
@@ -61,6 +63,48 @@
       },
     });
   });
+
+  /** Fichiers non indexés et indexés du dépôt ouvert : lus à l'ouverture, puis tenus à jour par la surveillance. */
+  let workingTree: WorkingTreeView | null = $state(null);
+  $effect(() => {
+    const path = openPath;
+    workingTree = null;
+    if (path === null) {
+      // Plus de dépôt ouvert : la surveillance du dernier s'arrête (chemin vide).
+      void commands.watchWorkingTree("");
+      return;
+    }
+    let stale = false;
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      let updated = false;
+      // Événement typé `WorkingTreeChanged` : émis par le cœur quand l'arbre change hors d'Octogit.
+      const off = await events.workingTreeChanged.listen((event) => {
+        if (stale || event.payload.path !== path) return;
+        updated = true;
+        workingTree = event.payload.tree;
+      });
+      if (stale) return off();
+      unlisten = off;
+      // La surveillance est active avant la première lecture : aucun changement ne passe entre les deux.
+      // Si la surveillance échoue, l'arbre est lu quand même (sans mise à jour automatique).
+      await commands.watchWorkingTree(path);
+      const read = await commands.getWorkingTree(path);
+      if (!stale && !updated && read.status === "ok") workingTree = read.data;
+    })();
+    return () => {
+      stale = true;
+      unlisten?.();
+    };
+  });
+
+  /** Stage all ou Unstage all : l'état rendu par Git remplace l'affichage sans attendre la surveillance. */
+  async function moveAll(run: (path: string) => ReturnType<typeof commands.stageAll>) {
+    const path = openPath;
+    if (path === null) return;
+    const result = await run(path);
+    if (result.status === "ok" && openPath === path) workingTree = result.data;
+  }
 
   /** Dossiers repliés de `BranchSidebar` pour le dépôt ouvert, relus à chaque changement de dépôt. */
   let collapsedFolders: string[] = $state([]);
@@ -304,6 +348,9 @@
     onchoose={chooseFolder}
     onhidecolumns={hideColumns}
     {loadDetail}
+    {workingTree}
+    onstageall={() => moveAll(commands.stageAll)}
+    onunstageall={() => moveAll(commands.unstageAll)}
   />
 {:else if screen?.screen === "welcome"}
   <Welcome {recent} {error} onopen={open} onchoose={chooseFolder} />

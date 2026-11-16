@@ -25,7 +25,15 @@
     onwidth,
     onrefdblclick,
     onrefcontextmenu,
+    wip = null,
+    wipSelected = false,
+    onselectwip,
   }: {
+    /** Ligne WIP en tête du graphe : `count` fichiers modifiés, `null` tant que l'état n'est pas lu. */
+    wip?: { count: number | null } | null;
+    /** La ligne WIP est la sélection (et non un commit). */
+    wipSelected?: boolean;
+    onselectwip?: () => void;
     /** Double-clic sur une étiquette de ref (celle de la colonne ou une flottante) : le nom de la ref. */
     onrefdblclick?: (name: string) => void;
     /** Clic droit sur une étiquette de ref : le nom de la ref. */
@@ -209,6 +217,21 @@
   );
   const visible = $derived(commits.slice(first, last));
 
+  /** Le nœud WIP se tient sur la lane du commit que HEAD désigne (lane 0 sans commit). */
+  const headCommit = $derived.by(() => {
+    const target = refs.find((r) => r.kind === "branch" && r.current)?.target;
+    return commits.find((c) => c.id === target);
+  });
+  const wipLane = $derived(headCommit?.lane ?? 0);
+  const wipColor = $derived(headCommit?.color ?? 0);
+  const wipLabel = $derived(
+    wip?.count == null
+      ? ""
+      : wip.count === 0
+        ? "No changes"
+        : `${wip.count} changed ${wip.count === 1 ? "file" : "files"}`,
+  );
+
   /** Tronçon à angles droits et coude arrondi ; la ligne fait `ROW` de haut, le nœud est à mi-hauteur. */
   function path(edge: EdgeView): string {
     const mid = ROW / 2;
@@ -295,6 +318,35 @@
           <span>{column.label}</span>
         {/each}
       </div>
+      {#if wip}
+        <div class="row wip" style="--lane: var(--lane-{wipColor + 1})">
+          <div class="refs"></div>
+          <div class="lanes" data-lanes>
+            <svg width={graphWidth} height={ROW} aria-hidden="true">
+              {#if commits.length > 0 && x(wipLane) < graphWidth}
+                <path class="link" d="M{x(wipLane)} {ROW / 2}V{ROW}" />
+              {/if}
+            </svg>
+            {#if x(wipLane) - 12 < graphWidth}
+              <span class="node-slot" style="left: {x(wipLane) - 12}px">
+                <CommitNode author="" color={wipColor} wip />
+              </span>
+            {/if}
+          </div>
+          <div class="band">
+            <span class="trait" data-trait aria-hidden="true"></span>
+            <button
+              type="button"
+              class="summary"
+              data-wip
+              aria-current={wipSelected ? "true" : undefined}
+              onclick={() => onselectwip?.()}
+              ><span class="wip-name">WIP</span>
+              {#if wipLabel}<span class="muted">{wipLabel}</span>{/if}</button
+            >
+          </div>
+        </div>
+      {/if}
       <div class="spacer" role="list" style="height: {commits.length * ROW}px">
         {#each visible as commit, i (commit.id)}
           {@const labels = labelMap[commit.id] ?? []}
@@ -577,6 +629,21 @@
     left: 0;
     right: 0;
     height: 34px;
+  }
+
+  /* La ligne WIP n'est pas virtualisée : elle ferme l'en-tête collant, dans le flux. */
+  .row.wip {
+    position: relative;
+  }
+
+  /* Lien en pointillés du nœud WIP vers le commit que HEAD désigne. */
+  .link {
+    stroke-dasharray: 3 3;
+  }
+
+  .wip-name {
+    margin-right: 8px;
+    font-weight: 600;
   }
 
   @media (prefers-color-scheme: light) {

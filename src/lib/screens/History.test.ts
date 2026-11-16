@@ -1,7 +1,13 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 import History from "./History.svelte";
-import type { CommitDetailView, RecentView, RefView, RepositoryView } from "../bindings";
+import type {
+  CommitDetailView,
+  RecentView,
+  RefView,
+  RepositoryView,
+  WorkingTreeView,
+} from "../bindings";
 
 /** Graphe du dépôt `branches` : un merge, puis deux branches voisines (lanes 0 et 1). */
 const ref = (overrides: Partial<RefView>): RefView => ({
@@ -90,6 +96,19 @@ const recent: RecentView[] = [
   { name: "other", path: "/work/other", lastOpened: 1_690_000_000 },
 ];
 
+const workingTree: WorkingTreeView = {
+  unstaged: [
+    { path: "profile/inject.rs", status: "modified" },
+    { path: "lib/ProfileBadge.svelte", status: "added" },
+  ],
+  staged: [{ path: "git/command.rs", status: "modified" }],
+};
+const extra = { path: "extra.txt", status: "added" as const };
+const clean: WorkingTreeView = { unstaged: [], staged: [] };
+
+/** Ligne WIP, en tête du graphe. */
+const wipRow = () => screen.getByRole("button", { name: /WIP/ });
+
 function props(overrides = {}) {
   return {
     repository,
@@ -139,10 +158,123 @@ describe("History", () => {
     expect(shown()).toBe("No profile");
   });
 
-  it("shows an empty state for a repository without commit", () => {
-    render(History, props({ repository: { ...repository, commits: [] } }));
+  it("preparer-un-commit CA-11: a repository without commit shows only the WIP row, not No commits yet.", () => {
+    render(
+      History,
+      props({ repository: { ...repository, commits: [], refs: [] }, workingTree: clean }),
+    );
     expect(screen.queryAllByRole("listitem")).toHaveLength(0);
-    expect(screen.getByText("No commits yet.")).toBeInTheDocument();
+    expect(screen.queryByText("No commits yet.")).toBeNull();
+    expect(wipRow()).toBeInTheDocument();
+    expect(wipRow()).toHaveAttribute("aria-current", "true");
+    expect(screen.getByText("Working tree clean.")).toBeInTheDocument();
+  });
+
+  it("preparer-un-commit CA-1: the WIP row opens the graph, selected, with its changed file count, and WorkingChanges is on the right", () => {
+    render(History, props({ workingTree }));
+    const wip = wipRow();
+    expect(wip).toHaveAttribute("aria-current", "true");
+    expect(wip).toHaveTextContent("WIP");
+    expect(wip).toHaveTextContent("3 changed files");
+    const first = screen.getAllByRole("listitem")[0];
+    expect(wip.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const panel = screen.getByRole("region", { name: "Working changes" });
+    expect(panel).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Commit detail" })).toBeNull();
+    expect(screen.getByRole("button", { name: /Main work/ })).not.toHaveAttribute("aria-current");
+  });
+
+  it("preparer-un-commit CA-1: the count is singular for one file and counts a file once when it is on both sides", () => {
+    const one = { unstaged: [], staged: [{ path: "a.txt", status: "added" as const }] };
+    const { unmount } = render(History, props({ workingTree: one }));
+    expect(wipRow()).toHaveTextContent("1 changed file");
+    expect(wipRow()).not.toHaveTextContent("1 changed files");
+    unmount();
+    const both = {
+      unstaged: [{ path: "a.txt", status: "modified" as const }],
+      staged: [{ path: "a.txt", status: "modified" as const }],
+    };
+    render(History, props({ workingTree: both }));
+    expect(wipRow()).toHaveTextContent("1 changed file");
+  });
+
+  it("preparer-un-commit CA-1: the count follows the working tree it is given, without any gesture", async () => {
+    const view = render(History, props({ workingTree }));
+    expect(wipRow()).toHaveTextContent("3 changed files");
+    await view.rerender({
+      workingTree: { ...workingTree, unstaged: [...workingTree.unstaged, extra] },
+    });
+    expect(wipRow()).toHaveTextContent("4 changed files");
+    expect(screen.getByText("Unstaged · 3")).toBeInTheDocument();
+  });
+
+  it("preparer-un-commit CA-11: a clean tree shows No changes on the WIP row and a disabled Commit and Stash", () => {
+    render(History, props({ workingTree: clean }));
+    expect(wipRow()).toHaveTextContent("No changes");
+    expect(screen.getByText("Working tree clean.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Commit to develop" })).toBeDisabled();
+    const header = screen.getByRole("banner");
+    expect(within(header).getByRole("button", { name: "Stash" })).toBeDisabled();
+    expect(
+      within(screen.getByRole("region", { name: "Working changes" })).queryByRole("button", {
+        name: "Stash",
+      }),
+    ).toBeNull();
+  });
+
+  it("preparer-un-commit CA-2: clicking the WIP row replaces CommitDetail by WorkingChanges, and the reverse", async () => {
+    render(History, props({ workingTree }));
+    await fireEvent.click(screen.getByRole("button", { name: /Main work/ }));
+    await screen.findByRole("region", { name: "Commit detail" });
+    expect(screen.queryByRole("region", { name: "Working changes" })).toBeNull();
+    expect(wipRow()).not.toHaveAttribute("aria-current");
+
+    await fireEvent.click(wipRow());
+    expect(screen.getByRole("region", { name: "Working changes" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Commit detail" })).toBeNull();
+    expect(wipRow()).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: /Main work/ })).not.toHaveAttribute("aria-current");
+
+    await fireEvent.click(screen.getByRole("button", { name: /Main work/ }));
+    expect(await screen.findByRole("region", { name: "Commit detail" })).toBeInTheDocument();
+  });
+
+  it("preparer-un-commit CA-2: a detail that arrives after the click on WIP does not take the panel back", async () => {
+    let resolve: (d: CommitDetailView) => void = () => {};
+    const loadDetail = vi.fn(() => new Promise<CommitDetailView>((r) => (resolve = r)));
+    render(History, props({ workingTree, loadDetail }));
+    await fireEvent.click(screen.getByRole("button", { name: /Main work/ }));
+    await fireEvent.click(wipRow());
+    resolve(detail());
+    await Promise.resolve();
+    expect(screen.queryByRole("region", { name: "Commit detail" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Working changes" })).toBeInTheDocument();
+  });
+
+  it("preparer-un-commit CA-1: opening another repository selects the WIP row again", async () => {
+    const view = render(History, props({ workingTree, openId: 1 }));
+    await fireEvent.click(screen.getByRole("button", { name: /Main work/ }));
+    expect(wipRow()).not.toHaveAttribute("aria-current");
+    await view.rerender({ openId: 2 });
+    expect(wipRow()).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("region", { name: "Working changes" })).toBeInTheDocument();
+  });
+
+  it("preparer-un-commit CA-5: Stage all and Unstage all of WorkingChanges reach the screen's callbacks", async () => {
+    const onstageall = vi.fn();
+    const onunstageall = vi.fn();
+    render(History, props({ workingTree, onstageall, onunstageall }));
+    await fireEvent.click(screen.getByRole("button", { name: "Stage all" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Unstage all" }));
+    expect(onstageall).toHaveBeenCalledTimes(1);
+    expect(onunstageall).toHaveBeenCalledTimes(1);
+  });
+
+  it("without a working tree yet, the WIP row is there without a count and the panel waits", () => {
+    render(History, props());
+    expect(wipRow()).toHaveTextContent("WIP");
+    expect(wipRow()).not.toHaveTextContent("changed");
+    expect(screen.queryByText("Working tree clean.")).toBeNull();
   });
 
   it("switches repository through the RepoPicker", async () => {

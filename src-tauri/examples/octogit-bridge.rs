@@ -166,9 +166,43 @@ fn put_fake_ssh_first() {
     }
 }
 
+/// `octogit-bridge watch_working_tree <dépôt>` : surveille le dépôt jusqu'à la fermeture de l'entrée
+/// standard. Une ligne JSON `{"ready":true}` quand la surveillance est active, puis une ligne par
+/// événement `working-tree-changed` (sa charge JSON). Le pont lance un processus par commande :
+/// celui-ci reste vivant, c'est l'écouteur d'événements du navigateur.
+fn watch_working_tree(path: &str) -> ! {
+    use std::io::Write;
+    let watcher = octogit_app::working_tree::watch(std::path::Path::new(path), |event| {
+        let mut out = std::io::stdout().lock();
+        let _ = writeln!(
+            out,
+            "{}",
+            serde_json::to_string(&event).expect("serializable event")
+        );
+        let _ = out.flush();
+    });
+    match watcher {
+        Ok(watcher) => {
+            println!("{{\"ready\":true}}");
+            let _ = std::io::stdout().flush();
+            let mut sink = Vec::new();
+            std::io::stdin().read_to_end(&mut sink).ok();
+            drop(watcher);
+            std::process::exit(0);
+        }
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+    }
+}
+
 fn main() {
     put_fake_ssh_first();
     let command = std::env::args().nth(1).unwrap_or_default();
+    if command == "watch_working_tree" {
+        watch_working_tree(&std::env::args().nth(2).unwrap_or_default());
+    }
     let mut input = String::new();
     std::io::stdin().read_to_string(&mut input).ok();
     let (json, code) = match command.as_str() {
@@ -273,6 +307,18 @@ fn main() {
         "get_commit_detail" => {
             let args: DetailArgs = serde_json::from_str(&input).expect("arguments { path, id }");
             match octogit_app::commands::get_commit_detail(args.path, args.id) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "get_working_tree" | "stage_all" | "unstage_all" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            let result = match command.as_str() {
+                "get_working_tree" => octogit_app::commands::get_working_tree(args.path),
+                "stage_all" => octogit_app::commands::stage_all(args.path),
+                _ => octogit_app::commands::unstage_all(args.path),
+            };
+            match result {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

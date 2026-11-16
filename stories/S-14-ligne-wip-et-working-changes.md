@@ -24,6 +24,16 @@ Afficher la ligne WIP en tête du graphe et `WorkingChanges` (fichiers non index
 ### Fiche (16/11/2026)
 1. Rien à confirmer.
 
+### Écart du passage 1 (16/11/2026)
+- Question 1 : l'événement `working-tree-changed` n'est pas un événement typé tauri-specta (`stack.md`, Contrat) ; `dev` l'écoute par `listen` brut et n'exporte que le type de charge. Réponse de l'humain : a) `dev` passe aux événements typés tauri-specta, conformes à `stack.md`. `dev` le traite au passage 2.
+
+### Après la revue 1 (16/11/2026)
+- Mineur 3 (surveillance en échec, arbre jamais lu) : traiter (d'office).
+- Mineur 4 (surveillance jamais arrêtée en quittant `History`) : traiter (d'office).
+- À décider `format:check` rouge sur `CLAUDE.local.md` : traiter (d'office), ajout à `.prettierignore`.
+- Revue 2 : validé, RAS.
+- Pris en compte (pour information) : chemin Tauri réel de CA-4 sans test automatique (essai manuel dans l'application livrée) ; CPU du watcher pendant un build ; chevauchement « GRAPH » / « COMMIT MESSAGE » antérieur à la story.
+
 ## Contexte technique
 - `stack.md` : Architecture (accès à Git mixte : `gix` pour lire, binaire `git` pour écrire ; détection par la crate `notify` dans le crate `git`, rafales regroupées, écritures d'Octogit ignorées), Contrat (`pnpm gen:bindings`, `src/lib/bindings.ts` jamais édité à la main), Tests ciblés.
 - Rust : `crates/git/src/lib.rs` (lecture, types `FileChange` et `ChangeStatus` existants), `crates/git/src/graph.rs`, `crates/git/src/fetch.rs` (modèle d'une tâche de fond et d'événements) ; `src-tauri/src/commands.rs` et `src-tauri/src/lib.rs` (commandes et événements, sans logique).
@@ -60,7 +70,12 @@ Afficher la ligne WIP en tête du graphe et `WorkingChanges` (fichiers non index
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<à noter avant le premier passage>`
+- Référence : `9919f88`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : 25 fichiers, tests JS/Rust/e2e verts, lint, build, audit verts ; `format:check` ❌ sur `CLAUDE.local.md` seul (fichier local non touché) ; écart de contrat : événement `working-tree-changed` écouté par `listen` brut, hors événements typés tauri-specta (payload exporté dans `bindings.ts`) | en attente de décision (revue non lancée) |
+| 4 | dev | terminé : problèmes 1 à 4 et `.prettierignore` traités ; tests, lint, build, e2e verts ; `format:check` ✅ | - |
+| 5 | reviewer | revue 2 : `stories/S-14-revue-2.md`, aucun problème | validé |
+| 2 | dev | terminé : événement `working-tree-changed` passé aux événements typés tauri-specta ; tests, lint, build, e2e, audit verts ; `format:check` ❌ sur `CLAUDE.local.md` seul | - |
+| 3 | reviewer (opus) | revue 1 : `stories/S-14-revue-1.md` ; 2 bloquants (Stash dans `WorkingChanges`, titre sans compte), 2 mineurs | à corriger |

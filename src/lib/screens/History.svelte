@@ -1,11 +1,19 @@
 <script lang="ts">
-  import type { Column, CommitDetailView, RecentView, RepositoryView } from "../bindings";
+  import { untrack } from "svelte";
+  import type {
+    Column,
+    CommitDetailView,
+    RecentView,
+    RepositoryView,
+    WorkingTreeView,
+  } from "../bindings";
   import BranchSidebar from "../components/BranchSidebar.svelte";
   import CommitDetail from "../components/CommitDetail.svelte";
   import CommitGraph from "../components/CommitGraph.svelte";
   import FetchStatus from "../components/FetchStatus.svelte";
   import ProfileBadge from "../components/ProfileBadge.svelte";
   import RepoPicker from "../components/RepoPicker.svelte";
+  import WorkingChanges from "../components/WorkingChanges.svelte";
 
   let {
     repository,
@@ -30,7 +38,16 @@
     onrefdblclick,
     onrefcontextmenu,
     loadDetail,
+    workingTree = null,
+    onstageall,
+    onunstageall,
   }: {
+    /** Fichiers non indexés et indexés du dépôt (ligne WIP, `WorkingChanges`), ou `null` tant qu'ils ne sont pas lus. */
+    workingTree?: WorkingTreeView | null;
+    /** Stage all de `WorkingChanges`. */
+    onstageall?: () => void;
+    /** Unstage all de `WorkingChanges`. */
+    onunstageall?: () => void;
     /** Double-clic sur l'étiquette d'une ref du graphe (checkout : S-25). */
     onrefdblclick?: (name: string) => void;
     /** Clic droit sur l'étiquette d'une ref du graphe (`RefContextMenu` : S-36). */
@@ -72,11 +89,36 @@
     loadDetail: (id: string) => Promise<CommitDetailView>;
   } = $props();
 
+  /** La ligne WIP est sélectionnée à l'ouverture d'un dépôt ; sinon `selected` est le commit choisi. */
+  let wipSelected = $state(true);
   let selected: string | null = $state(null);
   let detail: CommitDetailView | null = $state(null);
   let detailError: string | null = $state(null);
 
+  let lastOpen: unknown = undefined;
+  $effect.pre(() => {
+    const open = openId;
+    untrack(() => {
+      if (open !== lastOpen) selectWip();
+      lastOpen = open;
+    });
+  });
+
+  function selectWip() {
+    wipSelected = true;
+    selected = null;
+    detail = null;
+    detailError = null;
+  }
+
+  const changedFiles = $derived(
+    workingTree === null
+      ? null
+      : new Set([...workingTree.unstaged, ...workingTree.staged].map((f) => f.path)).size,
+  );
+
   async function select(id: string) {
+    wipSelected = false;
     selected = id;
     detail = null;
     detailError = null;
@@ -105,6 +147,8 @@
     <RepoPicker {recent} current={repository.path} {onopen} {onchoose} />
     <span class="path">{repository.path}</span>
     <div class="end">
+      <!-- Stash complet (StashButtons) : S-32. Ici, seulement l'état désactivé. -->
+      <button type="button" class="stash-button" disabled>Stash</button>
       <ProfileBadge profile={repository.profile ?? null} />
       <FetchStatus {lastFetched} />
       {#if tracking}
@@ -121,44 +165,55 @@
     <p class="error" role="alert">{error}</p>
   {/if}
 
-  {#if repository.commits.length === 0}
-    <p class="empty">No commits yet.</p>
-  {:else}
-    <div class="body">
-      <BranchSidebar
-        refs={repository.refs}
-        commits={repository.commits}
-        {stashTitles}
-        collapsed={collapsedFolders}
-        ontoggle={ontogglefolder}
-        {sectionHeights}
-        {collapsedSections}
-        {openId}
-        {panelCollapsed}
-        {onpaneltoggle}
-        onheight={onsectionheight}
-        {onsectiontoggle}
-      />
-      <CommitGraph
-        commits={repository.commits}
-        refs={repository.refs}
-        {selected}
-        {hiddenColumns}
-        {openId}
-        savedWidth={graphWidth}
-        onwidth={ongraphwidth}
-        onselect={select}
-        {onhidecolumns}
-        {onrefdblclick}
-        {onrefcontextmenu}
-      />
-      {#if detail}
-        <aside class="panel"><CommitDetail {detail} /></aside>
-      {:else if detailError}
-        <aside class="panel"><p class="error" role="alert">{detailError}</p></aside>
-      {/if}
-    </div>
-  {/if}
+  <div class="body">
+    <BranchSidebar
+      refs={repository.refs}
+      commits={repository.commits}
+      {stashTitles}
+      collapsed={collapsedFolders}
+      ontoggle={ontogglefolder}
+      {sectionHeights}
+      {collapsedSections}
+      {openId}
+      {panelCollapsed}
+      {onpaneltoggle}
+      onheight={onsectionheight}
+      {onsectiontoggle}
+    />
+    <CommitGraph
+      commits={repository.commits}
+      refs={repository.refs}
+      {selected}
+      {hiddenColumns}
+      {openId}
+      savedWidth={graphWidth}
+      onwidth={ongraphwidth}
+      onselect={select}
+      {onhidecolumns}
+      {onrefdblclick}
+      {onrefcontextmenu}
+      wip={{ count: changedFiles }}
+      {wipSelected}
+      onselectwip={selectWip}
+    />
+    {#if wipSelected}
+      <!-- Le panneau tient sa place dès l'ouverture, même avant la lecture de l'arbre : la zone du graphe, mesurée pour sa largeur par défaut, ne rétrécit pas ensuite. -->
+      <aside class="panel">
+        {#if workingTree}
+          <WorkingChanges
+            tree={workingTree}
+            branch={current?.name ?? null}
+            onstageall={() => onstageall?.()}
+            onunstageall={() => onunstageall?.()}
+          />
+        {/if}
+      </aside>
+    {:else if detail}
+      <aside class="panel"><CommitDetail {detail} /></aside>
+    {:else if detailError}
+      <aside class="panel"><p class="error" role="alert">{detailError}</p></aside>
+    {/if}
+  </div>
 </main>
 
 <style>
@@ -208,6 +263,16 @@
     margin-left: auto;
   }
 
+  .stash-button {
+    padding: 2px 10px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+  }
+
   .sync {
     display: inline-flex;
     gap: 8px;
@@ -230,10 +295,5 @@
     flex: none;
     width: 340px;
     min-height: 0;
-  }
-
-  .empty {
-    margin: 16px;
-    color: var(--muted);
   }
 </style>

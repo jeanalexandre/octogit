@@ -4,6 +4,7 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use octogit_store::Store;
+use tauri::Manager;
 
 use crate::attach::{self, ProfileBadgeView};
 use crate::data_dir;
@@ -15,6 +16,7 @@ use crate::preferences::{self, Column, SectionLayoutView};
 use crate::profiles::{self, ProfileView};
 use crate::propagate::{self, SavedProfileView};
 use crate::ssh_keys::{self, ConnectionTestView, SshKeyView};
+use crate::working_tree::{self, WorkingTreeView};
 
 #[tauri::command]
 #[specta::specta]
@@ -198,6 +200,50 @@ pub fn move_profile(id: String, delta: i32) -> Result<Vec<ProfileView>, String> 
 #[specta::specta]
 pub fn get_commit_detail(path: String, id: String) -> Result<CommitDetailView, String> {
     detail::commit_detail(Path::new(&path), &id)
+}
+
+/// Surveillance en cours de l'arbre de travail du dépôt ouvert (un seul à la fois).
+#[derive(Default)]
+pub struct WatchState(std::sync::Mutex<Option<octogit_git::WorkingTreeWatcher>>);
+
+/// Fichiers non indexés et indexés du dépôt `path` (`WorkingChanges`, compteur de la ligne WIP).
+#[tauri::command]
+#[specta::specta]
+pub fn get_working_tree(path: String) -> Result<WorkingTreeView, String> {
+    working_tree::working_tree(Path::new(&path))
+}
+
+/// Stage all : tout l'arbre de travail passe dans l'index ; rend le nouvel état.
+#[tauri::command]
+#[specta::specta]
+pub fn stage_all(path: String) -> Result<WorkingTreeView, String> {
+    working_tree::stage_all(Path::new(&path))
+}
+
+/// Unstage all : l'index revient à `HEAD` ; rend le nouvel état.
+#[tauri::command]
+#[specta::specta]
+pub fn unstage_all(path: String) -> Result<WorkingTreeView, String> {
+    working_tree::unstage_all(Path::new(&path))
+}
+
+/// Surveille `path` (remplace la surveillance précédente ; un chemin vide l'arrête sans en lancer
+/// d'autre, quand plus aucun dépôt n'est ouvert). L'événement `working-tree-changed`
+/// (`WorkingTreeChanged`) part à chaque changement fait hors d'Octogit. La surveillance est active
+/// au retour de la commande.
+#[tauri::command]
+#[specta::specta]
+pub async fn watch_working_tree(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<WatchState>();
+        let emitter = app.clone();
+        let mut slot = state.0.lock().map_err(|_| "Watching failed.".to_string())?;
+        working_tree::replace_watch(&mut slot, &path, move |event| {
+            let _ = tauri_specta::Event::emit(&event, &emitter);
+        })
+    })
+    .await
+    .map_err(|_| "Watching was interrupted.".to_string())?
 }
 
 /// Fetch automatique de `path` en tâche de fond (sans bloquer l'interface), puis relecture du dépôt s'il a changé.

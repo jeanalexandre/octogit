@@ -28,7 +28,8 @@ export class Workspace {
       | "conflict"
       | "identity"
       | "wide"
-      | "large",
+      | "large"
+      | "wip",
     name = "my-repo",
   ): string {
     const path = join(this.root, name);
@@ -113,6 +114,23 @@ export class Workspace {
     execFileSync("git", ["-C", repo, "config", "--local", key, value], {
       env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
     });
+  }
+
+  /** Indexe un fichier au terminal (`git add`), hors d'Octogit. */
+  stage(repo: string, file: string): void {
+    execFileSync("git", ["-C", repo, "add", file], {
+      env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+    });
+  }
+
+  /** Fichiers indexés d'un dépôt, par `git diff --cached --name-only` (triés par Git). */
+  stagedFiles(repo: string): string[] {
+    return execFileSync("git", ["-C", repo, "diff", "--cached", "--name-only"], {
+      encoding: "utf8",
+      env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+    })
+      .split("\n")
+      .filter(Boolean);
   }
 
   /** Octets du `.git/config` d'un dépôt, pour comparer avant et après. */

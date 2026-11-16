@@ -11,12 +11,13 @@ pub mod preferences;
 pub mod profiles;
 pub mod propagate;
 pub mod ssh_keys;
+pub mod working_tree;
 
 use std::path::PathBuf;
 
 use octogit_platform::{KeychainStore, PassphraseStore};
 
-use tauri_specta::{collect_commands, Builder};
+use tauri_specta::{collect_commands, collect_events, Builder};
 
 /// Dossier de données : `OCTOGIT_DATA_DIR`, sinon `.dev-data/` du repo en développement,
 /// sinon `~/Library/Application Support/Octogit/` dans l'application livrée.
@@ -58,47 +59,59 @@ pub fn passphrase_store() -> Box<dyn PassphraseStore> {
     Box::new(KeychainStore)
 }
 
-/// Contrat entre Rust et TypeScript : commandes exportées vers `src/lib/bindings.ts`.
+/// Contrat entre Rust et TypeScript : commandes et événements exportés vers `src/lib/bindings.ts`.
 pub fn builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![
-        commands::get_launch_state,
-        commands::list_recent_repositories,
-        commands::open_repository,
-        commands::overwrite_identity,
-        commands::import_local_config,
-        commands::attach_repository,
-        commands::choose_folder,
-        commands::get_hidden_columns,
-        commands::set_hidden_columns,
-        commands::get_section_layout,
-        commands::set_section_height,
-        commands::set_section_collapsed,
-        commands::get_panel_collapsed,
-        commands::set_panel_collapsed,
-        commands::get_collapsed_folders,
-        commands::set_folder_collapsed,
-        commands::get_graph_width,
-        commands::set_graph_width,
-        commands::get_commit_detail,
-        commands::fetch_repository,
-        commands::list_profiles,
-        commands::save_profile,
-        commands::list_profile_repositories,
-        commands::delete_profile,
-        commands::move_profile,
-        commands::choose_ssh_key,
-        commands::inspect_ssh_key,
-        commands::unlock_ssh_key,
-        commands::propose_ssh_key,
-        commands::generate_ssh_key,
-        commands::copy_public_key,
-        commands::test_ssh_connection
-    ])
+    Builder::<tauri::Wry>::new()
+        .events(collect_events![working_tree::WorkingTreeChanged])
+        .commands(collect_commands![
+            commands::get_launch_state,
+            commands::list_recent_repositories,
+            commands::open_repository,
+            commands::overwrite_identity,
+            commands::import_local_config,
+            commands::attach_repository,
+            commands::choose_folder,
+            commands::get_hidden_columns,
+            commands::set_hidden_columns,
+            commands::get_section_layout,
+            commands::set_section_height,
+            commands::set_section_collapsed,
+            commands::get_panel_collapsed,
+            commands::set_panel_collapsed,
+            commands::get_collapsed_folders,
+            commands::set_folder_collapsed,
+            commands::get_graph_width,
+            commands::set_graph_width,
+            commands::get_commit_detail,
+            commands::get_working_tree,
+            commands::stage_all,
+            commands::unstage_all,
+            commands::watch_working_tree,
+            commands::fetch_repository,
+            commands::list_profiles,
+            commands::save_profile,
+            commands::list_profile_repositories,
+            commands::delete_profile,
+            commands::move_profile,
+            commands::choose_ssh_key,
+            commands::inspect_ssh_key,
+            commands::unlock_ssh_key,
+            commands::propose_ssh_key,
+            commands::generate_ssh_key,
+            commands::copy_public_key,
+            commands::test_ssh_connection
+        ])
 }
 
 pub fn run() {
     let builder = builder();
+    let events = builder.clone();
     tauri::Builder::default()
+        .manage(commands::WatchState::default())
+        .setup(move |app| {
+            events.mount_events(app);
+            Ok(())
+        })
         .plugin(octogit_platform::dialog_plugin())
         .plugin(octogit_platform::clipboard_plugin())
         .invoke_handler(builder.invoke_handler())

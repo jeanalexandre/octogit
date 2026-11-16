@@ -10,6 +10,7 @@
 
 - [ ] Vérifier à l'œil l'icône d'Octogit installée depuis le `.dmg` : Dock, Cmd+Tab, Finder et « À propos » (le contenu du bundle est vérifié par `scripts/check-bundle.sh`, pas l'affichage) (S-64, revue 1 et revue 2)
 - [ ] Tester à la main le vrai trousseau macOS dans l'application livrée : générer une clé avec passphrase, relancer Octogit, vérifier que la passphrase n'est pas redemandée (CA-15 ; aucun test automatique ne l'exerce, voir README « Profils ») (S-8, revue 1 et revue 2)
+- [ ] Vérifier à la main, dans l'application livrée, la mise à jour en moins de 1 s de `WorkingChanges` et de la ligne WIP : modifier un fichier dans un éditeur et voir le compteur changer (CA-4 ; les tests passent par le pont de test, aucun test automatique n'exerce l'événement Tauri réel) (S-14, revue 1)
 
 ## Limites et risques acceptés
 
@@ -27,3 +28,4 @@
 - Modifier ou supprimer un profil ne touche que les dépôts de Recent : un dépôt rattaché mais absent de Recent n'est ni réécrit ni listé. Un rattachement manuel vers un profil supprimé reste mémorisé dans `repositories.json` et s'affiche « No profile » (S-13, passage 1, d'office)
 - Un dépôt de Recent dont les seules valeurs locales manquent s'affiche conforme : elles sont écrites à son ouverture (S-12, passage 1, d'office). Un récent introuvable rattaché par une règle de chemin s'affiche « identity mismatch » jusqu'à S-54 (S-12, revue 1)
 - Les tests de `src/livraison.test.ts` échouent parfois sous charge (vus en échec puis verts à la relance) (S-10, revue 1, pour information ; S-11, revue 1 et revue 2)
+- Pendant un build dans le dépôt ouvert, la surveillance de l'arbre de travail relit l'état au plus toutes les 400 ms ; le coût en CPU croît avec la taille du dépôt. Une modification du contenu d'un fichier déjà listé ne change pas la liste et n'émet rien (S-14, revue 1, pour information)

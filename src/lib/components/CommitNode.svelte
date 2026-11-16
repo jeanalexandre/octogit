@@ -5,11 +5,14 @@
     author,
     color,
     stash = false,
+    wip = false,
   }: {
     author: string;
     color: number;
     /** Ligne d'un stash : carré à icône d'archive, sans initiales. */
     stash?: boolean;
+    /** Ligne WIP : cercle en pointillés, sans initiales (rien n'est encore commité). */
+    wip?: boolean;
   } = $props();
 
   /** Deux lettres : première lettre du prénom et du dernier mot du nom (un seul mot : ses deux premières). */
@@ -27,12 +30,14 @@
 <span
   class="node"
   class:stash
+  class:wip
   data-node
+  data-wip={wip ? "" : undefined}
   data-shape={stash ? "square" : "circle"}
   style="--lane: var(--lane-{color + 1})"
   >{#if stash}<span class="icon" data-icon="stash" aria-hidden="true"
       ><Archive size={16} strokeWidth={1.8} /></span
-    >{:else}{initials(author)}{/if}</span
+    >{:else if !wip}{initials(author)}{/if}</span
 >
 
 <style>
@@ -52,6 +57,10 @@
   }
   .node.stash {
     border-radius: 5px;
+  }
+  .node.wip {
+    border-style: dashed;
+    background: var(--surface);
   }
   .icon {
     display: inline-flex;

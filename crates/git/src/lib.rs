@@ -2,12 +2,16 @@
 
 mod fetch;
 mod graph;
+mod working_tree;
 
 use std::fmt;
 use std::path::Path;
 
 pub use fetch::{fetch, FetchError, FETCH_TIMEOUT};
 pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};
+pub use working_tree::{
+    read_working_tree, stage_all, unstage_all, WorkingTree, WorkingTreeWatcher,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommitInfo {

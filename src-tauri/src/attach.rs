@@ -184,6 +184,59 @@ pub fn badge_of(store: &Store, repo: &Path, home: &Path) -> Option<ProfileBadgeV
     Some(badge(&profile, conform))
 }
 
+/// Rattachement d'un dépôt après un choix dans le menu de `ProfileBadge`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentView {
+    /// Profil rattaché ; `None` : « No profile ».
+    pub profile: Option<ProfileBadgeView>,
+    /// Écart entre le `.git/config` local et le profil (`IdentityMismatch`), rien n'a été écrit.
+    pub mismatch: Option<MismatchView>,
+    /// Le rattachement vient d'un choix manuel (« Reset to rules » est alors actif).
+    pub manual: bool,
+}
+
+fn attachment_view(store: &Store, repo: &Path, home: &Path) -> AttachmentView {
+    let attachment = attach_profile(store, repo, home);
+    AttachmentView {
+        profile: attachment.as_ref().map(|a| a.badge.clone()),
+        mismatch: attachment.and_then(|a| a.mismatch),
+        manual: has_manual_profile(store, repo),
+    }
+}
+
+/// Un choix manuel est-il mémorisé pour `repo` ? (« Reset to rules » n'est actif que dans ce cas.)
+pub fn has_manual_profile(store: &Store, repo: &Path) -> bool {
+    store.manual_profile(repo).is_some()
+}
+
+/// Menu de `ProfileBadge`, choix d'un profil : mémorisé par dépôt (prioritaire sur les règles), puis
+/// rattachement comme à l'ouverture : les valeurs du profil sont écrites si rien ne diffère, sinon l'écart
+/// est rendu pour `IdentityMismatch` et rien n'est écrit. Le choix est mémorisé dans les deux cas.
+pub fn choose_profile(
+    store: &Store,
+    repo: &Path,
+    profile_id: &str,
+    home: &Path,
+) -> Result<AttachmentView, String> {
+    if !store.profiles().iter().any(|p| p.id == profile_id) {
+        return Err("This profile no longer exists.".to_string());
+    }
+    store
+        .set_manual_profile(repo, Some(profile_id))
+        .map_err(|e| format!("The attachment could not be saved: {e}"))?;
+    Ok(attachment_view(store, repo, home))
+}
+
+/// Menu de `ProfileBadge`, « Reset to rules » : le choix manuel est effacé et le dépôt est rattaché par les
+/// règles, avec l'écriture ou l'écart de l'ouverture.
+pub fn reset_to_rules(store: &Store, repo: &Path, home: &Path) -> Result<AttachmentView, String> {
+    store
+        .set_manual_profile(repo, None)
+        .map_err(|e| format!("The attachment could not be saved: {e}"))?;
+    Ok(attachment_view(store, repo, home))
+}
+
 /// Adresse e-mail effective des commits de `repo` : `user.email` du `.git/config` local (affichée sous
 /// le bouton Commit). `None` si elle n'est pas définie ou illisible.
 pub fn local_email(repo: &Path, home: &Path) -> Option<String> {

@@ -4,6 +4,7 @@
     Column,
     CommitDetailView,
     MismatchView,
+    ProfileView,
     RecentView,
     RepositoryView,
     WorkingTreeView,
@@ -46,7 +47,22 @@
     commitEmail = null,
     blocked = null,
     onfixidentity,
+    profiles = [],
+    manualProfile = false,
+    onchooseprofile,
+    onresetprofile,
+    oneditprofiles,
   }: {
+    /** Profils dans l'ordre de la liste (menu de `ProfileBadge`). */
+    profiles?: ProfileView[];
+    /** Un choix manuel de profil est mémorisé pour ce dépôt (« Reset to rules » actif). */
+    manualProfile?: boolean;
+    /** Menu de `ProfileBadge` : choisit ce profil à la main ; rejette avec un message si l'action échoue. */
+    onchooseprofile?: (id: string) => Promise<void>;
+    /** Menu de `ProfileBadge` : « Reset to rules » ; rejette avec un message si l'action échoue. */
+    onresetprofile?: () => Promise<void>;
+    /** Menu de `ProfileBadge` : « Edit profiles… » ouvre `ProfileSettings`. */
+    oneditprofiles?: () => void;
     /** Écart actuel entre le `.git/config` local et le profil (état bloqué de `WorkingChanges`), ou `null`. */
     blocked?: MismatchView | null;
     /** « Fix repository identity » : écrit les valeurs du profil ; rejette avec un message si l'écriture échoue. */
@@ -174,7 +190,15 @@
     <div class="end">
       <!-- Stash complet (StashButtons) : S-32. Ici, seulement l'état désactivé. -->
       <button type="button" class="stash-button" disabled>Stash</button>
-      <ProfileBadge profile={repository.profile ?? null} />
+      <ProfileBadge
+        profile={repository.profile ?? null}
+        {profiles}
+        manual={manualProfile}
+        onchoose={onchooseprofile}
+        onreset={onresetprofile}
+        onedit={oneditprofiles}
+        onfix={async () => onfixidentity?.()}
+      />
       <FetchStatus {lastFetched} />
       {#if tracking}
         <span class="sync" role="group" aria-label="Ahead and behind">

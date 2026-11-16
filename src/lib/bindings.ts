@@ -17,6 +17,12 @@ export const commands = {
 	importLocalConfig: (path: string) => typedError<ProfileView, string>(__TAURI_INVOKE("import_local_config", { path })),
 	/**  Rattache `path` au profil `profile_id` à la main (mémorisé, prioritaire sur les règles). */
 	attachRepository: (path: string, profileId: string) => typedError<ProfileBadgeView, string>(__TAURI_INVOKE("attach_repository", { path, profileId })),
+	/**  Menu de `ProfileBadge` : rattache `path` au profil choisi (mémorisé, prioritaire sur les règles). */
+	chooseProfile: (path: string, profileId: string) => typedError<AttachmentView_Serialize, string>(__TAURI_INVOKE("choose_profile", { path, profileId })),
+	/**  Menu de `ProfileBadge`, « Reset to rules » : efface le choix manuel de `path`, le rattache par les règles. */
+	resetToRules: (path: string) => typedError<AttachmentView_Serialize, string>(__TAURI_INVOKE("reset_to_rules", { path })),
+	/**  Un choix manuel est-il mémorisé pour `path` ? (« Reset to rules » désactivé sinon.) */
+	hasManualProfile: (path: string) => __TAURI_INVOKE<boolean>("has_manual_profile", { path }),
 	/**  Sélecteur de dossier natif ; `None` si annulé. En mode test, le pont d'interface répond à sa place. */
 	chooseFolder: () => __TAURI_INVOKE<string | null>("choose_folder"),
 	getHiddenColumns: () => __TAURI_INVOKE<Column[]>("get_hidden_columns"),
@@ -104,6 +110,29 @@ export const events = {
 };
 
 /* Types */
+/**  Rattachement d'un dépôt après un choix dans le menu de `ProfileBadge`. */
+export type AttachmentView = AttachmentView_Serialize | AttachmentView_Deserialize;
+
+/**  Rattachement d'un dépôt après un choix dans le menu de `ProfileBadge`. */
+export type AttachmentView_Deserialize = {
+	/**  Profil rattaché ; `None` : « No profile ». */
+	profile?: ProfileBadgeView | null,
+	/**  Écart entre le `.git/config` local et le profil (`IdentityMismatch`), rien n'a été écrit. */
+	mismatch?: MismatchView_Deserialize | null,
+	/**  Le rattachement vient d'un choix manuel (« Reset to rules » est alors actif). */
+	manual: boolean,
+};
+
+/**  Rattachement d'un dépôt après un choix dans le menu de `ProfileBadge`. */
+export type AttachmentView_Serialize = {
+	/**  Profil rattaché ; `None` : « No profile ». */
+	profile: ProfileBadgeView | null,
+	/**  Écart entre le `.git/config` local et le profil (`IdentityMismatch`), rien n'a été écrit. */
+	mismatch: MismatchView_Serialize | null,
+	/**  Le rattachement vient d'un choix manuel (« Reset to rules » est alors actif). */
+	manual: boolean,
+};
+
 export type ChangeStatusView = "modified" | "added" | "deleted";
 
 /**  Colonnes du graphe que l'on peut masquer. */

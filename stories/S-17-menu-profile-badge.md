@@ -22,6 +22,16 @@ Menu de `ProfileBadge` : choisir un profil à la main, Reset to rules, Edit prof
 ### Fiche (16/11/2026)
 1. Rien à confirmer.
 
+### Passage 1 (écarts de dev) (16/11/2026)
+1. Contrat : commandes `choose_profile`, `reset_to_rules`, `has_manual_profile`, type `AttachmentView`, `bindings.ts` régénéré, trois entrées de `octogit-bridge.rs` : accepté (1a).
+2. Texte du badge : garder « No profile » ; corriger `ux/ecrans/communs.md` par `/ksm:ux` (2a).
+3. Choisir un profil sur un dépôt au réglage local différent : choix mémorisé, `IdentityMismatch` affiché, rien d'écrit dans `.git/config` ; `attach_manually` (Import) inchangé (3a).
+4. Bouton Profiles de `Welcome` avec `⌘,` et prop `ProfileSettings.activeId` : conformes à la fiche (oui).
+
+### Après la revue 1 (16/11/2026)
+1. Mineur : espace supprimée dans le commentaire de `local_email` (`attach.rs`) : traiter (d'office), passage 2.
+2. Pour information : 13 FAIL Vitest dans `pnpm test` complet, `pnpm test:js` seul vert (221/221), test instable connu probable : pris en compte (pour information).
+
 ## Contexte technique
 - `stack.md` : Données (rattachements manuels mémorisés par dépôt dans le fichier des dépôts, crate `store`), Tests ciblés ; rien dans `~/.gitconfig`.
 - Dépend de S-16 : « Fix repository identity » (action et texte) existe déjà dans `WorkingChanges`, la réutiliser pour l'entrée du menu.
@@ -54,7 +64,11 @@ Menu de `ProfileBadge` : choisir un profil à la main, Reset to rules, Edit prof
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<à noter avant le premier passage>`
+- Référence : `c7e75c3`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : 15 fichiers, tests/lint/build/e2e/tauri build verts ; écarts à trancher avant revue (contrat Tauri `choose_profile`, `reset_to_rules`, `has_manual_profile`, type `AttachmentView` ; texte « No profile » vs maquette ; choix sur réglage local différent mémorisé sans écriture ; prop `activeId` ; bouton Profiles ajouté à Welcome) | — |
+| 1 | reviewer | validé, 1 mineur (commentaire `local_email`), `stories/S-17-revue-1.md` | validé avec mineur |
+| 2 | dev | terminé : espace du commentaire `local_email` rétablie ; format, lint, tests verts | — |
+| 2 | reviewer | validé, aucun problème, `stories/S-17-revue-2.md` | validé |

@@ -295,6 +295,53 @@
     };
   }
 
+  /** Un choix manuel de profil est mémorisé pour le dépôt ouvert (« Reset to rules » actif), relu à chaque ouverture. */
+  let manualProfile = $state(false);
+  $effect(() => {
+    const path = openPath;
+    void openCount;
+    manualProfile = false;
+    if (path === null) return;
+    let stale = false;
+    void commands.hasManualProfile(path).then((manual) => {
+      if (!stale) manualProfile = manual;
+    });
+    return () => {
+      stale = true;
+    };
+  });
+
+  /** Menu de `ProfileBadge` : le rattachement rendu par le cœur remplace badge et écart, `IdentityMismatch` s'ouvre si besoin. */
+  async function applyAttachment(
+    path: string,
+    result: Awaited<ReturnType<typeof commands.resetToRules>>,
+  ) {
+    if (result.status !== "ok") throw result.error;
+    if (openPath !== path || screen?.screen !== "history") return;
+    manualProfile = result.data.manual;
+    mismatchHidden = false;
+    screen = {
+      screen: "history",
+      repository: {
+        ...screen.repository,
+        profile: result.data.profile,
+        mismatch: result.data.mismatch,
+      },
+    };
+    await refreshIdentity(path);
+    recent = await commands.listRecentRepositories();
+  }
+
+  async function chooseProfile(id: string) {
+    const path = openPath;
+    if (path !== null) await applyAttachment(path, await commands.chooseProfile(path, id));
+  }
+
+  async function resetToRules() {
+    const path = openPath;
+    if (path !== null) await applyAttachment(path, await commands.resetToRules(path));
+  }
+
   async function overwriteIdentity() {
     if (screen?.screen !== "history") return;
     const result = await commands.overwriteIdentity(screen.repository.path);
@@ -332,6 +379,7 @@
       const attached = await commands.attachRepository(importPath, result.data.profile.id);
       if (attached.status !== "ok") throw attached.error;
       updateAttachment(attached.data);
+      manualProfile = true;
       closeSettings();
     }
     return {
@@ -420,6 +468,7 @@
     ondelete={deleteProfile}
     ssh={sshApi}
     initial={importDraft ?? undefined}
+    activeId={screen?.screen === "history" ? screen.repository.profile?.id : undefined}
     onclose={closeSettings}
   />
 {:else if screen?.screen === "history"}
@@ -451,9 +500,20 @@
     {commitEmail}
     {blocked}
     onfixidentity={fixIdentity}
+    {profiles}
+    {manualProfile}
+    onchooseprofile={chooseProfile}
+    onresetprofile={resetToRules}
+    oneditprofiles={() => (settingsOpen = true)}
   />
 {:else if screen?.screen === "welcome"}
-  <Welcome {recent} {error} onopen={open} onchoose={chooseFolder} />
+  <Welcome
+    {recent}
+    {error}
+    onopen={open}
+    onchoose={chooseFolder}
+    onprofiles={() => (settingsOpen = true)}
+  />
 {/if}
 
 {#if mismatch}

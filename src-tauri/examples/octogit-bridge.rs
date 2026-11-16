@@ -253,6 +253,28 @@ fn main() {
                 Err(error) => (serde_json::to_string(&error), 3),
             }
         }
+        "choose_profile" => {
+            let args: AttachArgs =
+                serde_json::from_str(&input).expect("arguments { path, profileId }");
+            match octogit_app::commands::choose_profile(args.path, args.profile_id) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "reset_to_rules" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            match octogit_app::commands::reset_to_rules(args.path) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "has_manual_profile" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            (
+                serde_json::to_string(&octogit_app::commands::has_manual_profile(args.path)),
+                0,
+            )
+        }
         "get_hidden_columns" => (
             serde_json::to_string(&octogit_app::commands::get_hidden_columns()),
             0,

@@ -8,7 +8,10 @@
     error,
     onopen,
     onchoose,
+    onprofiles,
   }: {
+    /** « Profiles » (⌘,) : ouvre `ProfileSettings`. */
+    onprofiles?: () => void;
     recent: RecentView[];
     /** Message du dernier dossier refusé, ou `null`. */
     error: string | null;
@@ -48,6 +51,9 @@
 
   <button type="button" class="open-folder" onclick={onchoose}>
     Open folder… <kbd>⌘O</kbd>
+  </button>
+  <button type="button" class="open-folder" onclick={() => onprofiles?.()}>
+    Profiles <kbd>⌘,</kbd>
   </button>
 </main>
 

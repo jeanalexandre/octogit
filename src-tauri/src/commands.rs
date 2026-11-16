@@ -74,6 +74,36 @@ pub fn attach_repository(path: String, profile_id: String) -> Result<ProfileBadg
     )
 }
 
+/// Menu de `ProfileBadge` : rattache `path` au profil choisi (mémorisé, prioritaire sur les règles).
+#[tauri::command]
+#[specta::specta]
+pub fn choose_profile(path: String, profile_id: String) -> Result<attach::AttachmentView, String> {
+    attach::choose_profile(
+        &Store::new(data_dir()),
+        Path::new(&path),
+        &profile_id,
+        &crate::home_dir(),
+    )
+}
+
+/// Menu de `ProfileBadge`, « Reset to rules » : efface le choix manuel de `path`, le rattache par les règles.
+#[tauri::command]
+#[specta::specta]
+pub fn reset_to_rules(path: String) -> Result<attach::AttachmentView, String> {
+    attach::reset_to_rules(
+        &Store::new(data_dir()),
+        Path::new(&path),
+        &crate::home_dir(),
+    )
+}
+
+/// Un choix manuel est-il mémorisé pour `path` ? (« Reset to rules » désactivé sinon.)
+#[tauri::command]
+#[specta::specta]
+pub fn has_manual_profile(path: String) -> bool {
+    attach::has_manual_profile(&Store::new(data_dir()), Path::new(&path))
+}
+
 /// Sélecteur de dossier natif ; `None` si annulé. En mode test, le pont d'interface répond à sa place.
 #[tauri::command]
 #[specta::specta]

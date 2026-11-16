@@ -4,7 +4,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use octogit_app::attach::{attach_manually, import_local_config, overwrite_identity, OriginView};
+use octogit_app::attach::{
+    attach_manually, choose_profile, has_manual_profile, import_local_config, overwrite_identity,
+    reset_to_rules, OriginView,
+};
 use octogit_app::open::open_repository_in;
 use octogit_identity::{MatchingRule, Profile, RuleKind};
 use octogit_store::Store;
@@ -273,4 +276,123 @@ fn proteger_l_identite_ca_8_saving_an_import_writes_the_profile_so_the_mismatch_
     let reopened = sb.open(&repo);
     assert!(reopened.mismatch.is_none());
     assert_eq!(reopened.profile.unwrap().name, "Imported");
+}
+
+/// Work (règle Path) et Perso (sans règle), dépôt sans identité locale.
+fn work_and_perso(sb: &Sandbox, name: &str) -> PathBuf {
+    let repo = sb.repo(name);
+    let work = sb.profile("p1", "Work", vec![path_rule("~/Dev/work/**")]);
+    let perso = sb.profile("p2", "Perso", vec![]);
+    sb.store.set_profiles(&[work, perso]).unwrap();
+    repo
+}
+
+#[test]
+fn proteger_l_identite_ca_10_choosing_a_profile_attaches_it_writes_its_values_and_survives_a_reopen(
+) {
+    let sb = Sandbox::new("ca10-choose");
+    let repo = work_and_perso(&sb, "Dev/work/app");
+
+    let chosen = choose_profile(&sb.store, &repo, "p2", &sb.home).unwrap();
+
+    let badge = chosen.profile.expect("a profile is attached");
+    assert_eq!(badge.name, "Perso");
+    assert!(badge.conform);
+    assert!(chosen.mismatch.is_none());
+    assert!(chosen.manual);
+    assert_eq!(
+        git(&repo, &["config", "--local", "user.email"]),
+        "p2@example.org"
+    );
+    assert_eq!(
+        git(&repo, &["config", "--local", "user.name"]),
+        "Perso User"
+    );
+    // Après relance : toujours Perso, même si une règle désigne Work.
+    let reopened = open_repository_in(&Store::new(sb.store.dir()), &repo, 2, &sb.home).unwrap();
+    assert_eq!(reopened.profile.unwrap().name, "Perso");
+}
+
+#[test]
+fn proteger_l_identite_ca_10_choosing_a_profile_on_a_differing_local_setting_gives_the_mismatch_and_writes_nothing(
+) {
+    let sb = Sandbox::new("ca10-mismatch");
+    let repo = work_and_perso(&sb, "Dev/work/app");
+    git(
+        &repo,
+        &["config", "--local", "user.email", "other@example.org"],
+    );
+    let before = fs::read(repo.join(".git/config")).unwrap();
+
+    let chosen = choose_profile(&sb.store, &repo, "p2", &sb.home).unwrap();
+
+    let badge = chosen.profile.expect("a profile is attached");
+    assert_eq!(badge.name, "Perso");
+    assert!(!badge.conform);
+    let mismatch = chosen.mismatch.expect("a mismatch is reported");
+    assert_eq!(mismatch.profile_name, "Perso");
+    assert_eq!(mismatch.origin, OriginView::Manual);
+    assert_eq!(fs::read(repo.join(".git/config")).unwrap(), before);
+    assert!(choose_profile(&sb.store, &repo, "p9", &sb.home).is_err());
+}
+
+#[test]
+fn proteger_l_identite_ca_11_reset_to_rules_clears_the_choice_and_attaches_the_rule_profile() {
+    let sb = Sandbox::new("ca11-reset");
+    let repo = work_and_perso(&sb, "Dev/work/app");
+    assert!(!has_manual_profile(&sb.store, &repo));
+    choose_profile(&sb.store, &repo, "p2", &sb.home).unwrap();
+    assert!(has_manual_profile(&sb.store, &repo));
+
+    // Perso a écrit ses valeurs : Work, désigné par la règle, diffère maintenant.
+    let reset = reset_to_rules(&sb.store, &repo, &sb.home).unwrap();
+
+    assert!(!reset.manual);
+    assert!(!has_manual_profile(&sb.store, &repo));
+    assert_eq!(reset.profile.unwrap().name, "Work");
+    let mismatch = reset
+        .mismatch
+        .expect("CA-5: Perso's values differ from Work");
+    assert_eq!(
+        mismatch.origin,
+        OriginView::Rule {
+            pattern: "~/Dev/work/**".into()
+        }
+    );
+    let reopened = open_repository_in(&Store::new(sb.store.dir()), &repo, 2, &sb.home).unwrap();
+    assert_eq!(reopened.profile.unwrap().name, "Work");
+}
+
+#[test]
+fn proteger_l_identite_ca_11_reset_to_rules_writes_the_rule_profile_when_nothing_differs() {
+    let sb = Sandbox::new("ca11-write");
+    let repo = work_and_perso(&sb, "Dev/work/app");
+    // Choix manuel sans écriture (réglage local différent), puis réglage retiré.
+    git(&repo, &["config", "--local", "user.email", "x@example.org"]);
+    choose_profile(&sb.store, &repo, "p2", &sb.home).unwrap();
+    git(&repo, &["config", "--local", "--unset", "user.email"]);
+
+    let reset = reset_to_rules(&sb.store, &repo, &sb.home).unwrap();
+
+    let badge = reset.profile.unwrap();
+    assert_eq!(badge.name, "Work");
+    assert!(badge.conform);
+    assert!(reset.mismatch.is_none());
+    assert_eq!(
+        git(&repo, &["config", "--local", "user.email"]),
+        "p1@example.org"
+    );
+}
+
+#[test]
+fn proteger_l_identite_ca_11_reset_to_rules_without_a_matching_rule_gives_no_profile() {
+    let sb = Sandbox::new("ca11-none");
+    let repo = work_and_perso(&sb, "Other/app");
+    choose_profile(&sb.store, &repo, "p2", &sb.home).unwrap();
+
+    let reset = reset_to_rules(&sb.store, &repo, &sb.home).unwrap();
+
+    assert!(reset.profile.is_none());
+    assert!(reset.mismatch.is_none());
+    assert!(!reset.manual);
 }

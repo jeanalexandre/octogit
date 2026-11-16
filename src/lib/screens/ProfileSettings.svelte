@@ -15,7 +15,10 @@
     onclose,
     ssh,
     initial,
+    activeId,
   }: {
+    /** Profil actif du dépôt d'origine : celui sur lequel l'écran s'ouvre. */
+    activeId?: string;
     /** Nouveau profil pré-rempli (Import local config into Octogit…) : ouvert à la place du premier profil. */
     initial?: ProfileView;
     /** Clé SSH du profil : sélecteur, génération, empreinte, passphrase, presse-papiers. */
@@ -58,12 +61,13 @@
   /** Copie du profil, règles comprises : le brouillon ne doit jamais muter le profil enregistré. */
   const copy = (p: ProfileView): ProfileView => ({ ...p, rules: p.rules.map((r) => ({ ...r })) });
 
+  /** Profil ouvert à l'arrivée : le profil actif du dépôt s'il est dans la liste, sinon le premier. */
+  const first = untrack(() => profiles.find((p) => p.id === activeId) ?? profiles[0]);
+
   // `null` : nouveau profil, pas encore enregistré.
-  let selectedId: string | null = $state(
-    untrack(() => (initial ? null : (profiles[0]?.id ?? null))),
-  );
+  let selectedId: string | null = $state(untrack(() => (initial ? null : (first?.id ?? null))));
   let draft: ProfileView = $state(
-    untrack(() => (initial ? copy(initial) : profiles[0] ? copy(profiles[0]) : blank())),
+    untrack(() => (initial ? copy(initial) : first ? copy(first) : blank())),
   );
   /** Brouillon pré-rempli par Import : formulaire complet (signature comprise), bouton Save. */
   let prefilled = $state(untrack(() => initial !== undefined));

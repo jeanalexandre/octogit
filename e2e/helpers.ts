@@ -150,6 +150,17 @@ export class Workspace {
     }
   }
 
+  /**
+   * Rattache `repo` (sous `root`) au profil « Work » par une règle de chemin et retire son identité locale :
+   * Octogit écrit celle de Work à l'ouverture, le dépôt est conforme (Commit et Push ne sont pas bloqués).
+   */
+  attachWork(repo: string): void {
+    this.clearLocalIdentity(repo);
+    this.rememberProfiles([
+      { name: "Work", rules: [{ kind: "path", pattern: `${this.root}/**` }] },
+    ]);
+  }
+
   /** Remplace l'URL de `origin` (sans réseau) : `git@github.com:owner/repo.git`. */
   setOrigin(repo: string, url: string): void {
     execFileSync("git", ["-C", repo, "remote", "set-url", "origin", url]);

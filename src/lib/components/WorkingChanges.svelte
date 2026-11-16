@@ -16,8 +16,11 @@
     canAmend = false,
     identity = null,
     blocked = null,
+    noProfile = false,
     onfix,
   }: {
+    /** Le dépôt n'a pas de profil rattaché : Commit est désactivé avec la raison « No profile ». */
+    noProfile?: boolean;
     /** L'identité du `.git/config` local diffère du profil : l'état bloqué remplace la ligne d'identité. */
     blocked?: Pick<MismatchView, "profileName" | "rows"> | null;
     /** « Fix repository identity » : écrit les valeurs du profil ; rejette avec un message si l'écriture échoue. */
@@ -56,11 +59,13 @@
   const reason = $derived(
     blocked
       ? `Identity does not match profile ${blocked.profileName}.`
-      : tree.staged.length === 0
-        ? "No staged changes"
-        : summary.trim() === ""
-          ? "Summary required"
-          : null,
+      : noProfile
+        ? "No profile"
+        : tree.staged.length === 0
+          ? "No staged changes"
+          : summary.trim() === ""
+            ? "Summary required"
+            : null,
   );
   const differing = $derived(blocked?.rows.filter((row) => row.differs) ?? []);
   let fixing = $state(false);

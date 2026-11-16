@@ -420,7 +420,11 @@ fn main() {
         }
         "push_repository" => {
             let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
-            match octogit_app::fetch::push_repository(std::path::Path::new(&args.path)) {
+            match octogit_app::fetch::push_repository(
+                &octogit_store::Store::new(octogit_app::data_dir()),
+                &octogit_app::home_dir(),
+                std::path::Path::new(&args.path),
+            ) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

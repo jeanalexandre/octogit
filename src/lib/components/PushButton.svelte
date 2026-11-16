@@ -2,11 +2,13 @@
   import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+  import type { MismatchView } from "../bindings";
 
   /**
    * Push de la branche courante : « Push n » quand elle est en avance de n, désactivé avec sa raison sans commit
    * en avance, actif sans compteur pour une branche « Not published » (un clic la publie sur `origin` ; sans
-   * `origin`, le refus « No origin remote. » du crate `git` s'affiche en message).
+   * `origin`, le refus « No origin remote. » du crate `git` s'affiche en message). Bloqué, sans compteur, par un
+   * écart d'identité ou « No profile » (le garde Rust refuse aussi, voir `ensure_conform`).
    * Jamais de « Force push » ici (S-24).
    */
   let {
@@ -14,8 +16,14 @@
     published,
     busy = false,
     notice = null,
+    blocked = null,
+    noProfile = false,
     onrun,
   }: {
+    /** L'identité du `.git/config` local diffère du profil : bouton bloqué, même raison que Commit. */
+    blocked?: Pick<MismatchView, "profileName" | "rows"> | null;
+    /** Le dépôt n'a pas de profil rattaché : bouton bloqué avec la raison « No profile. ». */
+    noProfile?: boolean;
     /** Commits de la branche courante absents de sa branche suivie. */
     ahead: number;
     /** La branche courante suit une branche distante ; sinon « Not published ». */
@@ -28,8 +36,16 @@
     onrun: () => void;
   } = $props();
 
-  /** Raison lisible du bouton désactivé, ou `null` s'il est actif. */
-  const reason = $derived(published && ahead === 0 ? "Nothing to push." : null);
+  /** Raison lisible du bouton désactivé, ou `null` s'il est actif. L'identité passe avant le reste. */
+  const reason = $derived(
+    blocked
+      ? `Identity does not match profile ${blocked.profileName}.`
+      : noProfile
+        ? "No profile."
+        : published && ahead === 0
+          ? "Nothing to push."
+          : null,
+  );
   const inactive = $derived(busy || reason !== null);
 
   function run() {
@@ -59,7 +75,7 @@
       Pushing…
     {:else}
       <ArrowUpFromLine size={16} strokeWidth={1.8} aria-hidden="true" />
-      {published && ahead > 0 ? `Push ${ahead}` : "Push"}
+      {published && ahead > 0 && !blocked && !noProfile ? `Push ${ahead}` : "Push"}
     {/if}
   </button>
 </span>

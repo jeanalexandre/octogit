@@ -109,6 +109,9 @@ const clean: WorkingTreeView = { unstaged: [], staged: [] };
 /** Ligne WIP, en tête du graphe. */
 const wipRow = () => screen.getByRole("button", { name: /WIP/ });
 
+/** Profil rattaché et conforme : Push et Commit ne sont pas bloqués par l'identité. */
+const attached = { id: "p1", name: "Work", color: 0, conform: true };
+
 function props(overrides = {}) {
   return {
     repository,
@@ -559,7 +562,10 @@ describe("History", () => {
       r.current ? { ...r, upstream: null, ahead: 0, behind: 0 } : r,
     );
     const onpush = vi.fn();
-    render(History, props({ repository: { ...repository, refs: untracked }, onpush }));
+    render(
+      History,
+      props({ repository: { ...repository, refs: untracked, profile: attached }, onpush }),
+    );
     expect(screen.getByText("Not published")).toBeVisible();
     expect(screen.queryByRole("group", { name: "Ahead and behind" })).toBeNull();
     expect(screen.queryByText(/↑|↓/)).toBeNull();
@@ -571,7 +577,7 @@ describe("History", () => {
 
   it("explorer-l-historique CA-11: a tracked branch shows no Not published, both numbers stay visible and PushButton counts the commits ahead", async () => {
     const onpush = vi.fn();
-    render(History, props({ onpush }));
+    render(History, props({ repository: { ...repository, profile: attached }, onpush }));
     expect(screen.queryByText("Not published")).toBeNull();
     const group = screen.getByRole("group", { name: "Ahead and behind" });
     expect(within(group).getByLabelText("2 commits ahead")).toBeVisible();
@@ -585,12 +591,48 @@ describe("History", () => {
       .filter((r) => r.kind !== "remote")
       .map((r) => (r.current ? { ...r, upstream: null, ahead: 0, behind: 0 } : r));
     const onpush = vi.fn();
-    render(History, props({ repository: { ...repository, refs: noOriginRef }, onpush }));
+    render(
+      History,
+      props({ repository: { ...repository, refs: noOriginRef, profile: attached }, onpush }),
+    );
     const push = screen.getByRole("button", { name: "Push" });
     expect(push).toHaveAttribute("aria-disabled", "false");
     expect(screen.queryByText("No origin remote.")).toBeNull();
     await fireEvent.click(push);
     expect(onpush).toHaveBeenCalledTimes(1);
+  });
+
+  it("proteger-l-identite CA-13, CA-19: without profile PushButton is blocked with « No profile. » and a click pushes nothing", async () => {
+    const onpush = vi.fn();
+    render(History, props({ repository: { ...repository, profile: null }, onpush }));
+    const push = screen.getByRole("button", { name: "Push" });
+    expect(push).toHaveAttribute("aria-disabled", "true");
+    expect(push).toHaveAccessibleDescription("No profile.");
+    await fireEvent.click(push);
+    expect(onpush).not.toHaveBeenCalled();
+  });
+
+  it("proteger-l-identite CA-19: with an identity mismatch PushButton is blocked with the reason of Commit and a click pushes nothing", async () => {
+    const onpush = vi.fn();
+    const blocked = {
+      profileName: "Work",
+      path: "/tmp/my-repo",
+      origin: { kind: "manual" as const },
+      rows: [],
+    };
+    render(
+      History,
+      props({
+        repository: { ...repository, profile: { ...attached, conform: false } },
+        blocked,
+        onpush,
+      }),
+    );
+    const push = screen.getByRole("button", { name: "Push" });
+    expect(push).toHaveAttribute("aria-disabled", "true");
+    expect(push).toHaveAccessibleDescription("Identity does not match profile Work.");
+    await fireEvent.click(push);
+    expect(onpush).not.toHaveBeenCalled();
   });
 
   it("synchroniser CA-15: the push message and the busy state reach PushButton, never Force push", () => {

@@ -123,18 +123,44 @@ fn mismatch_of(
     })
 }
 
+/// Comme `mismatch_of`, mais des valeurs qu'on ne peut ni calculer ni lire (signature cochée dont le `.pub`
+/// manque…) donnent un écart sans lignes : le badge dit « identity mismatch », Commit et Push restent bloqués.
+fn blocking_mismatch(
+    profile: &Profile,
+    origin: OriginView,
+    repo: &Path,
+    home: &Path,
+) -> Option<MismatchView> {
+    if expected_values(profile, home).is_err() || read_local(repo, home).is_err() {
+        return Some(MismatchView {
+            profile_name: profile.name.clone(),
+            path: repo.to_string_lossy().into_owned(),
+            origin,
+            rows: Vec::new(),
+        });
+    }
+    mismatch_of(profile, origin, repo, home)
+}
+
 /// Écart actuel du `.git/config` local de `repo` avec le profil rattaché, relu à chaque appel (identité
 /// modifiée au terminal depuis l'ouverture comprise) ; `None` : conforme, ou aucun profil rattaché
-/// (« No profile » : S-21). Rien n'est écrit.
+/// (« No profile », voir `ensure_conform`). Des valeurs du profil impossibles à calculer donnent un écart
+/// sans lignes. Rien n'est écrit.
 pub fn current_mismatch(store: &Store, repo: &Path, home: &Path) -> Option<MismatchView> {
     let profiles = store.profiles();
     let (profile, origin) = resolve(store, &profiles, repo, home)?;
-    mismatch_of(&profile, origin, repo, home)
+    blocking_mismatch(&profile, origin, repo, home)
 }
 
-/// Refuse l'action qui crée un commit quand l'identité locale diffère du profil rattaché.
+/// Garde de Commit (et Amend) et de Push, refait au moment de l'action : refuse quand l'identité locale
+/// diffère du profil rattaché (« Identity does not match profile X. ») et quand aucun profil n'est rattaché
+/// (« No profile. »). Aucun réglage ne le désactive. Rien n'est écrit.
 pub fn ensure_conform(store: &Store, repo: &Path, home: &Path) -> Result<(), String> {
-    match current_mismatch(store, repo, home) {
+    let profiles = store.profiles();
+    let Some((profile, origin)) = resolve(store, &profiles, repo, home) else {
+        return Err("No profile.".to_string());
+    };
+    match blocking_mismatch(&profile, origin, repo, home) {
         Some(mismatch) => Err(format!(
             "Identity does not match profile {}.",
             mismatch.profile_name

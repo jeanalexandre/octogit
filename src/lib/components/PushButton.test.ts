@@ -72,8 +72,41 @@ describe("PushButton", () => {
     expect(screen.queryByRole("button", { name: /force/i })).toBeNull();
   });
 
+  it("proteger-l-identite CA-19: an identity mismatch blocks the button with the same reason as Commit, no counter, no Force push", async () => {
+    const onrun = vi.fn();
+    render(PushButton, {
+      ahead: 2,
+      published: true,
+      blocked: { profileName: "Work", rows: [] },
+      onrun,
+    });
+    const button = screen.getByRole("button", { name: /^Push/ });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button.textContent?.trim()).toBe("Push");
+    expect(button.textContent).not.toMatch(/\d/);
+    expect(screen.getByText("Identity does not match profile Work.")).toBeVisible();
+    expect(button).toHaveAccessibleDescription("Identity does not match profile Work.");
+    expect(screen.queryByText(/force push/i)).toBeNull();
+    await fireEvent.click(button);
+    expect(onrun).not.toHaveBeenCalled();
+  });
+
+  it("proteger-l-identite CA-13, CA-19: no profile blocks the button, even for an unpublished branch", async () => {
+    const onrun = vi.fn();
+    render(PushButton, { ahead: 0, published: false, noProfile: true, onrun });
+    const button = screen.getByRole("button", { name: /^Push/ });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("No profile.")).toBeVisible();
+    expect(button).toHaveAccessibleDescription("No profile.");
+    expect(screen.queryByText(/force push/i)).toBeNull();
+    await fireEvent.click(button);
+    expect(onrun).not.toHaveBeenCalled();
+  });
+
   it("synchroniser CA-15: no state of the button ever says Force push", () => {
     for (const props of [
+      { ahead: 2, published: true, blocked: { profileName: "Work", rows: [] } },
+      { ahead: 0, published: false, noProfile: true },
       { ahead: 2, published: true },
       { ahead: 0, published: true },
       { ahead: 0, published: false },

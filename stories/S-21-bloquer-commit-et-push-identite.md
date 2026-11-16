@@ -71,7 +71,12 @@ Un dépôt non conforme ou « No profile » ne peut ni créer de commit ni pouss
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `4872aa1`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : tests Rust, composants et e2e ajoutés, garde « No profile » et Push gardé, README à jour ; tests, lint, build ✅ | — |
+| 2 | reviewer | revue 1 : aucun bloquant, aucun mineur ; 2 points pour information (fond du dialogue `IdentityMismatch` à regarder dans l'app réelle ; `pnpm dev:web` montre un dépôt local réel) | validé |
+
+### Traitement des retours
+Après la revue 1 : aucun mineur ni point « à décider ». Les deux points « pour information » sont pris en compte (pour information). Écart de `dev` noté : « No profile » sans point pour la raison de Commit, « No profile. » avec point pour Push et le message Rust (lecture littérale de la fiche), sans effet sur un critère.

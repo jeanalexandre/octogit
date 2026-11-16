@@ -12,6 +12,12 @@ const sizes = [
   { width: 1920, height: 1080 },
 ];
 
+/** Dépôt de `push.sh` rattaché à Work : Push n'est pas bloqué par l'identité (voir `identity-push.spec.ts`). */
+const pushRepo = (scenario: Parameters<Workspace["pushRepo"]>[0]) => {
+  const repo = ws.pushRepo(scenario);
+  ws.attachWork(repo);
+  return repo;
+};
 const tracking = (page: Page) => page.getByRole("group", { name: "Ahead and behind" });
 /** `PushButton` : son nom accessible commence par « Push » (le menu de `SyncButton` n'en a pas). */
 const pushButton = (page: Page) => page.getByRole("button", { name: /^(Push|Pushing)/ });
@@ -25,7 +31,7 @@ for (const size of sizes) {
     page,
   }) => {
     await page.setViewportSize(size);
-    const repo = ws.pushRepo("ahead");
+    const repo = pushRepo("ahead");
     ws.rememberRecent([repo]);
     await page.goto(ws.urlWithFetchInterval(3_600_000));
     await expect(tracking(page).getByLabel("2 commits ahead")).toBeVisible();
@@ -58,7 +64,7 @@ for (const size of sizes) {
 test("synchroniser CA-12 : une branche publiée sans commit en avance a un bouton désactivé avec sa raison", async ({
   page,
 }) => {
-  const repo = ws.pushRepo("published");
+  const repo = pushRepo("published");
   ws.rememberRecent([repo]);
   await page.goto(ws.urlWithFetchInterval(3_600_000));
   await expect(tracking(page).getByLabel("0 commits ahead")).toBeVisible();
@@ -72,7 +78,7 @@ for (const size of sizes) {
     page,
   }) => {
     await page.setViewportSize(size);
-    const repo = ws.pushRepo("unpublished");
+    const repo = pushRepo("unpublished");
     ws.rememberRecent([repo]);
     await page.goto(ws.urlWithFetchInterval(3_600_000));
 
@@ -100,7 +106,7 @@ for (const size of sizes) {
 test("synchroniser CA-15 : la distante a reçu des commits d'un autre clone, le push est refusé, jamais de Force push", async ({
   page,
 }) => {
-  const repo = ws.pushRepo("diverged");
+  const repo = pushRepo("diverged");
   ws.rememberRecent([repo]);
   await page.goto(ws.urlWithFetchInterval(3_600_000));
   await expect(tracking(page).getByLabel("2 commits ahead")).toBeVisible();
@@ -130,7 +136,7 @@ test("synchroniser CA-15 : la distante a reçu des commits d'un autre clone, le 
 test("synchroniser CA-14 (décision S-20) : sans remote origin, le push d'une branche « Not published » est refusé par « No origin remote. »", async ({
   page,
 }) => {
-  const repo = ws.pushRepo("no-origin");
+  const repo = pushRepo("no-origin");
   ws.rememberRecent([repo]);
   await page.goto(ws.urlWithFetchInterval(3_600_000));
   await expect(page.getByText("Not published")).toBeVisible();
@@ -143,7 +149,7 @@ test("synchroniser CA-14 (décision S-20) : sans remote origin, le push d'une br
 test("synchroniser CA-13 : origin existe sans aucune ref origin/…, le bouton est actif et le clic publie la branche", async ({
   page,
 }) => {
-  const repo = ws.pushRepo("empty-origin");
+  const repo = pushRepo("empty-origin");
   expect(ws.git(repo, "branch", "--remotes")).toBe("");
   ws.rememberRecent([repo]);
   await page.goto(ws.urlWithFetchInterval(3_600_000));

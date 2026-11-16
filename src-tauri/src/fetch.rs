@@ -2,6 +2,8 @@
 
 use std::path::Path;
 
+use octogit_store::Store;
+
 use crate::launch::{repository_view, RepositoryView};
 
 /// Lance un fetch (avec prune, sans toucher aux branches locales) puis relit le dépôt.
@@ -37,7 +39,9 @@ pub fn pull_repository(path: &Path, rebase: bool) -> Result<RepositoryView, Stri
 /// Push de `PushButton` (branche courante vers sa branche suivie, ou publication sur `origin`) puis relecture du
 /// dépôt, toujours rendu : `ahead` et les refs ont bougé. L'erreur est le message d'une ligne affiché près du
 /// bouton (distante en avance, pas d'`origin`…) ; la sortie brute de Git reste dans le crate `git`.
-pub fn push_repository(path: &Path) -> Result<RepositoryView, String> {
+pub fn push_repository(store: &Store, home: &Path, path: &Path) -> Result<RepositoryView, String> {
+    // Garde d'identité refait ici, avant tout `git push` (publication comprise) : un refus ne lance rien.
+    crate::attach::ensure_conform(store, path, home)?;
     octogit_git::push(path, octogit_git::FETCH_TIMEOUT).map_err(|e| match e {
         octogit_git::PushError::TimedOut { .. } => "Push timed out.".to_string(),
         octogit_git::PushError::Failed { .. } => "Push failed.".to_string(),

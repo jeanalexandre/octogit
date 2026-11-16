@@ -240,6 +240,8 @@
         published={current === undefined || current.upstream != null}
         busy={pushing}
         notice={pushNotice}
+        {blocked}
+        noProfile={!repository.profile}
         onrun={() => onpush?.()}
       />
       {#if tracking}
@@ -307,6 +309,7 @@
             canAmend={current !== undefined}
             {identity}
             {blocked}
+            noProfile={!repository.profile}
             onfix={async () => onfixidentity?.()}
           />
         {/if}

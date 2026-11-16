@@ -13,7 +13,7 @@
     onoverwrite: () => Promise<void>;
     /** « Import local config into Octogit… ». */
     onimport: () => Promise<void>;
-    /** Cancel ou Échap : ferme sans rien écrire (le blocage qui en découle est S-21). */
+    /** Cancel ou Échap : ferme sans rien écrire ; Commit et Push restent bloqués (S-21), le dialogue revient à la réouverture. */
     oncancel: () => void;
   } = $props();
 
@@ -102,6 +102,7 @@
         {/each}
       </tbody>
     </table>
+    <p class="where">Until a choice is made, Commit and Push stay blocked.</p>
     {#if error}
       <p class="error" role="alert">{error}</p>
     {/if}

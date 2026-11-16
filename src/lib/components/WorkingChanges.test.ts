@@ -337,4 +337,18 @@ describe("WorkingChanges", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("No key.");
     expect(commitButton()).toBeDisabled();
   });
+
+  it("proteger-l-identite CA-13: without profile Commit is disabled with the readable reason « No profile », ⌘↵ and Amend create nothing", async () => {
+    const p = props({ noProfile: true, identity: null });
+    render(WorkingChanges, p);
+    await fireEvent.input(summary(), { target: { value: "feat: no profile" } });
+    expect(commitButton()).toBeDisabled();
+    expect(screen.getByText("No profile")).toBeVisible();
+    await fireEvent.keyDown(summary(), { key: "Enter", metaKey: true });
+    await fireEvent.click(screen.getByRole("checkbox", { name: "Amend last commit" }));
+    await waitFor(() => expect(summary().value).toBe("Add keep"));
+    await fireEvent.keyDown(summary(), { key: "Enter", metaKey: true });
+    await fireEvent.click(commitButton());
+    expect(p.oncommit).not.toHaveBeenCalled();
+  });
 });

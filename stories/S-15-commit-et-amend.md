@@ -26,8 +26,8 @@ Committer (bouton « Commit to <branche> » et Cmd+Entrée) avec l'identité du 
 1. Rien à confirmer.
 
 ### Après la revue 1
-1. Maquette `history.html` : ligne « Identity matches profile … » au-dessus du bouton, spec et `ux.md` disent « sous le bouton ». En attente (À décider) : option proposée, garder « sous le bouton » et corriger la maquette par `/ksm:ux`. Le code suit la spec.
-2. Amend sans fichier indexé impossible (lecture littérale de CA-22). En attente (À décider, change spec/périmètre) : option proposée, conserver tel quel et, si l'humain veut l'amend du message seul, amender CA-22/CA-16 par `/ksm:spec` puis story de report. Noté dans `notes-production.md`.
+1. Maquette `history.html` : ligne « Identity matches profile … » au-dessus du bouton, spec et `ux.md` disent « sous le bouton ». Décidé par l'humain (16/11/2026, 1a) : garder « sous le bouton » et corriger la maquette par `/ksm:ux`. Le code suit la spec.
+2. Amend sans fichier indexé impossible (lecture littérale de CA-22). Décidé par l'humain (16/11/2026, 2a) : conserver tel quel. Noté dans `notes-production.md`.
 3. Écarts de `dev` (commandes Tauri `commit` et `get_commit_email`, « Details » avec sortie brute absent, course S-14 « Staged · 0 » après commit) : pris en compte (pour information).
 
 ## Contexte technique

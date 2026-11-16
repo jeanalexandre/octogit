@@ -69,13 +69,68 @@ describe("SyncButton", () => {
     expect(onrun).not.toHaveBeenCalled();
   });
 
-  it("synchroniser CA-1: a Pull default is not runnable yet, with its reason", async () => {
+  it("synchroniser CA-4: a click runs a Pull default on a published branch", async () => {
     const onrun = vi.fn();
     render(SyncButton, { action: "pullFfOnly", onrun });
     const main = screen.getByRole("button", { name: /Pull \(fast-forward only\)/ });
-    expect(main).toHaveAttribute("aria-disabled", "true");
-    expect(main).toHaveAttribute("title", "Pull is not available yet.");
+    expect(main).toHaveAttribute("aria-disabled", "false");
+    await fireEvent.click(main);
+    expect(onrun).toHaveBeenCalledTimes(1);
+  });
+
+  it("synchroniser CA-4: while a Pull runs, the button shows the progress and cannot be started again", async () => {
+    const onrun = vi.fn();
+    render(SyncButton, { action: "pullRebase", busy: true, onrun });
+    const main = screen.getByRole("button", { name: /Pulling/ });
+    expect(main).toHaveAttribute("aria-busy", "true");
     await fireEvent.click(main);
     expect(onrun).not.toHaveBeenCalled();
+  });
+
+  it("synchroniser CA-5: a refusal is shown as a one-line message near the button", () => {
+    render(SyncButton, {
+      action: "pullFfOnly",
+      onrun: vi.fn(),
+      notice: "Branch has diverged: 2 local, 3 on origin.",
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Branch has diverged: 2 local, 3 on origin.",
+    );
+  });
+
+  it("synchroniser CA-5: no message is shown without a refusal", () => {
+    render(SyncButton, { action: "pullFfOnly", onrun: vi.fn() });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  for (const [action, label] of [
+    ["pullFfOnly", /Pull \(fast-forward only\)/],
+    ["pullRebase", /Pull \(rebase\)/],
+  ] as const) {
+    it(`synchroniser CA-10: ${action} on an unpublished branch is disabled with its reason`, async () => {
+      const onrun = vi.fn();
+      render(SyncButton, { action, published: false, onrun });
+      const main = screen.getByRole("button", { name: label });
+      expect(main).toHaveAttribute("aria-disabled", "true");
+      expect(main).toHaveAttribute("title", "Branch not published.");
+      // Raison lisible au lecteur d'écran, pas seulement en infobulle.
+      expect(main).toHaveAccessibleDescription("Branch not published.");
+      await fireEvent.click(main);
+      expect(onrun).not.toHaveBeenCalled();
+    });
+  }
+
+  it("synchroniser CA-10: Fetch All stays active on an unpublished branch, and the Pull entries stay checkable", async () => {
+    const onrun = vi.fn();
+    const onchoose = vi.fn();
+    render(SyncButton, { action: "fetchAll", published: false, onrun, onchoose });
+    const main = screen.getByRole("button", { name: /Fetch All/ });
+    expect(main).toHaveAttribute("aria-disabled", "false");
+    expect(main).not.toHaveAttribute("title");
+    await fireEvent.click(main);
+    expect(onrun).toHaveBeenCalledTimes(1);
+    await fireEvent.click(screen.getByRole("button", { name: "Choose the default action" }));
+    await fireEvent.click(screen.getByRole("menuitemradio", { name: /Pull \(rebase\)/ }));
+    expect(onchoose).toHaveBeenCalledWith("pullRebase");
   });
 });

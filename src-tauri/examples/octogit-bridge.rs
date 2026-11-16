@@ -57,6 +57,12 @@ struct PanelCollapsedArgs {
 }
 
 #[derive(Deserialize)]
+struct PullArgs {
+    path: String,
+    rebase: bool,
+}
+
+#[derive(Deserialize)]
 struct SyncActionArgs {
     action: octogit_app::preferences::SyncAction,
 }
@@ -400,6 +406,14 @@ fn main() {
         "fetch_all_repository" => {
             let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
             match octogit_app::fetch::fetch_all_repository(std::path::Path::new(&args.path)) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "pull_repository" => {
+            let args: PullArgs = serde_json::from_str(&input).expect("arguments { path, rebase }");
+            match octogit_app::fetch::pull_repository(std::path::Path::new(&args.path), args.rebase)
+            {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

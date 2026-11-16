@@ -23,6 +23,14 @@
 ### Fiche (16/11/2026)
 1. Pull (rebase) qui produit un conflit avant S-40 : a) rebase abandonné (`git rebase --abort`), message d'une ligne, branche inchangée (proposé, décision de l'humain)
 2. Entrées Pull du menu sur une branche « Not published » : a) cochables, seule l'exécution est grisée avec « Branch not published. » (proposé, décision de l'humain)
+### Après la revue 1
+1. Mineur 1 (README : message du conflit « Pull stopped on a conflict, rebase aborted. ») : traiter (d'office)
+2. Mineur 2 (`SyncButton` : le bouton se replie sur 2 lignes à 1500×900 avec le refus affiché) : traiter (d'office)
+3. Mineur 3 (e2e CA-10 : `fetched just now` déjà vrai avant le clic sur Fetch All) : traiter (d'office)
+4. Pour information : HEAD détaché ou rebase en cours, le Pull répond « Branch not published. » (S-50 désactive les boutons) : pris en compte (pour information)
+5. Pour information : pas d'indicateur d'avance / retard sur une branche « Not published », écart préexistant : pris en compte (pour information)
+### Après la revue 2
+1. Pour information : bouton sur une ligne à 1500×900 non revu à l'image, chemin du dépôt qui se replie non traité : pris en compte (pour information)
 
 ## Contexte technique
 - Dépend de S-18 (`stories/S-18-syncbutton-fetch-all.md`) : `SyncButton.svelte`, choix de l'action par défaut `sync_action` dans `preferences.json`, Fetch All, garde `inFlight`, mise à jour de `lastFetched` et de `screen` dans `src/App.svelte`. S-18 laisse les entrées Pull cochables sans les exécuter : S-19 branche leur exécution. Lire la décision n° 1 de la fiche S-18 (clic quand l'action par défaut est un Pull) : elle s'applique ici.
@@ -65,8 +73,12 @@
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `33d20f7`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé, tests, lint, build verts | — |
+| 1 | reviewer | `stories/S-19-revue-1.md` : 3 mineurs | validé |
+| 2 | dev | terminé, mineurs 2 et 3 corrigés, 1 déjà conforme | — |
+| 2 | reviewer | `stories/S-19-revue-2.md` : aucun problème | validé |

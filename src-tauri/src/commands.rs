@@ -345,6 +345,16 @@ pub async fn fetch_all_repository(path: String) -> Result<Option<RepositoryView>
         .map_err(|_| "Fetch was interrupted.".to_string())?
 }
 
+/// Pull de `SyncButton` (`rebase` : Pull (rebase), sinon Pull (fast-forward only)) en tâche de fond, puis
+/// relecture du dépôt. L'erreur est un message d'une ligne (divergence, branche non publiée, conflit abandonné…).
+#[tauri::command]
+#[specta::specta]
+pub async fn pull_repository(path: String, rebase: bool) -> Result<RepositoryView, String> {
+    tauri::async_runtime::spawn_blocking(move || fetch::pull_repository(Path::new(&path), rebase))
+        .await
+        .map_err(|_| "Pull was interrupted.".to_string())?
+}
+
 /// Action par défaut de `SyncButton`, commune à tous les dépôts (Fetch All au premier lancement).
 #[tauri::command]
 #[specta::specta]

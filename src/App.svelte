@@ -259,21 +259,66 @@
   let syncAction: SyncAction = $state("fetchAll");
   /** Dépôt dont un Fetch All lancé par `SyncButton` est en cours (`null` : aucun). */
   let syncingPath: string | null = $state(null);
+  /** Message d'une ligne du dernier Pull refusé ou échoué, avec le dépôt concerné ; effacé au prochain lancement. */
+  let syncNotice: { path: string; text: string } | null = $state(null);
 
   async function chooseSyncAction(action: SyncAction) {
     syncAction = action;
     await commands.setSyncAction(action);
   }
 
+  /** Clic sur `SyncButton` : lance l'action par défaut (Fetch All, Pull ff-only ou Pull rebase), une seule à la fois. */
+  async function sync() {
+    const path = openPath;
+    if (path === null || syncingPath !== null) return;
+    syncNotice = null;
+    syncingPath = path;
+    try {
+      if (syncAction === "fetchAll") await fetchAll(path);
+      else await pull(path, syncAction === "pullRebase");
+    } finally {
+      syncingPath = null;
+    }
+  }
+
   /**
-   * Fetch All (tous les remotes, avec prune) du dépôt ouvert, sous la garde du fetch automatique.
+   * Pull (fast-forward only ou rebase) du dépôt ouvert, sous la même garde que le fetch (un seul échange réseau à la
+   * fois par dépôt). Le dépôt relu remplace l'affichage (refs, `ahead` / `behind`), l'arbre de travail est relu, et
+   * `FetchStatus` repart de l'instant du succès (le pull récupère d'abord la distante). Un refus ou un échec laisse
+   * le dépôt tel quel et affiche son message d'une ligne près du bouton.
+   */
+  async function pull(path: string, rebase: boolean) {
+    try {
+      await runFetchNow(path, async () => {
+        const result = await commands.pullRepository(path, rebase);
+        if (screen?.screen !== "history" || screen.repository.path !== path) return;
+        if (result.status !== "ok") {
+          syncNotice = { path, text: result.error };
+          return;
+        }
+        screen = {
+          screen: "history",
+          repository: {
+            ...result.data,
+            profile: screen.repository.profile,
+            mismatch: screen.repository.mismatch,
+          } satisfies RepositoryView,
+        };
+        lastFetched = Date.now() / 1000;
+        const tree = await commands.getWorkingTree(path);
+        if (tree.status === "ok" && openPath === path) workingTree = tree.data;
+      });
+    } catch {
+      // Échec inattendu : l'affichage garde l'état d'avant.
+    }
+  }
+
+  /**
+   * Fetch All (tous les remotes, avec prune) du dépôt, sous la garde du fetch automatique.
    * Comme lui : le dépôt relu remplace l'affichage si les refs ont changé (profil et écart gardés) et
    * `FetchStatus` repart de l'instant du succès ; un échec garde le dernier âge (états d'erreur : S-55).
    */
-  async function fetchAll() {
-    const path = openPath;
-    if (path === null || syncingPath !== null || syncAction !== "fetchAll") return;
-    syncingPath = path;
+  async function fetchAll(path: string) {
     try {
       await runFetchNow(path, async () => {
         const result = await commands.fetchAllRepository(path);
@@ -292,8 +337,6 @@
       });
     } catch {
       // Échec : l'affichage garde le dernier fetch réussi.
-    } finally {
-      syncingPath = null;
     }
   }
 
@@ -551,7 +594,8 @@
     oneditprofiles={() => (settingsOpen = true)}
     {syncAction}
     syncing={syncingPath !== null && syncingPath === openPath}
-    onsync={fetchAll}
+    syncNotice={syncNotice !== null && syncNotice.path === openPath ? syncNotice.text : null}
+    onsync={sync}
     onsyncaction={chooseSyncAction}
   />
 {:else if screen?.screen === "welcome"}

@@ -230,6 +230,29 @@ export class Workspace {
     return git("for-each-ref", "refs/heads") + git("rev-parse", "HEAD");
   }
 
+  /** Fabrique un dépôt de `fixtures/pull.sh` (`behind`, `clean`, `conflict` ou `unpublished`) ; rend son chemin. */
+  pullRepo(scenario: "behind" | "clean" | "conflict" | "unpublished", name = "my-repo"): string {
+    const path = join(this.root, name);
+    execFileSync("sh", [resolve("fixtures", "pull.sh"), path, scenario]);
+    return path;
+  }
+
+  /** Mémorise l'action par défaut de `SyncButton`, comme le ferait une session précédente. */
+  rememberSyncAction(action: "fetch_all" | "pull_ff_only" | "pull_rebase"): void {
+    writeFileSync(
+      join(this.dataDir, "preferences.json"),
+      JSON.stringify({ version: 4, sync_action: action }),
+    );
+  }
+
+  /** Sortie d'une commande `git` lancée dans `repo`, pour vérifier l'état d'un dépôt. */
+  git(repo: string, ...args: string[]): string {
+    return execFileSync("git", ["-C", repo, ...args], {
+      encoding: "utf8",
+      env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+    }).trim();
+  }
+
   /** Contenu décodé de `preferences.json` (vide tant que rien n'est écrit). */
   storedPreferences(): { version?: number; sync_action?: string } {
     try {

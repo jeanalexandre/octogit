@@ -56,12 +56,15 @@
     oneditprofiles,
     syncAction = "fetchAll",
     syncing = false,
+    syncNotice = null,
     onsync,
     onsyncaction,
   }: {
+    /** Message d'une ligne du dernier Pull refusé ou échoué (près de `SyncButton`), ou `null`. */
+    syncNotice?: string | null;
     /** Action par défaut de `SyncButton`, commune à tous les dépôts. */
     syncAction?: SyncAction;
-    /** Un Fetch All lancé par `SyncButton` est en cours. */
+    /** Un Fetch All ou un Pull lancé par `SyncButton` est en cours. */
     syncing?: boolean;
     /** Clic sur `SyncButton` : lance l'action par défaut. */
     onsync?: () => void;
@@ -217,6 +220,8 @@
       <SyncButton
         action={syncAction}
         busy={syncing}
+        published={current?.upstream != null}
+        notice={syncNotice}
         onrun={() => onsync?.()}
         onchoose={onsyncaction}
       />

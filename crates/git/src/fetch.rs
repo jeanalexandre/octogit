@@ -64,7 +64,12 @@ pub fn fetch_all(path: &Path, timeout: Duration) -> Result<String, FetchError> {
     )
 }
 
-fn fetch_with(path: &Path, timeout: Duration, args: &[&str]) -> Result<String, FetchError> {
+/// Lance `git <args>` dans `path` (sous-processus, sans saisie, tué après `timeout`) ; rend sa sortie brute.
+pub(crate) fn fetch_with(
+    path: &Path,
+    timeout: Duration,
+    args: &[&str],
+) -> Result<String, FetchError> {
     let (file, log) = capture_file().map_err(|e| FetchError::Spawn(e.to_string()))?;
     let stderr = file
         .try_clone()

@@ -3,6 +3,7 @@
   import ChevronDown from "@lucide/svelte/icons/chevron-down";
   import GitPullRequestArrow from "@lucide/svelte/icons/git-pull-request-arrow";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type { SyncAction } from "../bindings";
 
   /**
@@ -12,13 +13,19 @@
   let {
     action,
     busy = false,
+    published = true,
+    notice = null,
     onrun,
     onchoose,
   }: {
     /** Action par défaut, commune à tous les dépôts. */
     action: SyncAction;
-    /** Un Fetch All est en cours : progression dans le bouton, non relançable. */
+    /** Un Fetch All ou un Pull est en cours : progression dans le bouton, non relançable. */
     busy?: boolean;
+    /** La branche courante suit une branche distante ; sinon (« Not published ») les Pull ne s'exécutent pas. */
+    published?: boolean;
+    /** Message d'une ligne du dernier refus ou échec d'un Pull (divergence, conflit abandonné…), ou `null`. */
+    notice?: string | null;
     /** Clic sur le bouton : lance l'action par défaut. */
     onrun: () => void;
     /** Une entrée du menu est cochée : elle devient l'action par défaut. */
@@ -36,8 +43,10 @@
   let arrow: HTMLButtonElement | undefined = $state();
 
   const label = $derived(entries.find((e) => e.action === action)?.label ?? "Fetch All");
-  /** L'exécution d'un Pull vient avec S-19 : le bouton est inactif, avec sa raison. */
-  const unavailable = $derived(action !== "fetchAll");
+  const isPull = $derived(action !== "fetchAll");
+  /** Un Pull sur une branche non publiée : seule l'exécution est grisée, avec sa raison (Fetch All reste actif). */
+  const unavailable = $derived(isPull && !published);
+  const reason = "Branch not published.";
   const inactive = $derived(busy || unavailable);
 
   function run() {
@@ -78,18 +87,26 @@
 />
 
 <span class="wrap" bind:this={root}>
+  <!-- Avant le bouton : le menu reste aligné sous la flèche, à droite. -->
+  {#if notice}
+    <span class="notice" role="alert">
+      <TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
+      {notice}
+    </span>
+  {/if}
   <span class="split" role="group" aria-label="Synchronize">
     <button
       type="button"
       class="main"
       aria-disabled={inactive}
       aria-busy={busy}
-      title={unavailable && !busy ? "Pull is not available yet." : undefined}
+      title={unavailable && !busy ? reason : undefined}
+      aria-describedby={unavailable && !busy ? "sync-reason" : undefined}
       onclick={run}
     >
       {#if busy}
         <span class="spin" aria-hidden="true"><RefreshCw size={16} strokeWidth={1.8} /></span>
-        Fetching…
+        {isPull ? "Pulling…" : "Fetching…"}
       {:else}
         {#if action === "fetchAll"}
           <RefreshCw size={16} strokeWidth={1.8} aria-hidden="true" />
@@ -114,6 +131,10 @@
     </button>
   </span>
 
+  {#if unavailable && !busy}
+    <span id="sync-reason" class="sr-only">{reason}</span>
+  {/if}
+
   {#if open}
     <div class="menu" role="menu" tabindex="-1" onkeydown={onmenukeydown}>
       <p class="hint">Default action for this button</p>
@@ -135,7 +156,27 @@
 <style>
   .wrap {
     position: relative;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .notice {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--warning);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .split {
@@ -156,6 +197,7 @@
     color: var(--ink);
     font: inherit;
     cursor: pointer;
+    white-space: nowrap;
   }
 
   button:focus-visible {

@@ -16,6 +16,24 @@ pub fn fetch_all_repository(path: &Path) -> Result<Option<RepositoryView>, Strin
     run_and_reread(path, octogit_git::fetch_all)
 }
 
+/// Pull de `SyncButton` (fast-forward only, ou rebase) puis relecture du dépôt, toujours rendu : les refs ont
+/// bougé (le pull récupère aussi la distante). L'erreur est le message d'une ligne affiché près du bouton ;
+/// la sortie brute de Git reste dans le crate `git`.
+pub fn pull_repository(path: &Path, rebase: bool) -> Result<RepositoryView, String> {
+    let mode = if rebase {
+        octogit_git::PullMode::Rebase
+    } else {
+        octogit_git::PullMode::FastForwardOnly
+    };
+    octogit_git::pull(path, mode, octogit_git::FETCH_TIMEOUT).map_err(|e| match e {
+        octogit_git::PullError::TimedOut { .. } => "Pull timed out.".to_string(),
+        octogit_git::PullError::Failed { .. } => "Pull failed.".to_string(),
+        octogit_git::PullError::Spawn(_) => "Git could not run.".to_string(),
+        refusal => refusal.to_string(),
+    })?;
+    repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
+}
+
 fn run_and_reread(
     path: &Path,
     fetch: fn(&Path, std::time::Duration) -> Result<String, octogit_git::FetchError>,

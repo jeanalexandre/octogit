@@ -98,6 +98,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::watch_working_tree,
             commands::fetch_repository,
             commands::fetch_all_repository,
+            commands::pull_repository,
             commands::get_sync_action,
             commands::set_sync_action,
             commands::list_profiles,

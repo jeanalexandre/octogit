@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/svelte";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 import WorkingChanges from "./WorkingChanges.svelte";
 import type { WorkingTreeView } from "../bindings";
@@ -20,9 +20,18 @@ function props(overrides = {}) {
     branch: "feature/profiles",
     onstageall: vi.fn(),
     onunstageall: vi.fn(),
+    oncommit: vi.fn(async () => {}),
+    onloadlast: vi.fn(async () => "Add keep\n\nThe last body.\n"),
+    canAmend: true,
+    identity: { profile: "Work", email: "jag@work-company.fr" },
     ...overrides,
   };
 }
+
+const summary = () => screen.getByRole("textbox", { name: "Summary" }) as HTMLInputElement;
+const description = () =>
+  screen.getByRole("textbox", { name: "Description" }) as HTMLTextAreaElement;
+const commitButton = () => screen.getByRole("button", { name: "Commit to feature/profiles" });
 
 const rows = (list: HTMLElement) =>
   within(list)
@@ -107,11 +116,130 @@ describe("WorkingChanges", () => {
   it("preparer-un-commit CA-11: files are not listed as clean", () => {
     render(WorkingChanges, props());
     expect(screen.queryByText("Working tree clean.")).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Commit/ })).toBeNull();
   });
 
   it("preparer-un-commit CA-11: without a current branch, Commit is still shown disabled", () => {
     render(WorkingChanges, props({ tree: clean, branch: null }));
     expect(screen.getByRole("button", { name: "Commit" })).toBeDisabled();
+  });
+
+  it("preparer-un-commit CA-12: Commit sends the summary and the description, then empties both fields", async () => {
+    const p = props();
+    render(WorkingChanges, p);
+    await fireEvent.input(summary(), { target: { value: "feat: add badge" } });
+    await fireEvent.input(description(), { target: { value: "Shows the profile." } });
+    expect(commitButton()).toBeEnabled();
+    await fireEvent.click(commitButton());
+    expect(p.oncommit).toHaveBeenCalledWith("feat: add badge", "Shows the profile.", false);
+    await waitFor(() => expect(summary().value).toBe(""));
+    expect(description().value).toBe("");
+  });
+
+  it("preparer-un-commit CA-12: a refused commit keeps the fields and shows the reason", async () => {
+    const p = props({
+      oncommit: vi.fn(async () => {
+        throw "hook failed\nraw output";
+      }),
+    });
+    render(WorkingChanges, p);
+    await fireEvent.input(summary(), { target: { value: "feat: x" } });
+    await fireEvent.click(commitButton());
+    expect(await screen.findByRole("alert")).toHaveTextContent("hook failed");
+    expect(summary().value).toBe("feat: x");
+  });
+
+  it("preparer-un-commit CA-13: Cmd+Enter in the summary or in the description commits like the button", async () => {
+    const p = props();
+    render(WorkingChanges, p);
+    await fireEvent.input(summary(), { target: { value: "from summary" } });
+    await fireEvent.keyDown(summary(), { key: "Enter", metaKey: true });
+    expect(p.oncommit).toHaveBeenCalledTimes(1);
+    expect(p.oncommit).toHaveBeenLastCalledWith("from summary", "", false);
+    await waitFor(() => expect(summary().value).toBe(""));
+
+    await fireEvent.input(summary(), { target: { value: "from description" } });
+    await fireEvent.input(description(), { target: { value: "body" } });
+    await fireEvent.keyDown(description(), { key: "Enter", metaKey: true });
+    expect(p.oncommit).toHaveBeenCalledTimes(2);
+    expect(p.oncommit).toHaveBeenLastCalledWith("from description", "body", false);
+  });
+
+  it("preparer-un-commit CA-13: Enter alone does not commit, and Cmd+Enter does nothing while Commit is disabled", async () => {
+    const p = props();
+    render(WorkingChanges, p);
+    await fireEvent.input(summary(), { target: { value: "x" } });
+    await fireEvent.keyDown(summary(), { key: "Enter" });
+    expect(p.oncommit).not.toHaveBeenCalled();
+    await fireEvent.input(summary(), { target: { value: "" } });
+    await fireEvent.keyDown(summary(), { key: "Enter", metaKey: true });
+    expect(p.oncommit).not.toHaveBeenCalled();
+  });
+
+  it("preparer-un-commit CA-15: a matching identity shows « Identity matches profile Work » and the address under Commit", () => {
+    render(WorkingChanges, props());
+    const line = screen.getByText(/Identity matches profile Work/);
+    expect(line).toHaveTextContent("Identity matches profile Work · jag@work-company.fr");
+    expect(
+      commitButton().compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("preparer-un-commit CA-15: without a matching identity, the line is not shown", () => {
+    render(WorkingChanges, props({ identity: null }));
+    expect(screen.queryByText(/Identity matches/)).toBeNull();
+  });
+
+  it("preparer-un-commit CA-22: staged files and an empty summary disable Commit with « Summary required », nothing is staged", async () => {
+    const p = props();
+    render(WorkingChanges, p);
+    expect(commitButton()).toBeDisabled();
+    expect(screen.getByText("Summary required")).toBeInTheDocument();
+    expect(p.onstageall).not.toHaveBeenCalled();
+    await fireEvent.input(summary(), { target: { value: "   " } });
+    expect(commitButton()).toBeDisabled();
+    expect(screen.getByText("Summary required")).toBeInTheDocument();
+  });
+
+  it("preparer-un-commit CA-22: a summary and no staged file disable Commit with « No staged changes », nothing is staged", async () => {
+    const p = props({ tree: { unstaged: tree.unstaged, staged: [] } });
+    render(WorkingChanges, p);
+    await fireEvent.input(summary(), { target: { value: "feat: x" } });
+    expect(commitButton()).toBeDisabled();
+    expect(screen.getByText("No staged changes")).toBeInTheDocument();
+    expect(screen.queryByText("Summary required")).toBeNull();
+    await fireEvent.keyDown(summary(), { key: "Enter", metaKey: true });
+    expect(p.oncommit).not.toHaveBeenCalled();
+    expect(p.onstageall).not.toHaveBeenCalled();
+  });
+
+  it("preparer-un-commit CA-23: checking Amend fills the fields with the last message, editable; unchecking restores the draft as typed", async () => {
+    const p = props();
+    render(WorkingChanges, p);
+    await fireEvent.input(summary(), { target: { value: "my draft" } });
+    await fireEvent.input(description(), { target: { value: "line one\n\n  line two  " } });
+    await fireEvent.click(screen.getByRole("checkbox", { name: "Amend last commit" }));
+    await waitFor(() => expect(summary().value).toBe("Add keep"));
+    expect(description().value).toBe("The last body.");
+    await fireEvent.input(summary(), { target: { value: "Add keep, edited" } });
+    expect(summary().value).toBe("Add keep, edited");
+    await fireEvent.click(screen.getByRole("checkbox", { name: "Amend last commit" }));
+    expect(summary().value).toBe("my draft");
+    expect(description().value).toBe("line one\n\n  line two  ");
+  });
+
+  it("preparer-un-commit CA-16: with Amend checked, Commit asks for an amend and unchecks the box", async () => {
+    const p = props();
+    render(WorkingChanges, p);
+    await fireEvent.click(screen.getByRole("checkbox", { name: "Amend last commit" }));
+    await waitFor(() => expect(summary().value).toBe("Add keep"));
+    await fireEvent.click(commitButton());
+    expect(p.oncommit).toHaveBeenCalledWith("Add keep", "The last body.", true);
+    await waitFor(() => expect(summary().value).toBe(""));
+    expect(screen.getByRole("checkbox", { name: "Amend last commit" })).not.toBeChecked();
+  });
+
+  it("preparer-un-commit CA-16: Amend is disabled without a commit to amend", () => {
+    render(WorkingChanges, props({ canAmend: false }));
+    expect(screen.getByRole("checkbox", { name: "Amend last commit" })).toBeDisabled();
   });
 });

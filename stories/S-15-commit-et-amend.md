@@ -25,6 +25,11 @@ Committer (bouton « Commit to <branche> » et Cmd+Entrée) avec l'identité du 
 ### Fiche (16/11/2026)
 1. Rien à confirmer.
 
+### Après la revue 1
+1. Maquette `history.html` : ligne « Identity matches profile … » au-dessus du bouton, spec et `ux.md` disent « sous le bouton ». En attente (À décider) : option proposée, garder « sous le bouton » et corriger la maquette par `/ksm:ux`. Le code suit la spec.
+2. Amend sans fichier indexé impossible (lecture littérale de CA-22). En attente (À décider, change spec/périmètre) : option proposée, conserver tel quel et, si l'humain veut l'amend du message seul, amender CA-22/CA-16 par `/ksm:spec` puis story de report. Noté dans `notes-production.md`.
+3. Écarts de `dev` (commandes Tauri `commit` et `get_commit_email`, « Details » avec sortie brute absent, course S-14 « Staged · 0 » après commit) : pris en compte (pour information).
+
 ## Contexte technique
 - `stack.md` : Architecture (le binaire `git` en sous-processus pour toute écriture, pour respecter l'identité, la signature et `core.sshCommand` du `.git/config` local, sortie brute gardée), Données (rien dans `~/.gitconfig`), Tests ciblés.
 - Dépend de S-14 : `src/lib/components/WorkingChanges.svelte`, lecture de l'arbre de travail et événement de mise à jour dans `crates/git`.
@@ -61,7 +66,9 @@ Committer (bouton « Commit to <branche> » et Cmd+Entrée) avec l'identité du 
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<à noter avant le premier passage>`
+- Référence : `135f026`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; tests, lint, build verts ; 15 fichiers ; rouge non constaté sur le test Rust app CA-12 et les e2e | — |
+| 1 | reviewer | `stories/S-15-revue-1.md` : aucun problème, 2 points « à décider » | validé |

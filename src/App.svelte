@@ -106,6 +106,41 @@
     if (result.status === "ok" && openPath === path) workingTree = result.data;
   }
 
+  /** Commit ou amend des fichiers indexés : le dépôt relu et l'arbre rendus par le cœur remplacent l'affichage. */
+  async function commit(summary: string, description: string, amend: boolean) {
+    const path = openPath;
+    if (path === null) return;
+    const result = await commands.commit(path, summary, description, amend);
+    if (result.status !== "ok") throw result.error;
+    if (openPath !== path || screen?.screen !== "history") return;
+    workingTree = result.data.tree;
+    // Comme après un fetch, le profil et l'écart sont ceux de l'ouverture.
+    screen = {
+      screen: "history",
+      repository: {
+        ...result.data.repository,
+        profile: screen.repository.profile,
+        mismatch: screen.repository.mismatch,
+      } satisfies RepositoryView,
+    };
+  }
+
+  /** Adresse e-mail effective des commits du dépôt ouvert (`.git/config` local), relue si le profil change d'état. */
+  let commitEmail: string | null = $state(null);
+  $effect(() => {
+    const path = openPath;
+    void (screen?.screen === "history" ? screen.repository.profile?.conform : null);
+    commitEmail = null;
+    if (path === null) return;
+    let stale = false;
+    void commands.getCommitEmail(path).then((email) => {
+      if (!stale) commitEmail = email;
+    });
+    return () => {
+      stale = true;
+    };
+  });
+
   /** Dossiers repliés de `BranchSidebar` pour le dépôt ouvert, relus à chaque changement de dépôt. */
   let collapsedFolders: string[] = $state([]);
   $effect(() => {
@@ -351,6 +386,8 @@
     {workingTree}
     onstageall={() => moveAll(commands.stageAll)}
     onunstageall={() => moveAll(commands.unstageAll)}
+    oncommit={commit}
+    {commitEmail}
   />
 {:else if screen?.screen === "welcome"}
   <Welcome {recent} {error} onopen={open} onchoose={chooseFolder} />

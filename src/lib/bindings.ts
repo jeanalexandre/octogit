@@ -48,6 +48,13 @@ export const commands = {
 	/**  Unstage all : l'index revient à `HEAD` ; rend le nouvel état. */
 	unstageAll: (path: string) => typedError<WorkingTreeView, string>(__TAURI_INVOKE("unstage_all", { path })),
 	/**
+	 *  Commit des fichiers indexés (ou amend du dernier commit) avec l'identité du `.git/config` local ;
+	 *  rend l'arbre de travail et le dépôt relus. L'erreur est la sortie de Git.
+	 */
+	commit: (path: string, summary: string, description: string, amend: boolean) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("commit", { path, summary, description, amend })),
+	/**  Adresse e-mail effective des commits de `path` (`user.email` du `.git/config` local). */
+	getCommitEmail: (path: string) => __TAURI_INVOKE<string | null>("get_commit_email", { path }),
+	/**
 	 *  Surveille `path` (remplace la surveillance précédente ; un chemin vide l'arrête sans en lancer
 	 *  d'autre, quand plus aucun dépôt n'est ouvert). L'événement `working-tree-changed`
 	 *  (`WorkingTreeChanged`) part à chaque changement fait hors d'Octogit. La surveillance est active
@@ -126,6 +133,30 @@ export type CommitView = {
 	color: number,
 	/**  Tronçons de lignes à tracer dans la hauteur de la ligne. */
 	edges: EdgeView[],
+};
+
+/**
+ *  Résultat d'un commit ou d'un amend : l'arbre de travail, et le dépôt relu (le nouveau commit est
+ *  en tête du graphe). Le profil et l'écart du dépôt ne sont pas relus : l'appelant garde les siens.
+ */
+export type CommittedView = CommittedView_Serialize | CommittedView_Deserialize;
+
+/**
+ *  Résultat d'un commit ou d'un amend : l'arbre de travail, et le dépôt relu (le nouveau commit est
+ *  en tête du graphe). Le profil et l'écart du dépôt ne sont pas relus : l'appelant garde les siens.
+ */
+export type CommittedView_Deserialize = {
+	tree: WorkingTreeView,
+	repository: RepositoryView_Deserialize,
+};
+
+/**
+ *  Résultat d'un commit ou d'un amend : l'arbre de travail, et le dépôt relu (le nouveau commit est
+ *  en tête du graphe). Le profil et l'écart du dépôt ne sont pas relus : l'appelant garde les siens.
+ */
+export type CommittedView_Serialize = {
+	tree: WorkingTreeView,
+	repository: RepositoryView_Serialize,
 };
 
 /**  Issue d'un test de connexion, pour l'interface. */

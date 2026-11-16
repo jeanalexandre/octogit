@@ -155,6 +155,16 @@ pub fn badge_of(store: &Store, repo: &Path, home: &Path) -> Option<ProfileBadgeV
     Some(badge(&profile, conform))
 }
 
+/// Adresse e-mail effective des commits de `repo` : `user.email` du `.git/config` local (affichée sous
+/// le bouton Commit). `None` si elle n'est pas définie ou illisible.
+pub fn local_email(repo: &Path, home: &Path) -> Option<String> {
+    read_local(repo, home)
+        .ok()?
+        .get("user.email")
+        .cloned()
+        .filter(|email| !email.is_empty())
+}
+
 /// Profil rattaché à `repo` pour une action de l'écran d'écart.
 fn attached_profile(store: &Store, repo: &Path, home: &Path) -> Result<Profile, String> {
     let profiles = store.profiles();

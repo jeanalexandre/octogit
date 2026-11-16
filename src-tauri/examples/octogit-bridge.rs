@@ -57,6 +57,14 @@ struct PanelCollapsedArgs {
 }
 
 #[derive(Deserialize)]
+struct CommitArgs {
+    path: String,
+    summary: String,
+    description: String,
+    amend: bool,
+}
+
+#[derive(Deserialize)]
 struct DetailArgs {
     path: String,
     id: String,
@@ -322,6 +330,27 @@ fn main() {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }
+        }
+        "commit" => {
+            let args: CommitArgs = serde_json::from_str(&input)
+                .expect("arguments { path, summary, description, amend }");
+            // La commande Tauri est asynchrone : le pont appelle directement ce qu'elle délègue.
+            match octogit_app::working_tree::commit(
+                std::path::Path::new(&args.path),
+                &args.summary,
+                &args.description,
+                args.amend,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "get_commit_email" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            (
+                serde_json::to_string(&octogit_app::commands::get_commit_email(args.path)),
+                0,
+            )
         }
         "fetch_repository" => {
             let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");

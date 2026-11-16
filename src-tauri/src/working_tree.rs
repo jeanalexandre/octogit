@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::detail::{ChangeStatusView, FileChangeView};
+use crate::launch::{repository_view, RepositoryView};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -67,6 +68,31 @@ pub fn unstage_all(path: &Path) -> Result<WorkingTreeView, String> {
     octogit_git::unstage_all(path)
         .map(Into::into)
         .map_err(|e| e.to_string())
+}
+
+/// Résultat d'un commit ou d'un amend : l'arbre de travail, et le dépôt relu (le nouveau commit est
+/// en tête du graphe). Le profil et l'écart du dépôt ne sont pas relus : l'appelant garde les siens.
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CommittedView {
+    pub tree: WorkingTreeView,
+    pub repository: RepositoryView,
+}
+
+/// Commit (ou amend) des fichiers indexés ; l'erreur est la sortie de Git.
+pub fn commit(
+    path: &Path,
+    summary: &str,
+    description: &str,
+    amend: bool,
+) -> Result<CommittedView, String> {
+    let tree = octogit_git::commit(path, summary, description, amend).map_err(|e| e.to_string())?;
+    let repository =
+        repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())?;
+    Ok(CommittedView {
+        tree: tree.into(),
+        repository,
+    })
 }
 
 /// Surveille `path` : `on_change` reçoit l'événement à chaque changement hors d'Octogit.
@@ -150,6 +176,17 @@ mod tests {
         let unstaged = unstage_all(&repo).unwrap();
         assert!(unstaged.staged.is_empty());
         assert_eq!(unstaged.unstaged.len(), 3);
+        let _ = std::fs::remove_dir_all(repo.parent().unwrap());
+    }
+
+    #[test]
+    fn preparer_un_commit_ca_12_commit_returns_the_new_tree_and_the_graph_with_the_commit_on_top() {
+        let repo = repo("commit");
+        let done = commit(&repo, "feat: from the view", "Body.", false).unwrap();
+        assert!(done.tree.staged.is_empty());
+        assert_eq!(done.tree.unstaged.len(), 2);
+        assert_eq!(done.repository.commits[0].summary, "feat: from the view");
+        assert!(commit(&repo, "", "", false).is_err());
         let _ = std::fs::remove_dir_all(repo.parent().unwrap());
     }
 

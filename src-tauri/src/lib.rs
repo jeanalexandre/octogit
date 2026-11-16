@@ -86,6 +86,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::get_working_tree,
             commands::stage_all,
             commands::unstage_all,
+            commands::commit,
+            commands::get_commit_email,
             commands::watch_working_tree,
             commands::fetch_repository,
             commands::list_profiles,

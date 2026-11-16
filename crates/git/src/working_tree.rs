@@ -157,6 +157,89 @@ pub fn unstage_all(path: &Path) -> Result<WorkingTree, GitError> {
     Ok(tree)
 }
 
+/// Commit des fichiers indexés (ou amend du dernier commit) par le binaire `git`, qui lit l'identité,
+/// la signature et `core.sshCommand` du `.git/config` local. Le message est le résumé, puis une ligne
+/// vide et la description si elle n'est pas vide. Rien n'est indexé automatiquement ; un refus de Git
+/// (rien d'indexé, hook, signature) rend sa sortie brute. Rend le nouvel état de l'arbre de travail.
+/// Écriture d'Octogit : le watcher ne la signale pas.
+pub fn commit(
+    path: &Path,
+    summary: &str,
+    description: &str,
+    amend: bool,
+) -> Result<WorkingTree, GitError> {
+    commit_in(path, summary, description, amend, None)
+}
+
+/// Comme `commit`, avec le `HOME` des sous-processus fixé (tests : un `~/.gitconfig` factice).
+pub fn commit_with_home(
+    path: &Path,
+    summary: &str,
+    description: &str,
+    amend: bool,
+    home: &Path,
+) -> Result<WorkingTree, GitError> {
+    commit_in(path, summary, description, amend, Some(home))
+}
+
+fn commit_in(
+    path: &Path,
+    summary: &str,
+    description: &str,
+    amend: bool,
+    home: Option<&Path>,
+) -> Result<WorkingTree, GitError> {
+    use std::io::Write;
+
+    let summary = summary.trim();
+    if summary.is_empty() {
+        return Err(GitError::Read("Summary required".to_string()));
+    }
+    let description = description.trim();
+    let message = if description.is_empty() {
+        format!("{summary}\n")
+    } else {
+        format!("{summary}\n\n{description}\n")
+    };
+    let mut command = Command::new("git");
+    command
+        .arg("-C")
+        .arg(path)
+        .args(["commit", "--quiet", "--cleanup=whitespace", "-F", "-"])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    if amend {
+        command.arg("--amend");
+    }
+    if let Some(home) = home {
+        command.env("HOME", home);
+    }
+    let mut child = command
+        .spawn()
+        .map_err(|e| GitError::Read(format!("cannot run git: {e}")))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(message.as_bytes())
+            .map_err(|e| GitError::Read(format!("cannot write the message: {e}")))?;
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|e| GitError::Read(format!("cannot run git: {e}")))?;
+    if !output.status.success() {
+        let raw = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return Err(GitError::Read(raw.trim().to_string()));
+    }
+    let tree = read_working_tree(path)?;
+    remember(path, &tree);
+    Ok(tree)
+}
+
 /// Rafale regroupée : l'état est relu quand plus rien ne bouge depuis ce délai...
 const QUIET: Duration = Duration::from_millis(100);
 /// ... ou au plus ce délai après le premier événement d'une rafale qui ne s'arrête pas.

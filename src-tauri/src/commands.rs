@@ -16,7 +16,7 @@ use crate::preferences::{self, Column, SectionLayoutView};
 use crate::profiles::{self, ProfileView};
 use crate::propagate::{self, SavedProfileView};
 use crate::ssh_keys::{self, ConnectionTestView, SshKeyView};
-use crate::working_tree::{self, WorkingTreeView};
+use crate::working_tree::{self, CommittedView, WorkingTreeView};
 
 #[tauri::command]
 #[specta::specta]
@@ -225,6 +225,30 @@ pub fn stage_all(path: String) -> Result<WorkingTreeView, String> {
 #[specta::specta]
 pub fn unstage_all(path: String) -> Result<WorkingTreeView, String> {
     working_tree::unstage_all(Path::new(&path))
+}
+
+/// Commit des fichiers indexés (ou amend du dernier commit) avec l'identité du `.git/config` local ;
+/// rend l'arbre de travail et le dépôt relus. L'erreur est la sortie de Git.
+#[tauri::command]
+#[specta::specta]
+pub async fn commit(
+    path: String,
+    summary: String,
+    description: String,
+    amend: bool,
+) -> Result<CommittedView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        working_tree::commit(Path::new(&path), &summary, &description, amend)
+    })
+    .await
+    .map_err(|_| "The commit was interrupted.".to_string())?
+}
+
+/// Adresse e-mail effective des commits de `path` (`user.email` du `.git/config` local).
+#[tauri::command]
+#[specta::specta]
+pub fn get_commit_email(path: String) -> Option<String> {
+    attach::local_email(Path::new(&path), &crate::home_dir())
 }
 
 /// Surveille `path` (remplace la surveillance précédente ; un chemin vide l'arrête sans en lancer

@@ -41,6 +41,8 @@
     workingTree = null,
     onstageall,
     onunstageall,
+    oncommit,
+    commitEmail = null,
   }: {
     /** Fichiers non indexés et indexés du dépôt (ligne WIP, `WorkingChanges`), ou `null` tant qu'ils ne sont pas lus. */
     workingTree?: WorkingTreeView | null;
@@ -48,6 +50,10 @@
     onstageall?: () => void;
     /** Unstage all de `WorkingChanges`. */
     onunstageall?: () => void;
+    /** Commit ou amend des fichiers indexés (`WorkingChanges`) ; rejette avec le message de Git si refusé. */
+    oncommit?: (summary: string, description: string, amend: boolean) => Promise<void>;
+    /** Adresse e-mail effective des commits (`.git/config` local), ou `null` si inconnue. */
+    commitEmail?: string | null;
     /** Double-clic sur l'étiquette d'une ref du graphe (checkout : S-25). */
     onrefdblclick?: (name: string) => void;
     /** Clic droit sur l'étiquette d'une ref du graphe (`RefContextMenu` : S-36). */
@@ -131,6 +137,18 @@
   }
 
   const current = $derived(repository.refs.find((r) => r.kind === "branch" && r.current));
+  /** Dernier commit de la branche courante : son message remplit les champs d'Amend. */
+  async function lastMessage() {
+    if (!current) throw "No commit to amend.";
+    return (await loadDetail(current.target)).message;
+  }
+
+  /** Identité conforme au profil rattaché, pour la ligne sous Commit ; sinon `null` (S-16 : l'état bloqué). */
+  const identity = $derived(
+    repository.profile?.conform && commitEmail
+      ? { profile: repository.profile.name, email: commitEmail }
+      : null,
+  );
   const tracking = $derived(current?.upstream ? current : undefined);
   const stashTitles = $derived(
     Object.fromEntries(
@@ -205,6 +223,11 @@
             branch={current?.name ?? null}
             onstageall={() => onstageall?.()}
             onunstageall={() => onunstageall?.()}
+            oncommit={async (summary, description, amend) =>
+              oncommit?.(summary, description, amend)}
+            onloadlast={lastMessage}
+            canAmend={current !== undefined}
+            {identity}
           />
         {/if}
       </aside>

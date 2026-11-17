@@ -1,9 +1,10 @@
 # Plan : Octogit
 
-> Produit par `/plan` à partir de `brief.md` et des specs. Fichier : `plan.md`. Validé par l'humain le 08/11/2026, révision du 11/11/2026 validée le 11/11/2026, révisions du 12/11/2026 validées le 12/11/2026.
+> Produit par `/plan` à partir de `brief.md` et des specs. Fichier : `plan.md`. Validé par l'humain le 08/11/2026, révision du 11/11/2026 validée le 11/11/2026, révisions du 12/11/2026 validées le 12/11/2026, révision du 17/11/2026 validée le 17/11/2026.
 > Révisions : 11/11/2026 — `explorer-l-historique` CA-7 modifié (évolution de S-5) et nouvelle spec `organiser-l-espace` (révisions du 11/11/2026 de `ux.md` et `stack.md`) : stories S-57 à S-61 ajoutées en tranche « valeur 1 bis » ; `organiser-l-espace` CA-17 ajouté à S-26 ; CA-10 scindé entre S-59 et S-25 (fermeture au checkout) ; jobs J-1 et J-16 servis aussi par `organiser-l-espace`.
 > Révisions : 12/11/2026 — amendement de `stack.md` (méthode 0.25.0, isolement d'un worktree par `.env.local`) : story d'outillage S-62 ajoutée, à faire avant S-59.
 > Révisions : 12/11/2026 — révision du 12/11/2026 de `ux.md` et amendement de `explorer-l-historique` (CA-12 modifié, toujours tenu par S-4 ; CA-30 ajouté) : S-63 (nœud de stash) et S-64 (icône d'application) ajoutées en tranche « valeur 1 bis », après S-61.
+> Révisions : 17/11/2026 — révision du 16/11/2026 de `ux.md` (maquette `history` alignée sur `preparer-un-commit` CA-15 ; badge sans profil « No profile ») et révisions du 13/11 et du 16/11/2026 de `stack.md` : déjà livrées par S-15, S-16 et S-17, aucune story ajoutée ni modifiée. Écart restant : le texte de `proteger-l-identite` CA-13 dit encore « No profile — choose one », à aligner par `/ksm:spec proteger-l-identite` (décision de l'humain du 17/11/2026 : pas de story, le code affiche déjà « No profile »).
 
 ## Jobs du brief
 | Job | Résumé | Specs |

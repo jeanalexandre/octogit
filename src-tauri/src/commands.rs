@@ -372,6 +372,23 @@ pub async fn pull_repository(path: String, rebase: bool) -> Result<RepositoryVie
         .map_err(|_| "Pull was interrupted.".to_string())?
 }
 
+/// Checkout d'une branche locale ou d'une `origin/…` (double-clic, sélecteur de `Toolbar`, `RefContextMenu`) en
+/// tâche de fond, puis relecture du dépôt. Sans `choice`, une locale de même nom sur un autre commit rend la valeur
+/// `confirm` (rien n'est écrit) ; `choice` (« Reset and checkout » ou « Checkout local as is ») lève la confirmation.
+#[tauri::command]
+#[specta::specta]
+pub async fn checkout_repository(
+    path: String,
+    name: String,
+    choice: Option<fetch::CheckoutChoiceView>,
+) -> Result<fetch::CheckoutOutcomeView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fetch::checkout_repository(Path::new(&path), &name, choice)
+    })
+    .await
+    .map_err(|_| "Checkout was interrupted.".to_string())?
+}
+
 /// Push de `PushButton` en tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne
 /// (distante en avance, pas d'`origin`…).
 #[tauri::command]

@@ -36,6 +36,94 @@ pub fn pull_repository(path: &Path, rebase: bool) -> Result<RepositoryView, Stri
     repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
 }
 
+/// Un commit de la locale absent de la distante, listé dans la confirmation du checkout d'une `origin/…`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalCommitView {
+    pub id: String,
+    pub short_id: String,
+    pub summary: String,
+}
+
+/// Choix de la confirmation du checkout d'une `origin/…` dont la locale diffère (Cancel : aucun appel).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum CheckoutChoiceView {
+    /// « Reset and checkout ».
+    Reset,
+    /// « Checkout local as is ».
+    AsIs,
+}
+
+/// Plan du checkout, valeur typée : fait (le dépôt relu), ou confirmation à trancher (rien n'a changé).
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum CheckoutOutcomeView {
+    CheckedOut {
+        repository: Box<RepositoryView>,
+    },
+    Confirm {
+        /// Branche locale (`feature/graph`).
+        branch: String,
+        /// Branche distante (`origin/feature/graph`).
+        remote: String,
+        /// Commits de la locale absents de la distante.
+        commits: Vec<LocalCommitView>,
+    },
+}
+
+/// Checkout de `name` (branche locale ou `origin/…`) sans jamais détacher HEAD, puis relecture du dépôt. Sans
+/// `choice`, une locale de même nom sur un autre commit rend `Confirm` et rien n'est écrit ; avec `choice`, le
+/// checkout a lieu. L'erreur est un message d'une ligne (refus de Git : S-51 en fixera le texte, S-53 « Details »).
+pub fn checkout_repository(
+    path: &Path,
+    name: &str,
+    choice: Option<CheckoutChoiceView>,
+) -> Result<CheckoutOutcomeView, String> {
+    if choice.is_none() {
+        if let octogit_git::CheckoutPlan::Confirm {
+            branch,
+            remote_ref,
+            commits,
+        } = octogit_git::plan_checkout(path, name).map_err(checkout_message)?
+        {
+            return Ok(CheckoutOutcomeView::Confirm {
+                branch,
+                remote: remote_ref,
+                commits: commits
+                    .into_iter()
+                    .map(|c| LocalCommitView {
+                        id: c.id,
+                        short_id: c.short_id,
+                        summary: c.summary,
+                    })
+                    .collect(),
+            });
+        }
+    }
+    let choice = choice.map(|c| match c {
+        CheckoutChoiceView::Reset => octogit_git::CheckoutChoice::Reset,
+        CheckoutChoiceView::AsIs => octogit_git::CheckoutChoice::AsIs,
+    });
+    octogit_git::checkout(path, name, choice, octogit_git::FETCH_TIMEOUT)
+        .map_err(checkout_message)?;
+    repository_view(path)
+        .map(|repository| CheckoutOutcomeView::CheckedOut {
+            repository: Box::new(repository),
+        })
+        .ok_or_else(|| "Could not read the repository.".to_string())
+}
+
+fn checkout_message(error: octogit_git::CheckoutError) -> String {
+    match error {
+        octogit_git::CheckoutError::TimedOut { .. } => "Checkout timed out.".to_string(),
+        octogit_git::CheckoutError::Failed { .. } => "Checkout failed.".to_string(),
+        octogit_git::CheckoutError::Spawn(_) => "Git could not run.".to_string(),
+        octogit_git::CheckoutError::Read(_) => "Could not read the repository.".to_string(),
+        other => other.to_string(),
+    }
+}
+
 /// Push de `PushButton` (branche courante vers sa branche suivie, ou publication sur `origin`) puis relecture du
 /// dépôt, toujours rendu : `ahead` et les refs ont bougé. L'erreur est le message d'une ligne affiché près du
 /// bouton (distante en avance, pas d'`origin`…) ; la sortie brute de Git reste dans le crate `git`.

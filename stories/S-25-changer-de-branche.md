@@ -65,13 +65,33 @@ Faire le checkout d'une branche locale ou d'une `origin/…` (même jamais récu
 - `.env.example` : aucun changement. Rattrapage : aucun retard constaté pour `.env.example` ; README : sections « Push » et « Graphe de `History` » vues à jour pour S-20 à S-24, rien à rattraper.
 
 ## Terminé quand
-- [ ] Tests, lint et build passent : `pnpm lint`, `pnpm format:check`, `pnpm test`, `pnpm e2e`, `pnpm audit:deps`, `pnpm tauri build`
-- [ ] Documentation listée ci-dessus à jour
-- [ ] Verdict du reviewer : **validé**
+- [x] Tests, lint et build passent : `pnpm lint`, `pnpm format:check`, `pnpm test`, `pnpm e2e`, `pnpm audit:deps`, `pnpm tauri build`
+- [x] Documentation listée ci-dessus à jour
+- [x] Verdict du reviewer : **validé**
+
+## Décisions de l'humain
+### Étape 2 (passage 1, dev)
+- S-25.1, `pnpm audit:deps` rouge sur GHSA-fc5q-39xc-vjpf (picomatch, high, sans correctif) : a) ajouter l'avis à `auditConfig.ignoreGhsas` de `pnpm-workspace.yaml`, amendement de `stack.md` à faire ensuite par `/ksm:stack` (décision de l'humain du 17/11/2026)
+
+### Après la revue 1
+- Mineur 1 (volet flottant non fermé par un checkout lancé au clavier depuis le menu contextuel) : traiter (d'office), passage 2.
+- Pour information (specs `configurer-les-profils` et `proteger-l-identite`, `plan.md` modifiés hors S-25) : pris en compte (pour information), non commités avec la story.
+- À décider du reviewer (amendement de `stack.md` pour GHSA-fc5q-39xc-vjpf) : déjà décidé en S-25.1 ; reste à faire par l'humain via `/ksm:stack`.
+
+### Après la revue 2
+- Mineur 1 (aucun test de la chaîne App → History → BranchSidebar pour un checkout au clavier depuis le menu, e2e Maj+F10 › Checkout dans le volet) : traiter (d'office), passage 3.
+- Pour information : `e2e/badge-menu.spec.ts:178` instable sous charge, préexistant, hors S-25 : pris en compte (pour information).
+- À décider du reviewer (amendement de `stack.md`, GHSA-fc5q-39xc-vjpf) : déjà décidé en S-25.1 ; reste à faire par l'humain via `/ksm:stack`.
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `28ec362`
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | bloqué : code et tests verts (cargo, vitest 302, e2e 212, lint, build), mais `pnpm audit:deps` échoue sur GHSA-fc5q-39xc-vjpf (picomatch, high, sans correctif, via vitest/vite/tinyglobby), hors périmètre de la story. Reprise : revue 1 à lancer une fois la question 1 tranchée. | — |
+| 1 | reviewer | validé avec 1 mineur (volet flottant non fermé par checkout clavier via menu) ; `pnpm-workspace.yaml` : GHSA-fc5q-39xc-vjpf ignoré (S-25.1), `pnpm audit:deps` vert | validé |
+| 2 | dev | terminé : mineur 1 traité (compteur de checkouts App → History → BranchSidebar ferme le volet), rouge constaté, tests/lint/build verts | — |
+| 2 | reviewer | validé avec 1 mineur (pas d'e2e du câblage clavier menu → fermeture du volet) | validé |
+| 3 | dev | terminé : e2e `panel.spec.ts:111` ajouté (Maj+F10 › Checkout ferme le volet), rouge non constaté (câblage déjà en place), tests/lint/build verts | — |
+| 3 | reviewer | validé, aucun problème ; test sans rouge jugé probant à la lecture | validé |

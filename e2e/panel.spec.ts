@@ -83,6 +83,63 @@ test("organiser-l-espace CA-9 : le bouton replie le panneau en bande d'icônes a
   await expect.poll(() => stored().panel_collapsed).toBe(false);
 });
 
+test("organiser-l-espace CA-10 : un double-clic sur une branche du volet fait le checkout et ferme le volet, le focus revient à l'icône", async ({
+  page,
+}) => {
+  const repo = ws.repo("layout");
+  await openRepo(page, [repo]);
+  await sidebar(page).getByRole("button", { name: "Collapse branches panel" }).click();
+
+  await icon(page, "origin").click();
+  await expect(pane(page, "origin")).toBeVisible();
+  expect(ws.git(repo, "branch", "--show-current")).toBe("zlast");
+  await pane(page, "origin").getByRole("button", { name: "release" }).dblclick();
+
+  await expect.poll(() => ws.git(repo, "branch", "--show-current")).toBe("release");
+  expect(ws.git(repo, "rev-parse", "--abbrev-ref", "release@{upstream}")).toBe("origin/release");
+  await expect(pane(page, "origin")).toHaveCount(0);
+  await expect(icon(page, "origin")).toBeFocused();
+
+  // Le volet de Local : même geste sur une branche locale.
+  await icon(page, "Local").click();
+  await pane(page, "Local").getByRole("button", { name: "main" }).dblclick();
+  await expect.poll(() => ws.git(repo, "branch", "--show-current")).toBe("main");
+  await expect(pane(page, "Local")).toHaveCount(0);
+  await expect(icon(page, "Local")).toBeFocused();
+});
+
+test("organiser-l-espace CA-10 : un checkout lancé par Maj+F10 puis Entrée dans le volet le ferme, le focus revient à l'icône", async ({
+  page,
+}) => {
+  const repo = ws.repo("layout");
+  await openRepo(page, [repo]);
+  await sidebar(page).getByRole("button", { name: "Collapse branches panel" }).click();
+
+  await icon(page, "Local").click();
+  await expect(pane(page, "Local")).toBeVisible();
+  await pane(page, "Local").getByRole("button", { name: "main" }).focus();
+  await page.keyboard.press("Shift+F10");
+  await expect(page.getByRole("menuitem", { name: "Checkout" })).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  await expect.poll(() => ws.git(repo, "branch", "--show-current")).toBe("main");
+  await expect(pane(page, "Local")).toHaveCount(0);
+  await expect(icon(page, "Local")).toBeFocused();
+});
+
+test("organiser-l-espace CA-10 : un double-clic sur une branche du panneau déplié ne ferme ni ne replie rien", async ({
+  page,
+}) => {
+  const repo = ws.repo("layout");
+  await openRepo(page, [repo]);
+  await sidebar(page).locator(".items").first().getByRole("button", { name: "main" }).dblclick();
+  await expect.poll(() => ws.git(repo, "branch", "--show-current")).toBe("main");
+  await expect(sidebar(page).locator("h2", { hasText: "Local" })).toBeVisible();
+  await expect(
+    sidebar(page).getByRole("button", { name: "Collapse branches panel" }),
+  ).toBeVisible();
+});
+
 for (const size of sizes) {
   test(`organiser-l-espace CA-10 : une icône ouvre le volet sans déplacer ni redimensionner le graphe, Échap et un clic hors du volet le ferment (${size.width}x${size.height})`, async ({
     page,

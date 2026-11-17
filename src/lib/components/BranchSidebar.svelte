@@ -9,8 +9,9 @@
   import Tag from "@lucide/svelte/icons/tag";
   import { untrack } from "svelte";
   import type { CommitView, RefView } from "../bindings";
+  import { isMenuKey, menuEventAt } from "../menuKey";
   import { ROW_HEIGHT, clampHeight, defaultHeight, visibleRows } from "../sectionHeight";
-  import { buildSections, type SidebarSection, type TreeNode } from "../sidebarTree";
+  import { buildSections, type RefNode, type SidebarSection, type TreeNode } from "../sidebarTree";
 
   let {
     refs,
@@ -25,7 +26,16 @@
     onheight,
     onsectiontoggle,
     onpaneltoggle,
+    onrefdblclick,
+    onrefcontextmenu,
+    checkoutStarts = 0,
   }: {
+    /** Augmente à chaque checkout lancé, d'où qu'il vienne (dont le `RefContextMenu`) : il ferme le volet flottant. */
+    checkoutStarts?: number;
+    /** Double-clic (ou Entrée) sur une branche locale ou une `origin/…` : son checkout ; il ferme le volet flottant. */
+    onrefdblclick?: (name: string) => void;
+    /** Clic droit, touche menu ou Maj+F10 sur une branche locale ou une `origin/…` : son `RefContextMenu`. */
+    onrefcontextmenu?: (name: string, event: MouseEvent) => void;
     refs: RefView[];
     /** Commits du graphe : leurs dates ordonnent les tags et les stashes. */
     commits?: Pick<CommitView, "id" | "timestamp">[];
@@ -73,13 +83,43 @@
     return Cloud;
   }
 
-  /** Échap ferme le volet et rend le focus à l'icône de sa section. */
-  function onkeydown(event: KeyboardEvent) {
-    if (event.key !== "Escape" || flyId === null) return;
+  /** Ferme le volet et rend le focus à l'icône de sa section (Échap, checkout depuis le volet). */
+  function closeFly() {
+    if (flyId === null) return;
     const id = flyId;
     flyId = null;
     const icons = Array.from(host?.querySelectorAll<HTMLElement>("[data-section]") ?? []);
     icons.find((el) => el.dataset.section === id)?.focus();
+  }
+
+  let seenStarts = untrack(() => checkoutStarts);
+  $effect(() => {
+    const starts = checkoutStarts;
+    if (starts === seenStarts) return;
+    seenStarts = starts;
+    untrack(closeFly);
+  });
+
+  function onkeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") closeFly();
+  }
+
+  /** Checkout d'une branche : lancé depuis le volet flottant, il le ferme ; depuis le panneau déplié, rien ne se ferme. */
+  function checkout(name: string) {
+    closeFly();
+    onrefdblclick?.(name);
+  }
+
+  /** Entrée : checkout, comme le double-clic. Touche menu ou Maj+F10 : le menu de la branche, comme le clic droit. */
+  function onrowkeydown(event: KeyboardEvent, name: string) {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      checkout(name);
+    } else if (isMenuKey(event)) {
+      event.preventDefault();
+      onrefcontextmenu?.(name, menuEventAt(event.currentTarget as Element));
+    }
   }
 
   /** Un appui hors de la bande et du volet ferme le volet. */
@@ -207,6 +247,14 @@
 
 <svelte:window {onkeydown} {onpointerdown} />
 
+{#snippet rowBody(node: RefNode)}
+  <span class="mark" aria-hidden="true">{node.ref.current ? "●" : ""}</span>
+  <span class="name">{node.text}</span>
+  {#if node.ref.kind === "stash" && stashTitles[node.ref.name]}
+    <span class="note">{stashTitles[node.ref.name]}</span>
+  {/if}
+{/snippet}
+
 {#snippet nodes(list: TreeNode[], depth: number)}
   {#each list as node (node.type === "folder" ? `d:${node.key}` : `r:${node.ref.name}`)}
     {#if node.type === "folder"}
@@ -228,18 +276,31 @@
       </button>
       {#if open}{@render nodes(node.children, depth + 1)}{/if}
     {:else}
-      <div
-        class="item"
-        aria-current={node.ref.current ? "true" : undefined}
-        class:current={node.ref.current}
-        style="padding-left: {6 + depth * 12}px"
-      >
-        <span class="mark" aria-hidden="true">{node.ref.current ? "●" : ""}</span>
-        <span class="name">{node.text}</span>
-        {#if node.ref.kind === "stash" && stashTitles[node.ref.name]}
-          <span class="note">{stashTitles[node.ref.name]}</span>
-        {/if}
-      </div>
+      {#if node.ref.kind === "branch" || node.ref.kind === "remote"}
+        <!-- Une branche locale ou une `origin/…` porte les gestes de checkout (tags et stashes : aucun, ils ne détachent jamais HEAD). -->
+        <div
+          class="item branch"
+          role="button"
+          tabindex="0"
+          aria-current={node.ref.current ? "true" : undefined}
+          class:current={node.ref.current}
+          style="padding-left: {6 + depth * 12}px"
+          ondblclick={() => checkout(node.ref.name)}
+          oncontextmenu={(event) => onrefcontextmenu?.(node.ref.name, event)}
+          onkeydown={(event) => onrowkeydown(event, node.ref.name)}
+        >
+          {@render rowBody(node)}
+        </div>
+      {:else}
+        <div
+          class="item"
+          aria-current={node.ref.current ? "true" : undefined}
+          class:current={node.ref.current}
+          style="padding-left: {6 + depth * 12}px"
+        >
+          {@render rowBody(node)}
+        </div>
+      {/if}
     {/if}
   {/each}
 {/snippet}
@@ -485,6 +546,11 @@
     height: 24px;
     padding: 0 6px;
     border-radius: 4px;
+  }
+
+  .item.branch:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
   }
 
   .item.current {

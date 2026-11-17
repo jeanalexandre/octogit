@@ -3,6 +3,7 @@
   import {
     commands,
     events,
+    type CheckoutChoiceView,
     type Column,
     type ForcePushView,
     type LaunchState,
@@ -19,6 +20,10 @@
   import { sshApi } from "./lib/sshKeys";
   import ForcePushDialog from "./lib/components/ForcePushDialog.svelte";
   import IdentityMismatch from "./lib/components/IdentityMismatch.svelte";
+  import RefContextMenu, {
+    type CheckoutConfirm,
+    type RefMenuTarget,
+  } from "./lib/components/RefContextMenu.svelte";
   import History from "./lib/screens/History.svelte";
   import ProfileSettings from "./lib/screens/ProfileSettings.svelte";
   import Welcome from "./lib/screens/Welcome.svelte";
@@ -556,6 +561,81 @@
     }
   }
 
+  /** Dépôt dont un checkout est en cours (`null` : aucun) : un seul à la fois. */
+  let checkoutPath: string | null = $state(null);
+  /** Nombre de checkouts lancés : `BranchSidebar` s'en sert pour fermer son volet flottant. */
+  let checkoutStarts = $state(0);
+  /** Message d'une ligne du dernier checkout refusé ou échoué, avec le dépôt concerné ; effacé au prochain geste. */
+  let checkoutNotice: { path: string; text: string } | null = $state(null);
+  /** `RefContextMenu` ouvert sur une branche (clic droit, touche menu, Maj+F10). */
+  let refMenu: RefMenuTarget | null = $state(null);
+  /** Confirmation du checkout d'une `origin/…` dont la locale de même nom diffère, avec le dépôt et la ref demandée. */
+  let checkoutConfirm: (CheckoutConfirm & { path: string; name: string }) | null = $state(null);
+
+  /** Ouvre le menu d'une branche locale ou d'une `origin/…` ; tags et stashes n'ont pas de menu ici (S-36). */
+  function openRefMenu(name: string, event: MouseEvent) {
+    event.preventDefault();
+    if (screen?.screen !== "history") return;
+    const found = screen.repository.refs.find(
+      (r) => r.name === name && (r.kind === "branch" || r.kind === "remote"),
+    );
+    if (!found || (found.kind !== "branch" && found.kind !== "remote")) return;
+    refMenu = { name, kind: found.kind, x: event.clientX, y: event.clientY };
+  }
+
+  /**
+   * Checkout d'une branche locale ou d'une `origin/…` (double-clic, sélecteur de `Toolbar`, `RefContextMenu`), sous
+   * la même garde que le fetch (jamais en même temps qu'un fetch du même dépôt), un seul à la fois. Le dépôt relu
+   * remplace l'affichage (profil et écart gardés) et l'arbre de travail est relu. Une locale de même nom sur un
+   * autre commit ouvre la confirmation, rien n'est écrit. Un refus de Git laisse l'affichage tel quel et affiche
+   * son message d'une ligne. Aucun geste ne détache HEAD.
+   */
+  async function checkout(name: string, choice: CheckoutChoiceView | null = null) {
+    const path = openPath;
+    if (path === null || checkoutPath !== null || screen?.screen !== "history") return;
+    const target = screen.repository.refs.find((r) => r.name === name);
+    if (target?.kind !== "branch" && target?.kind !== "remote") return;
+    checkoutNotice = null;
+    checkoutPath = path;
+    checkoutStarts += 1;
+    try {
+      await runFetchNow(path, async () => {
+        const result = await commands.checkoutRepository(path, name, choice);
+        if (screen?.screen !== "history" || screen.repository.path !== path) return;
+        if (result.status !== "ok") {
+          checkoutNotice = { path, text: result.error };
+          return;
+        }
+        if (result.data.kind === "confirm") {
+          const { branch, remote, commits } = result.data;
+          checkoutConfirm = { path, name, branch, remote, commits };
+          return;
+        }
+        screen = {
+          screen: "history",
+          repository: {
+            ...result.data.repository,
+            profile: screen.repository.profile,
+            mismatch: screen.repository.mismatch,
+          } satisfies RepositoryView,
+        };
+        const tree = await commands.getWorkingTree(path);
+        if (tree.status === "ok" && openPath === path) workingTree = tree.data;
+      });
+    } catch {
+      // Échec inattendu : l'affichage garde l'état d'avant.
+    } finally {
+      checkoutPath = null;
+    }
+  }
+
+  /** « Reset and checkout » ou « Checkout local as is » : lève la confirmation, puis le checkout a lieu. */
+  function resolveCheckout(choice: CheckoutChoiceView) {
+    const pending = checkoutConfirm;
+    checkoutConfirm = null;
+    if (pending !== null) void checkout(pending.name, choice);
+  }
+
   /** Panneau `BranchSidebar` replié en bande d'icônes, global : lu au lancement, écrit au clic. */
   let panelCollapsed = $state(false);
 
@@ -821,6 +901,13 @@
     {pushCheck}
     rewrite={rewritten}
     onforcepush={openForcePush}
+    onrefdblclick={(name) => checkout(name)}
+    onrefcontextmenu={openRefMenu}
+    oncheckout={(name) => checkout(name)}
+    {checkoutStarts}
+    checkoutNotice={checkoutNotice !== null && checkoutNotice.path === openPath
+      ? checkoutNotice.text
+      : null}
   />
 {:else if screen?.screen === "welcome"}
   <Welcome
@@ -840,6 +927,18 @@
     error={forceDialog.error}
     onforce={forcePush}
     oncancel={() => (forceDialog = null)}
+  />
+{/if}
+
+{#if screen?.screen === "history"}
+  <RefContextMenu
+    menu={refMenu}
+    confirm={checkoutConfirm !== null && checkoutConfirm.path === openPath ? checkoutConfirm : null}
+    oncheckout={(name) => checkout(name)}
+    onclose={() => (refMenu = null)}
+    onreset={() => resolveCheckout("reset")}
+    onasis={() => resolveCheckout("asIs")}
+    oncancel={() => (checkoutConfirm = null)}
   />
 {/if}
 

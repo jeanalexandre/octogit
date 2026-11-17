@@ -19,6 +19,7 @@
   import PushButton from "../components/PushButton.svelte";
   import RepoPicker from "../components/RepoPicker.svelte";
   import SyncButton from "../components/SyncButton.svelte";
+  import Toolbar from "../components/Toolbar.svelte";
   import WorkingChanges from "../components/WorkingChanges.svelte";
 
   let {
@@ -43,6 +44,9 @@
     onsectiontoggle,
     onrefdblclick,
     onrefcontextmenu,
+    oncheckout,
+    checkoutNotice = null,
+    checkoutStarts = 0,
     loadDetail,
     workingTree = null,
     onstageall,
@@ -120,10 +124,16 @@
     oncommit?: (summary: string, description: string, amend: boolean) => Promise<void>;
     /** Adresse e-mail effective des commits (`.git/config` local), ou `null` si inconnue. */
     commitEmail?: string | null;
-    /** Double-clic sur l'étiquette d'une ref du graphe (checkout : S-25). */
+    /** Double-clic sur une branche de `BranchSidebar` ou sur l'étiquette d'une ref du graphe : checkout. */
     onrefdblclick?: (name: string) => void;
-    /** Clic droit sur l'étiquette d'une ref du graphe (`RefContextMenu` : S-36). */
+    /** Clic droit, touche menu ou Maj+F10 sur une branche de `BranchSidebar` ou une étiquette du graphe : `RefContextMenu`. */
     onrefcontextmenu?: (name: string, event: MouseEvent) => void;
+    /** Choix d'une branche dans le sélecteur de `Toolbar` : checkout. */
+    oncheckout?: (name: string) => void;
+    /** Message d'une ligne du dernier checkout refusé ou échoué (près de l'en-tête), ou `null`. */
+    checkoutNotice?: string | null;
+    /** Augmente à chaque checkout lancé : `BranchSidebar` ferme son volet flottant. */
+    checkoutStarts?: number;
     repository: RepositoryView;
     recent: RecentView[];
     /** Message du dernier dossier refusé, ou `null`. */
@@ -235,6 +245,7 @@
   <header>
     <h1 class="visually-hidden">{repository.name}</h1>
     <RepoPicker {recent} current={repository.path} {onopen} {onchoose} />
+    <Toolbar refs={repository.refs} onselect={(name) => oncheckout?.(name)} />
     <span class="path">{repository.path}</span>
     <div class="end">
       <!-- Stash complet (StashButtons) : S-32. Ici, seulement l'état désactivé. -->
@@ -289,6 +300,9 @@
   {#if error}
     <p class="error" role="alert">{error}</p>
   {/if}
+  {#if checkoutNotice}
+    <p class="error" role="alert">{checkoutNotice}</p>
+  {/if}
 
   <div class="body">
     <BranchSidebar
@@ -304,6 +318,9 @@
       {onpaneltoggle}
       onheight={onsectionheight}
       {onsectiontoggle}
+      {onrefdblclick}
+      {onrefcontextmenu}
+      {checkoutStarts}
     />
     <CommitGraph
       commits={repository.commits}

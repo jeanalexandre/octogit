@@ -87,6 +87,12 @@ export const commands = {
 	 */
 	pullRepository: (path: string, rebase: boolean) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("pull_repository", { path, rebase })),
 	/**
+	 *  Checkout d'une branche locale ou d'une `origin/…` (double-clic, sélecteur de `Toolbar`, `RefContextMenu`) en
+	 *  tâche de fond, puis relecture du dépôt. Sans `choice`, une locale de même nom sur un autre commit rend la valeur
+	 *  `confirm` (rien n'est écrit) ; `choice` (« Reset and checkout » ou « Checkout local as is ») lève la confirmation.
+	 */
+	checkoutRepository: (path: string, name: string, choice: CheckoutChoiceView | null) => typedError<CheckoutOutcomeView_Serialize, string>(__TAURI_INVOKE("checkout_repository", { path, name, choice })),
+	/**
 	 *  Push de `PushButton` en tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne
 	 *  (distante en avance, pas d'`origin`…).
 	 */
@@ -172,6 +178,34 @@ export type AttachmentView_Serialize = {
 };
 
 export type ChangeStatusView = "modified" | "added" | "deleted";
+
+/**  Choix de la confirmation du checkout d'une `origin/…` dont la locale diffère (Cancel : aucun appel). */
+export type CheckoutChoiceView = 
+/**  « Reset and checkout ». */
+"reset" | 
+/**  « Checkout local as is ». */
+"asIs";
+
+/**  Plan du checkout, valeur typée : fait (le dépôt relu), ou confirmation à trancher (rien n'a changé). */
+export type CheckoutOutcomeView = CheckoutOutcomeView_Serialize | CheckoutOutcomeView_Deserialize;
+
+/**  Plan du checkout, valeur typée : fait (le dépôt relu), ou confirmation à trancher (rien n'a changé). */
+export type CheckoutOutcomeView_Deserialize = { kind: "checkedOut"; repository: RepositoryView_Deserialize } | { kind: "confirm"; 
+/**  Branche locale (`feature/graph`). */
+branch: string; 
+/**  Branche distante (`origin/feature/graph`). */
+remote: string; 
+/**  Commits de la locale absents de la distante. */
+commits: LocalCommitView[] };
+
+/**  Plan du checkout, valeur typée : fait (le dépôt relu), ou confirmation à trancher (rien n'a changé). */
+export type CheckoutOutcomeView_Serialize = { kind: "checkedOut"; repository: RepositoryView_Serialize } | { kind: "confirm"; 
+/**  Branche locale (`feature/graph`). */
+branch: string; 
+/**  Branche distante (`origin/feature/graph`). */
+remote: string; 
+/**  Commits de la locale absents de la distante. */
+commits: LocalCommitView[] };
 
 /**  Colonnes du graphe que l'on peut masquer. */
 export type Column = "author" | "date" | "sha";
@@ -318,6 +352,13 @@ export type LaunchState = LaunchState_Serialize | LaunchState_Deserialize;
 export type LaunchState_Deserialize = { screen: "history"; repository: RepositoryView_Deserialize } | { screen: "welcome" };
 
 export type LaunchState_Serialize = { screen: "history"; repository: RepositoryView_Serialize } | { screen: "welcome" };
+
+/**  Un commit de la locale absent de la distante, listé dans la confirmation du checkout d'une `origin/…`. */
+export type LocalCommitView = {
+	id: string,
+	shortId: string,
+	summary: string,
+};
 
 /**  Écart entre le `.git/config` local et le profil rattaché : rien n'a été écrit. */
 export type MismatchView = MismatchView_Serialize | MismatchView_Deserialize;

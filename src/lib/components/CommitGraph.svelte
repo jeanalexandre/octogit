@@ -8,6 +8,7 @@
     defaultGraphWidth,
     lanesWidth,
   } from "../graphWidth";
+  import { isMenuKey, menuEventAt } from "../menuKey";
   import { labelsByCommit } from "../refLabels";
   import { formatAbsolute, formatRelativeShort } from "../relativeTime";
   import CommitNode from "./CommitNode.svelte";
@@ -372,7 +373,14 @@
                   onmouseleave={() => (hoveredRefs = null)}
                   onfocusin={(e) => focusRefs(e, commit.id, labels.length)}
                   onfocusout={() => (focusedRefs = null)}
-                  onkeydown={(e) => e.key === "Escape" && (focusedRefs = null)}
+                  onkeydown={(e) => {
+                    if (e.key === "Escape") focusedRefs = null;
+                    else if (isMenuKey(e) && e.target === e.currentTarget) {
+                      // Touche menu ou Maj+F10 sur le groupe : le menu de l'étiquette prioritaire, comme son clic droit.
+                      e.preventDefault();
+                      onrefcontextmenu?.(labels[0].name, menuEventAt(e.currentTarget));
+                    }
+                  }}
                 >
                   <RefLabel
                     name={labels[0].name}

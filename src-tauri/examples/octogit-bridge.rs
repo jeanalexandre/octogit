@@ -63,6 +63,13 @@ struct PullArgs {
 }
 
 #[derive(Deserialize)]
+struct CheckoutArgs {
+    path: String,
+    name: String,
+    choice: Option<octogit_app::fetch::CheckoutChoiceView>,
+}
+
+#[derive(Deserialize)]
 struct ForcePushArgs {
     path: String,
     expected: String,
@@ -432,6 +439,18 @@ fn main() {
             let args: PullArgs = serde_json::from_str(&input).expect("arguments { path, rebase }");
             match octogit_app::fetch::pull_repository(std::path::Path::new(&args.path), args.rebase)
             {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "checkout_repository" => {
+            let args: CheckoutArgs =
+                serde_json::from_str(&input).expect("arguments { path, name, choice }");
+            match octogit_app::fetch::checkout_repository(
+                std::path::Path::new(&args.path),
+                &args.name,
+                args.choice,
+            ) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

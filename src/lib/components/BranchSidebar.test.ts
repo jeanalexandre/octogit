@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/svelte";
+import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 import BranchSidebar from "./BranchSidebar.svelte";
 import type { RefView } from "../bindings";
@@ -103,5 +103,96 @@ describe("BranchSidebar collapse and floating pane", () => {
     const pane = screen.getByRole("region", { name: "Local" });
     await fireEvent.click(pane.querySelector(".section-toggle") as HTMLElement);
     expect(onsectiontoggle).toHaveBeenCalledWith("local", true);
+  });
+});
+
+describe("BranchSidebar checkout gestures", () => {
+  const rows = () => screen.getAllByRole("button", { name: "main" });
+
+  it("gerer-les-branches CA-1: a double-click on a local branch or an origin/… branch asks for its checkout by its full name", async () => {
+    const onrefdblclick = vi.fn();
+    render(BranchSidebar, props({ onrefdblclick }));
+    const [local, remote] = rows();
+    await fireEvent.dblClick(local);
+    expect(onrefdblclick).toHaveBeenLastCalledWith("main");
+    await fireEvent.dblClick(remote);
+    expect(onrefdblclick).toHaveBeenLastCalledWith("origin/main");
+    expect(onrefdblclick).toHaveBeenCalledTimes(2);
+  });
+
+  it("gerer-les-branches CA-23: tags and stashes have no checkout gesture", async () => {
+    const onrefdblclick = vi.fn();
+    const onrefcontextmenu = vi.fn();
+    render(BranchSidebar, props({ onrefdblclick, onrefcontextmenu }));
+    for (const text of ["v1.0.0", "stash@{0}"]) {
+      const row = screen.getByText(text);
+      await fireEvent.dblClick(row);
+      await fireEvent.contextMenu(row);
+      await fireEvent.keyDown(row, { key: "Enter" });
+    }
+    expect(onrefdblclick).not.toHaveBeenCalled();
+    expect(onrefcontextmenu).not.toHaveBeenCalled();
+  });
+
+  it("gerer-les-branches CA-3: a right-click or Shift+F10 on a branch asks for its menu with its name", async () => {
+    const onrefcontextmenu = vi.fn();
+    render(BranchSidebar, props({ onrefcontextmenu }));
+    const [local, remote] = rows();
+    await fireEvent.contextMenu(remote);
+    expect(onrefcontextmenu).toHaveBeenLastCalledWith("origin/main", expect.any(MouseEvent));
+    await fireEvent.keyDown(local, { key: "F10", shiftKey: true });
+    expect(onrefcontextmenu).toHaveBeenLastCalledWith("main", expect.any(MouseEvent));
+    await fireEvent.keyDown(local, { key: "ContextMenu" });
+    expect(onrefcontextmenu).toHaveBeenCalledTimes(3);
+  });
+
+  it("gerer-les-branches CA-1: Enter on a focused branch is the double-click, for the keyboard", async () => {
+    const onrefdblclick = vi.fn();
+    render(BranchSidebar, props({ onrefdblclick }));
+    const [, remote] = rows();
+    remote.focus();
+    await fireEvent.keyDown(remote, { key: "Enter" });
+    expect(onrefdblclick).toHaveBeenCalledWith("origin/main");
+  });
+
+  it("organiser-l-espace CA-10: a checkout from the floating pane closes it and gives the focus back to its icon", async () => {
+    const onrefdblclick = vi.fn();
+    render(BranchSidebar, props({ panelCollapsed: true, onrefdblclick }));
+    const icon = screen.getByRole("button", { name: "origin" });
+    await fireEvent.click(icon);
+    const pane = screen.getByRole("region", { name: "origin" });
+    await fireEvent.dblClick(within(pane).getByRole("button", { name: "main" }));
+    expect(onrefdblclick).toHaveBeenCalledWith("origin/main");
+    expect(screen.queryByRole("region")).toBeNull();
+    expect(icon).toHaveFocus();
+  });
+
+  it("organiser-l-espace CA-10: a checkout started from the menu opened by Shift+F10 in the floating pane closes it", async () => {
+    const onrefcontextmenu = vi.fn();
+    const { rerender } = render(
+      BranchSidebar,
+      props({ panelCollapsed: true, onrefcontextmenu, checkoutStarts: 0 }),
+    );
+    const icon = screen.getByRole("button", { name: "origin" });
+    await fireEvent.click(icon);
+    const row = within(screen.getByRole("region", { name: "origin" })).getByRole("button", {
+      name: "main",
+    });
+    await fireEvent.keyDown(row, { key: "F10", shiftKey: true });
+    expect(onrefcontextmenu).toHaveBeenCalledWith("origin/main", expect.any(MouseEvent));
+    expect(screen.getByRole("region", { name: "origin" })).toBeInTheDocument();
+    await rerender({ checkoutStarts: 1 });
+    expect(screen.queryByRole("region")).toBeNull();
+  });
+
+  it("organiser-l-espace CA-10: a checkout from the unfolded panel closes nothing", async () => {
+    const onpaneltoggle = vi.fn();
+    const onrefdblclick = vi.fn();
+    render(BranchSidebar, props({ onpaneltoggle, onrefdblclick }));
+    await fireEvent.dblClick(rows()[0]);
+    expect(onrefdblclick).toHaveBeenCalledWith("main");
+    expect(onpaneltoggle).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: /Local/ })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Branches" })).toBeInTheDocument();
   });
 });

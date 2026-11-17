@@ -293,6 +293,23 @@ pub fn get_identity_mismatch(path: String) -> Option<attach::MismatchView> {
     )
 }
 
+/// Commits à pousser de `path` et leur classement par rapport au profil rattaché (`PushButton` bloqué, marque
+/// des nœuds fautifs du graphe) ; `None` : sans profil ou commits illisibles. Relu à chaque appel, rien n'est écrit.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_push_check(path: String) -> Option<attach::PushCheckView> {
+    tauri::async_runtime::spawn_blocking(move || {
+        attach::push_check(
+            &Store::new(data_dir()),
+            Path::new(&path),
+            &crate::home_dir(),
+        )
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
 /// Adresse e-mail effective des commits de `path` (`user.email` du `.git/config` local).
 #[tauri::command]
 #[specta::specta]

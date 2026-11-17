@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { Workspace } from "./helpers";
+import { FIXTURE_IDENTITY, Workspace } from "./helpers";
 
 let ws: Workspace;
 test.beforeEach(() => {
@@ -15,7 +15,8 @@ const sizes = [
 /** Dépôt de `push.sh` rattaché à Work : Push n'est pas bloqué par l'identité (voir `identity-push.spec.ts`). */
 const pushRepo = (scenario: Parameters<Workspace["pushRepo"]>[0]) => {
   const repo = ws.pushRepo(scenario);
-  ws.attachWork(repo);
+  // Le profil porte l'identité des commits de la fixture : ses commits à pousser sont conformes (S-22).
+  ws.attachWork(repo, FIXTURE_IDENTITY);
   return repo;
 };
 const tracking = (page: Page) => page.getByRole("group", { name: "Ahead and behind" });
@@ -151,9 +152,17 @@ test("synchroniser CA-13 : origin existe sans aucune ref origin/…, le bouton e
 }) => {
   const repo = pushRepo("empty-origin");
   expect(ws.git(repo, "branch", "--remotes")).toBe("");
+  // Sans branche distante, tout l'historique est à pousser : on le réduit à un commit de l'identité du profil
+  // pour que le contrôle des commits à pousser (S-22) n'intervienne pas ici.
+  ws.git(repo, "checkout", "-q", "--orphan", "fresh");
+  ws.commitAs(repo, "Only commit", { name: "Alice Martin", email: "alice@example.com" });
+  ws.git(repo, "branch", "-q", "-D", "local-only");
+  ws.git(repo, "branch", "-q", "-m", "local-only");
   ws.rememberRecent([repo]);
   await page.goto(ws.urlWithFetchInterval(3_600_000));
   await expect(page.getByText("Not published")).toBeVisible();
+  // Le classement des commits à pousser est lu : le bouton actif n'est pas celui d'avant sa lecture.
+  await expect(page.locator("[data-push-checked]")).toHaveCount(1);
   await expect(pushButton(page)).toHaveAttribute("aria-disabled", "false");
   await expect(page.getByText("No origin remote.")).toHaveCount(0);
   const head = ws.git(repo, "rev-parse", "HEAD");

@@ -4,6 +4,7 @@ mod fetch;
 mod graph;
 mod pull;
 mod push;
+mod unpushed;
 mod working_tree;
 
 use std::fmt;
@@ -13,6 +14,7 @@ pub use fetch::{fetch, fetch_all, FetchError, FETCH_TIMEOUT};
 pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};
 pub use pull::{pull, PullError, PullMode};
 pub use push::{push, PushError};
+pub use unpushed::{read_unpushed, UnpushedCommit};
 pub use working_tree::{
     commit, commit_with_home, read_working_tree, stage_all, unstage_all, WorkingTree,
     WorkingTreeWatcher,

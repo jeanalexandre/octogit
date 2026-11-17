@@ -661,6 +661,99 @@ describe("History", () => {
     );
   });
 
+  describe("commits to push (J-13)", () => {
+    const ahead2 = {
+      ...repository,
+      refs: repository.refs.map((r) =>
+        r.current ? { ...r, upstream: "origin/main", ahead: 2, behind: 0 } : r,
+      ),
+    };
+    const reason = "1 of 2 commits authored as jag@perso.fr. Profile Work expects jag@work.fr.";
+    const pushCheck = {
+      profileName: "Work",
+      reason,
+      commits: [
+        {
+          id: "a".repeat(40),
+          shortId: "aaaaaaa",
+          summary: "Merge feature/profiles",
+          fault: "author",
+        },
+        { id: "b".repeat(40), shortId: "bbbbbbb", summary: "Main work", fault: null },
+      ],
+    } as const;
+    const marks = (container: HTMLElement) =>
+      [...container.querySelectorAll("[data-fault]")].map((n) => n.getAttribute("data-fault"));
+
+    it("proteger-l-identite CA-20: a faulty commit to push blocks PushButton « Push 2 » with the reason and the list", () => {
+      render(
+        History,
+        props({ repository: { ...ahead2, profile: attached }, pushCheck, blocked: null }),
+      );
+      const button = screen.getByRole("button", { name: "Push 2" });
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).toHaveAccessibleDescription(reason);
+      const list = screen.getByRole("list", { name: "Commits to push" });
+      expect(list).toHaveTextContent("✕ author");
+      expect(list).toHaveTextContent("✓");
+    });
+
+    it("proteger-l-identite CA-23: only the faulty node carries a mark naming the field, readable without colour", () => {
+      const { container } = render(
+        History,
+        props({ repository: { ...ahead2, profile: attached }, pushCheck }),
+      );
+      expect(marks(container)).toEqual(["author"]);
+      const mark = container.querySelector("[data-node] [data-fault]") as HTMLElement;
+      expect(mark).toHaveTextContent("✕");
+      expect(mark).toHaveAccessibleName("✕ author");
+      // La ligne du commit fautif dit le champ en toutes lettres ; les autres lignes ne disent rien.
+      const row = screen.getByRole("button", { name: /Merge feature\/profiles/ }).closest(".row");
+      expect(row).toHaveTextContent("✕ author");
+      const other = screen.getByRole("button", { name: /Main work/ }).closest(".row");
+      expect(other).not.toHaveTextContent("✕");
+    });
+
+    it("proteger-l-identite CA-23: a committer fault is marked ✕ committer, a colleague or an already pushed commit is not", () => {
+      const committerCheck = {
+        ...pushCheck,
+        commits: [
+          { ...pushCheck.commits[0], fault: "committer" },
+          // « Add profiles » (collègue, déjà poussé) n'est pas dans la liste des commits à pousser.
+          { ...pushCheck.commits[1], fault: null },
+        ],
+      } as const;
+      const { container } = render(
+        History,
+        props({ repository: { ...ahead2, profile: attached }, pushCheck: committerCheck }),
+      );
+      expect(marks(container)).toEqual(["committer"]);
+      expect(
+        screen.getByRole("button", { name: /Merge feature\/profiles/ }).closest(".row"),
+      ).toHaveTextContent("✕ committer");
+      expect(
+        screen.getByRole("button", { name: /Add profiles/ }).closest(".row"),
+      ).not.toHaveTextContent("✕");
+    });
+
+    it("proteger-l-identite CA-22: without faulty commit, no mark and Push stays available", () => {
+      const clean = {
+        ...pushCheck,
+        reason: null,
+        commits: pushCheck.commits.map((c) => ({ ...c, fault: null })),
+      };
+      const { container } = render(
+        History,
+        props({ repository: { ...ahead2, profile: attached }, pushCheck: clean }),
+      );
+      expect(marks(container)).toEqual([]);
+      expect(screen.getByRole("button", { name: "Push 2" })).toHaveAttribute(
+        "aria-disabled",
+        "false",
+      );
+    });
+  });
+
   it("explorer-l-historique CA-25: a merge commit opens the merge variant", async () => {
     const loadDetail = vi.fn(async () => detail({ parents: ["b".repeat(40), "c".repeat(40)] }));
     render(History, props({ loadDetail }));

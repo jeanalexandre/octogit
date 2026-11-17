@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { Workspace } from "./helpers";
+import { FIXTURE_IDENTITY, Workspace } from "./helpers";
 
 let ws: Workspace;
 test.beforeEach(() => {
@@ -25,7 +25,7 @@ const originHead = (repo: string) =>
 /** Dépôt `ahead` (2 commits à pousser) avec un fichier indexé, donc un panneau Working changes. */
 function prepare({ profile }: { profile: boolean }): string {
   const repo = ws.pushRepo("ahead");
-  if (profile) ws.attachWork(repo);
+  if (profile) ws.attachWork(repo, FIXTURE_IDENTITY);
   writeFileSync(join(repo, "staged.txt"), "x\n");
   ws.stage(repo, "staged.txt");
   ws.rememberRecent([repo]);

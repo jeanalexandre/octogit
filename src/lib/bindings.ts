@@ -66,6 +66,11 @@ export const commands = {
 	 */
 	getIdentityMismatch: (path: string) => __TAURI_INVOKE<MismatchView_Serialize | null>("get_identity_mismatch", { path }),
 	/**
+	 *  Commits à pousser de `path` et leur classement par rapport au profil rattaché (`PushButton` bloqué, marque
+	 *  des nœuds fautifs du graphe) ; `None` : sans profil ou commits illisibles. Relu à chaque appel, rien n'est écrit.
+	 */
+	getPushCheck: (path: string) => __TAURI_INVOKE<PushCheckView_Serialize | null>("get_push_check", { path }),
+	/**
 	 *  Surveille `path` (remplace la surveillance précédente ; un chemin vide l'arrête sans en lancer
 	 *  d'autre, quand plus aucun dépôt n'est ouvert). L'événement `working-tree-changed`
 	 *  (`WorkingTreeChanged`) part à chaque changement fait hors d'Octogit. La surveillance est active
@@ -169,6 +174,9 @@ export type CommitDetailView = {
 	/**  Fichiers modifiés (pour un merge : par rapport au premier parent). */
 	files: FileChangeView[],
 };
+
+/**  Champ en cause d'un commit à pousser fautif (marque « ✕ author » / « ✕ committer »). */
+export type CommitFaultView = "author" | "committer";
 
 export type CommitView = {
 	id: string,
@@ -292,6 +300,53 @@ export type ProfileView = {
 	signCommits: boolean,
 	sshKeyPath: string,
 	rules: RuleView[],
+};
+
+/**
+ *  Commits à pousser de la branche courante (absents de toute branche distante du remote cible), classés
+ *  par rapport au profil rattaché ; `reason` est le texte de blocage de Push, `None` si aucun n'est fautif.
+ */
+export type PushCheckView = PushCheckView_Serialize | PushCheckView_Deserialize;
+
+/**
+ *  Commits à pousser de la branche courante (absents de toute branche distante du remote cible), classés
+ *  par rapport au profil rattaché ; `reason` est le texte de blocage de Push, `None` si aucun n'est fautif.
+ */
+export type PushCheckView_Deserialize = {
+	profileName: string,
+	/**  Du plus récent au plus ancien. */
+	commits: PushCommitView_Deserialize[],
+	reason?: string | null,
+};
+
+/**
+ *  Commits à pousser de la branche courante (absents de toute branche distante du remote cible), classés
+ *  par rapport au profil rattaché ; `reason` est le texte de blocage de Push, `None` si aucun n'est fautif.
+ */
+export type PushCheckView_Serialize = {
+	profileName: string,
+	/**  Du plus récent au plus ancien. */
+	commits: PushCommitView_Serialize[],
+	reason: string | null,
+};
+
+/**  Un commit à pousser et son classement : `fault` vide, il est conforme (« ✓ »). */
+export type PushCommitView = PushCommitView_Serialize | PushCommitView_Deserialize;
+
+/**  Un commit à pousser et son classement : `fault` vide, il est conforme (« ✓ »). */
+export type PushCommitView_Deserialize = {
+	id: string,
+	shortId: string,
+	summary: string,
+	fault?: CommitFaultView | null,
+};
+
+/**  Un commit à pousser et son classement : `fault` vide, il est conforme (« ✓ »). */
+export type PushCommitView_Serialize = {
+	id: string,
+	shortId: string,
+	summary: string,
+	fault: CommitFaultView | null,
 };
 
 export type RecentView = RecentView_Serialize | RecentView_Deserialize;

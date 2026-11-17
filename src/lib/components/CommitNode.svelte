@@ -6,9 +6,12 @@
     color,
     stash = false,
     wip = false,
+    fault = null,
   }: {
     author: string;
     color: number;
+    /** Commit à pousser fautif : le champ en cause, marqué par « ✕ » au coin du nœud (J-13). */
+    fault?: "author" | "committer" | null;
     /** Ligne d'un stash : carré à icône d'archive, sans initiales. */
     stash?: boolean;
     /** Ligne WIP : cercle en pointillés, sans initiales (rien n'est encore commité). */
@@ -37,11 +40,17 @@
   style="--lane: var(--lane-{color + 1})"
   >{#if stash}<span class="icon" data-icon="stash" aria-hidden="true"
       ><Archive size={16} strokeWidth={1.8} /></span
-    >{:else if !wip}{initials(author)}{/if}</span
+    >{:else if !wip}{initials(author)}{/if}{#if fault}<span
+      class="fault"
+      data-fault={fault}
+      role="img"
+      aria-label="✕ {fault}">✕</span
+    >{/if}</span
 >
 
 <style>
   .node {
+    position: relative;
     box-sizing: border-box;
     display: grid;
     place-items: center;
@@ -64,5 +73,22 @@
   }
   .icon {
     display: inline-flex;
+  }
+  .fault {
+    position: absolute;
+    right: -6px;
+    bottom: -6px;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--danger);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--danger);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
   }
 </style>

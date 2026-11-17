@@ -31,6 +31,23 @@ describe("CommitNode", () => {
     expect(container.querySelector("[data-node]")).not.toHaveAttribute("data-wip");
   });
 
+  it("proteger-l-identite CA-23: a faulty node carries a ✕ mark that names the field, and others carry none", () => {
+    for (const fault of ["author", "committer"] as const) {
+      const { container, unmount } = render(CommitNode, {
+        author: "Jag Perso",
+        color: 1,
+        fault,
+      });
+      const mark = container.querySelector("[data-node] [data-fault]") as HTMLElement;
+      expect(mark).toHaveAttribute("data-fault", fault);
+      expect(mark).toHaveTextContent("✕");
+      expect(mark).toHaveAccessibleName(`✕ ${fault}`);
+      unmount();
+    }
+    const { container } = render(CommitNode, { author: "Alice Client", color: 1 });
+    expect(container.querySelector("[data-fault]")).toBeNull();
+  });
+
   it("explorer-l-historique CA-30: a commit node stays a circle with initials and no icon", () => {
     const { container } = render(CommitNode, { author: "Jean-Alexandre Gautreau", color: 2 });
     const node = container.querySelector("[data-node]") as HTMLElement;

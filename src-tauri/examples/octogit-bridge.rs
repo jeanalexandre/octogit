@@ -396,6 +396,18 @@ fn main() {
                 0,
             )
         }
+        "get_push_check" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            // La commande Tauri est asynchrone : le pont appelle directement ce qu'elle délègue.
+            (
+                serde_json::to_string(&octogit_app::attach::push_check(
+                    &octogit_store::Store::new(octogit_app::data_dir()),
+                    std::path::Path::new(&args.path),
+                    &octogit_app::home_dir(),
+                )),
+                0,
+            )
+        }
         "fetch_repository" => {
             let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
             match octogit_app::fetch::fetch_repository(std::path::Path::new(&args.path)) {

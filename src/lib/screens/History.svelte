@@ -5,6 +5,7 @@
     CommitDetailView,
     MismatchView,
     ProfileView,
+    PushCheckView,
     RecentView,
     RepositoryView,
     SyncAction,
@@ -63,7 +64,10 @@
     pushing = false,
     pushNotice = null,
     onpush,
+    pushCheck = null,
   }: {
+    /** Commits à pousser de la branche courante et leur classement (`get_push_check`), ou `null` tant qu'il n'est pas lu. */
+    pushCheck?: PushCheckView | null;
     /** Un push lancé par `PushButton` est en cours. */
     pushing?: boolean;
     /** Message d'une ligne du dernier push refusé ou échoué (près de `PushButton`), ou `null`. */
@@ -199,6 +203,12 @@
       ? { profile: repository.profile.name, email: commitEmail }
       : null,
   );
+  /** Commits à pousser fautifs : identifiant → champ en cause (le calcul est fait côté Rust). */
+  const faults = $derived(
+    Object.fromEntries(
+      (pushCheck?.commits ?? []).flatMap((c) => (c.fault ? [[c.id, c.fault] as const] : [])),
+    ),
+  );
   const tracking = $derived(current?.upstream ? current : undefined);
   const stashTitles = $derived(
     Object.fromEntries(
@@ -242,6 +252,7 @@
         notice={pushNotice}
         {blocked}
         noProfile={!repository.profile}
+        check={pushCheck}
         onrun={() => onpush?.()}
       />
       {#if tracking}
@@ -290,6 +301,7 @@
       {onhidecolumns}
       {onrefdblclick}
       {onrefcontextmenu}
+      {faults}
       wip={{ count: changedFiles }}
       {wipSelected}
       onselectwip={selectWip}
@@ -372,6 +384,20 @@
     align-items: baseline;
     flex: none;
     gap: 16px;
+    margin-left: auto;
+  }
+
+  header:has(:global([data-push-commits])) {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  /* Avec la liste des commits à pousser, le groupe se dissout dans l'en-tête qui passe à la ligne. */
+  .end:has(:global([data-push-commits])) {
+    display: contents;
+  }
+
+  .end:has(:global([data-push-commits])) > :first-child {
     margin-left: auto;
   }
 

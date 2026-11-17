@@ -28,7 +28,10 @@
     wip = null,
     wipSelected = false,
     onselectwip,
+    faults = {},
   }: {
+    /** Commits à pousser fautifs (J-13) : identifiant du commit → champ en cause, calculé côté Rust. */
+    faults?: Record<string, "author" | "committer">;
     /** Ligne WIP en tête du graphe : `count` fichiers modifiés, `null` tant que l'état n'est pas lu. */
     wip?: { count: number | null } | null;
     /** La ligne WIP est la sélection (et non un commit). */
@@ -423,6 +426,7 @@
                     author={commit.author}
                     color={commit.color}
                     stash={stashTargets.has(commit.id)}
+                    fault={faults[commit.id] ?? null}
                   />
                 </span>
               {/if}
@@ -434,7 +438,9 @@
                 type="button"
                 class="summary"
                 aria-current={selected === commit.id ? "true" : undefined}
-                onclick={() => onselect(commit.id)}>{commit.summary}</button
+                onclick={() => onselect(commit.id)}
+                >{#if faults[commit.id]}<span class="fault-mark">✕ {faults[commit.id]}</span
+                  >{/if}{commit.summary}</button
               >
               {#if shown("author")}
                 <span class="who">
@@ -722,6 +728,14 @@
     font-size: 14px;
     text-align: left;
     cursor: pointer;
+  }
+
+  /* Commit à pousser fautif : le champ en toutes lettres, avant le résumé pour que la troncature ne le coupe pas. */
+  .fault-mark {
+    margin-right: 8px;
+    color: var(--danger);
+    font-size: 12px;
+    font-weight: 600;
   }
 
   /* Toute la bande est cliquable ; la date reste au-dessus pour garder son infobulle. */

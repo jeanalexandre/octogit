@@ -7,6 +7,7 @@
     type LaunchState,
     type MismatchView,
     type ProfileView,
+    type PushCheckView,
     type RecentView,
     type SectionLayoutView,
     type RepositoryView,
@@ -151,6 +152,50 @@
     }
   }
 
+  /**
+   * Relit le dépôt (refs, `ahead` / `behind`) au retour dans la fenêtre : un commit fait au terminal change le
+   * compteur de `PushButton`. L'affichage n'est remplacé que si les commits ou les refs ont changé ; profil et écart
+   * sont gardés.
+   */
+  async function refreshRepository(path: string) {
+    const result = await commands.openRepository(path);
+    if (result.status !== "ok" || openPath !== path || screen?.screen !== "history") return;
+    const current = screen.repository;
+    if (
+      JSON.stringify([result.data.refs, result.data.commits]) ===
+      JSON.stringify([current.refs, current.commits])
+    )
+      return;
+    screen = {
+      screen: "history",
+      repository: {
+        ...result.data,
+        profile: current.profile,
+        mismatch: current.mismatch,
+      } satisfies RepositoryView,
+    };
+  }
+
+  /** Commits à pousser du dépôt ouvert et leur classement (J-13), avec le dépôt qu'ils concernent. */
+  let pushCheckState = $state<{ path: string; check: PushCheckView | null } | null>(null);
+  const pushCheck = $derived(pushCheckState?.path === openPath ? pushCheckState.check : null);
+  let pushCheckSeq = 0;
+
+  /** Relit le classement des commits à pousser (relu à chaque appel côté cœur : un commit fait au terminal compte). */
+  async function refreshPushCheck(path: string) {
+    const seq = ++pushCheckSeq;
+    const check = await commands.getPushCheck(path);
+    if (seq !== pushCheckSeq || openPath !== path) return;
+    pushCheckState = { path, check };
+  }
+
+  // Ouverture, puis chaque remplacement du dépôt (fetch, commit, push, pull, changement de profil) relit le classement.
+  $effect(() => {
+    const path = openPath;
+    void (screen?.screen === "history" ? screen.repository : null);
+    if (path !== null) void refreshPushCheck(path);
+  });
+
   // Un changement du `.git/config` (événement du cœur) ou le retour dans la fenêtre relit l'écart.
   $effect(() => {
     const path = openPath;
@@ -160,7 +205,13 @@
     let stale = false;
     let unlisten: (() => void) | undefined;
     const refresh = () => {
-      if (!stale) void refreshIdentity(path);
+      if (stale) return;
+      void refreshIdentity(path);
+      void refreshPushCheck(path);
+    };
+    const onFocus = () => {
+      refresh();
+      if (!stale) void refreshRepository(path);
     };
     void (async () => {
       const off = await events.repoConfigChanged.listen((event) => {
@@ -170,11 +221,11 @@
       unlisten = off;
       refresh();
     })();
-    window.addEventListener("focus", refresh);
+    window.addEventListener("focus", onFocus);
     return () => {
       stale = true;
       unlisten?.();
-      window.removeEventListener("focus", refresh);
+      window.removeEventListener("focus", onFocus);
     };
   });
 
@@ -640,6 +691,7 @@
     pushing={pushingPath !== null && pushingPath === openPath}
     pushNotice={pushNotice !== null && pushNotice.path === openPath ? pushNotice.text : null}
     onpush={push}
+    {pushCheck}
   />
 {:else if screen?.screen === "welcome"}
   <Welcome

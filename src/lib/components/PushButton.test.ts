@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
+import type { PushCommitView_Serialize } from "../bindings";
 import PushButton from "./PushButton.svelte";
 
 describe("PushButton", () => {
@@ -101,6 +102,84 @@ describe("PushButton", () => {
     expect(screen.queryByText(/force push/i)).toBeNull();
     await fireEvent.click(button);
     expect(onrun).not.toHaveBeenCalled();
+  });
+
+  const authorCheck: { reason: string; commits: PushCommitView_Serialize[] } = {
+    reason: "1 of 2 commits authored as jag@perso.fr. Profile Work expects jag@work.fr.",
+    commits: [
+      { id: "a3f9c21aaaa", shortId: "a3f9c21", summary: "feat(profiles): inject", fault: "author" },
+      { id: "b72e110bbbb", shortId: "b72e110", summary: "wip ssh", fault: null },
+    ],
+  };
+
+  it("proteger-l-identite CA-20: a faulty author blocks « Push 2 » with the reason and the list ✕ author / ✓", async () => {
+    const onrun = vi.fn();
+    render(PushButton, { ahead: 2, published: true, check: authorCheck, onrun });
+    const button = screen.getByRole("button", { name: "Push 2" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText(authorCheck.reason)).toBeVisible();
+    expect(button).toHaveAccessibleDescription(authorCheck.reason);
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent("a3f9c21");
+    expect(items[0]).toHaveTextContent("feat(profiles): inject");
+    expect(items[0]).toHaveTextContent("✕ author");
+    expect(items[1]).toHaveTextContent("b72e110");
+    expect(items[1]).toHaveTextContent("✓");
+    expect(items[1]).not.toHaveTextContent("✕");
+    expect(screen.queryByText(/force push/i)).toBeNull();
+    await fireEvent.click(button);
+    expect(onrun).not.toHaveBeenCalled();
+  });
+
+  it("proteger-l-identite CA-20: a faulty committer shows its own message and « ✕ committer »", () => {
+    const reason =
+      "1 of 2 commits committed as Jag Perso <jag@perso.fr>. Profile Work expects Jag Work <jag@work.fr>.";
+    render(PushButton, {
+      ahead: 2,
+      published: true,
+      check: {
+        reason,
+        commits: [
+          { id: "c1", shortId: "c1c1c1c", summary: "Elsewhere", fault: "committer" },
+          { id: "d2", shortId: "d2d2d2d", summary: "Fine", fault: null },
+        ],
+      },
+      onrun: vi.fn(),
+    });
+    expect(screen.getByRole("button", { name: "Push 2" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText(reason)).toBeVisible();
+    expect(screen.getAllByRole("listitem")[0]).toHaveTextContent("✕ committer");
+  });
+
+  it("proteger-l-identite CA-20, CA-22: commits without fault leave Push available and show no list", async () => {
+    const onrun = vi.fn();
+    render(PushButton, {
+      ahead: 2,
+      published: true,
+      check: {
+        reason: null,
+        commits: [{ id: "e3", shortId: "e3e3e3e", summary: "Colleague", fault: null }],
+      },
+      onrun,
+    });
+    const button = screen.getByRole("button", { name: "Push 2" });
+    expect(button).toHaveAttribute("aria-disabled", "false");
+    expect(screen.queryByRole("listitem")).toBeNull();
+    await fireEvent.click(button);
+    expect(onrun).toHaveBeenCalledTimes(1);
+  });
+
+  it("proteger-l-identite CA-20: the identity mismatch of the repository keeps priority over the faulty commits", () => {
+    render(PushButton, {
+      ahead: 2,
+      published: true,
+      blocked: { profileName: "Work", rows: [] },
+      check: authorCheck,
+      onrun: vi.fn(),
+    });
+    expect(screen.getByText("Identity does not match profile Work.")).toBeVisible();
+    expect(screen.queryByText(authorCheck.reason)).toBeNull();
   });
 
   it("synchroniser CA-15: no state of the button ever says Force push", () => {

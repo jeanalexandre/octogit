@@ -41,7 +41,8 @@ pub fn pull_repository(path: &Path, rebase: bool) -> Result<RepositoryView, Stri
 /// bouton (distante en avance, pas d'`origin`…) ; la sortie brute de Git reste dans le crate `git`.
 pub fn push_repository(store: &Store, home: &Path, path: &Path) -> Result<RepositoryView, String> {
     // Garde d'identité refait ici, avant tout `git push` (publication comprise) : un refus ne lance rien.
-    crate::attach::ensure_conform(store, path, home)?;
+    // Puis garde des commits à pousser : un fautif (auteur ou committer) refuse aussi, avec sa raison.
+    crate::attach::ensure_pushable(store, path, home)?;
     octogit_git::push(path, octogit_git::FETCH_TIMEOUT).map_err(|e| match e {
         octogit_git::PushError::TimedOut { .. } => "Push timed out.".to_string(),
         octogit_git::PushError::Failed { .. } => "Push failed.".to_string(),

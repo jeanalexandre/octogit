@@ -23,8 +23,9 @@ fn work_profile() -> Profile {
         id: "p1".into(),
         name: "Work".into(),
         color: 2,
-        user_name: "Work User".into(),
-        user_email: "p1@example.org".into(),
+        // L'identité des commits de `push.sh` : ses commits à pousser sont conformes au profil (S-22).
+        user_name: "Alice Martin".into(),
+        user_email: "alice@example.com".into(),
         sign_commits: false,
         ssh_key_path: "~/.ssh/id_work".into(),
         rules: vec![MatchingRule {

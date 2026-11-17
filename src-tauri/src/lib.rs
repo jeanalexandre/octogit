@@ -95,6 +95,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::commit,
             commands::get_commit_email,
             commands::get_identity_mismatch,
+            commands::get_push_check,
             commands::watch_working_tree,
             commands::fetch_repository,
             commands::fetch_all_repository,

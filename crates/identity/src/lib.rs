@@ -3,9 +3,12 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod commit_check;
 pub mod local;
 pub mod rules;
 pub mod ssh;
+
+pub use commit_check::{classify_commit, CommitFault, Signature};
 
 pub use local::{apply_profile, read_origin_url, ApplyOutcome};
 pub use rules::{first_matching_profile, first_matching_rule, MatchingRule, RuleKind};

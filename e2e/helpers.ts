@@ -6,6 +6,12 @@ import { join, resolve } from "node:path";
 /** Règle de rattachement telle que `profiles.json` la stocke. */
 export type StoredRule = { kind: "path" | "remote_owner"; pattern: string };
 
+/**
+ * Identité des commits des fixtures `push.sh` et `refs.sh` : un profil qui la porte rend leurs commits à pousser
+ * conformes (Push n'est alors pas bloqué par S-22).
+ */
+export const FIXTURE_IDENTITY = { userName: "Alice Martin", userEmail: "alice@example.com" };
+
 /** Dossier temporaire d'un test : données d'Octogit et dépôts fabriqués par `fixtures/`. */
 export class Workspace {
   readonly root = mkdtempSync(join(tmpdir(), "octogit-e2e-"));
@@ -58,19 +64,25 @@ export class Workspace {
   }
 
   /** Enregistre des profils complets (dans l'ordre donné), comme le ferait une session précédente. */
-  rememberProfiles(profiles: (string | { name: string; rules: StoredRule[] })[]): void {
+  rememberProfiles(
+    profiles: (
+      string | { name: string; rules: StoredRule[]; userName?: string; userEmail?: string }
+    )[],
+  ): void {
     const entries = profiles.map((p) => (typeof p === "string" ? { name: p, rules: [] } : p));
     writeFileSync(
       join(this.dataDir, "profiles.json"),
       JSON.stringify({
         version: 2,
-        profiles: entries.map(({ name, rules }, i) => ({
+        profiles: entries.map((entry, i) => ({
           id: `p${i + 1}`,
-          name,
-          rules,
+          name: entry.name,
+          rules: entry.rules,
           color: i % 6,
-          user_name: `${name} User`,
-          user_email: `${name.toLowerCase().replace(/\W+/g, "-")}@example.org`,
+          user_name: ("userName" in entry && entry.userName) || `${entry.name} User`,
+          user_email:
+            ("userEmail" in entry && entry.userEmail) ||
+            `${entry.name.toLowerCase().replace(/\W+/g, "-")}@example.org`,
           sign_commits: false,
           ssh_key_path: `~/.ssh/id_ed25519_${i + 1}`,
         })),
@@ -154,11 +166,49 @@ export class Workspace {
    * Rattache `repo` (sous `root`) au profil « Work » par une règle de chemin et retire son identité locale :
    * Octogit écrit celle de Work à l'ouverture, le dépôt est conforme (Commit et Push ne sont pas bloqués).
    */
-  attachWork(repo: string): void {
+  attachWork(repo: string, identity?: { userName: string; userEmail: string }): void {
     this.clearLocalIdentity(repo);
     this.rememberProfiles([
-      { name: "Work", rules: [{ kind: "path", pattern: `${this.root}/**` }] },
+      { name: "Work", rules: [{ kind: "path", pattern: `${this.root}/**` }], ...identity },
     ]);
+  }
+
+  /**
+   * Comme `attachWork`, avec l'identité de Work `Jag Work <jag@work.fr>` et deux autres profils, Perso
+   * (`jag@perso.fr`) et Pro (`jag@pro.fr`), sans règle : proteger-l-identite CA-20.
+   */
+  attachWorkAmongProfiles(repo: string): void {
+    this.clearLocalIdentity(repo);
+    this.rememberProfiles([
+      {
+        name: "Work",
+        rules: [{ kind: "path", pattern: `${this.root}/**` }],
+        userName: "Jag Work",
+        userEmail: "jag@work.fr",
+      },
+      { name: "Perso", rules: [], userName: "Jag Perso", userEmail: "jag@perso.fr" },
+      { name: "Pro", rules: [], userName: "Jag Pro", userEmail: "jag@pro.fr" },
+    ]);
+  }
+
+  /** Commit vide au terminal avec des identités d'auteur et de committer données (`GIT_AUTHOR_*`, `GIT_COMMITTER_*`). */
+  commitAs(
+    repo: string,
+    summary: string,
+    author: { name: string; email: string },
+    committer: { name: string; email: string } = author,
+  ): void {
+    execFileSync("git", ["-C", repo, "commit", "-q", "--allow-empty", "-m", summary], {
+      env: {
+        ...process.env,
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_AUTHOR_NAME: author.name,
+        GIT_AUTHOR_EMAIL: author.email,
+        GIT_COMMITTER_NAME: committer.name,
+        GIT_COMMITTER_EMAIL: committer.email,
+      },
+    });
   }
 
   /** Remplace l'URL de `origin` (sans réseau) : `git@github.com:owner/repo.git`. */

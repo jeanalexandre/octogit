@@ -169,6 +169,130 @@ pub fn ensure_conform(store: &Store, repo: &Path, home: &Path) -> Result<(), Str
     }
 }
 
+/// Champ en cause d'un commit à pousser fautif (marque « ✕ author » / « ✕ committer »).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum CommitFaultView {
+    Author,
+    Committer,
+}
+
+/// Un commit à pousser et son classement : `fault` vide, il est conforme (« ✓ »).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PushCommitView {
+    pub id: String,
+    pub short_id: String,
+    pub summary: String,
+    pub fault: Option<CommitFaultView>,
+}
+
+/// Commits à pousser de la branche courante (absents de toute branche distante du remote cible), classés
+/// par rapport au profil rattaché ; `reason` est le texte de blocage de Push, `None` si aucun n'est fautif.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PushCheckView {
+    pub profile_name: String,
+    /// Du plus récent au plus ancien.
+    pub commits: Vec<PushCommitView>,
+    pub reason: Option<String>,
+}
+
+fn signature(name: &str, email: &str) -> String {
+    format!("{name} <{email}>")
+}
+
+/// Texte de blocage du premier commit fautif ; un fautif « committer » prime sur un fautif « author »
+/// (même règle que pour un commit dont les deux champs sont en cause).
+fn fault_reason(
+    profile: &Profile,
+    unpushed: &[octogit_git::UnpushedCommit],
+    faults: &[Option<octogit_identity::CommitFault>],
+) -> Option<String> {
+    use octogit_identity::CommitFault;
+    let total = unpushed.len();
+    let count = |kind: CommitFault| faults.iter().filter(|f| **f == Some(kind)).count();
+    if let Some(first) = faults
+        .iter()
+        .position(|f| *f == Some(CommitFault::Committer))
+    {
+        let commit = &unpushed[first];
+        return Some(format!(
+            "{} of {total} commits committed as {}. Profile {} expects {}.",
+            count(CommitFault::Committer),
+            signature(&commit.committer_name, &commit.committer_email),
+            profile.name,
+            signature(&profile.user_name, &profile.user_email),
+        ));
+    }
+    let first = faults
+        .iter()
+        .position(|f| *f == Some(CommitFault::Author))?;
+    Some(format!(
+        "{} of {total} commits authored as {}. Profile {} expects {}.",
+        count(CommitFault::Author),
+        unpushed[first].author_email,
+        profile.name,
+        profile.user_email,
+    ))
+}
+
+/// Commits à pousser de `repo` et leur classement, relus à chaque appel (un commit fait au terminal est vu au
+/// retour dans Octogit). `None` : aucun profil rattaché (voir `ensure_conform`), ou commits illisibles.
+/// Lecture seule.
+pub fn push_check(store: &Store, repo: &Path, home: &Path) -> Option<PushCheckView> {
+    let profiles = store.profiles();
+    let (profile, _) = resolve(store, &profiles, repo, home)?;
+    let unpushed = octogit_git::read_unpushed(repo).ok()?;
+    let faults: Vec<_> = unpushed
+        .iter()
+        .map(|c| {
+            octogit_identity::classify_commit(
+                &profile,
+                &profiles,
+                &octogit_identity::Signature {
+                    name: &c.author_name,
+                    email: &c.author_email,
+                },
+                &octogit_identity::Signature {
+                    name: &c.committer_name,
+                    email: &c.committer_email,
+                },
+            )
+        })
+        .collect();
+    let reason = fault_reason(&profile, &unpushed, &faults);
+    let commits = unpushed
+        .iter()
+        .zip(&faults)
+        .map(|(c, fault)| PushCommitView {
+            id: c.id.clone(),
+            short_id: c.id.chars().take(7).collect(),
+            summary: c.summary.clone(),
+            fault: fault.map(|f| match f {
+                octogit_identity::CommitFault::Author => CommitFaultView::Author,
+                octogit_identity::CommitFault::Committer => CommitFaultView::Committer,
+            }),
+        })
+        .collect();
+    Some(PushCheckView {
+        profile_name: profile.name,
+        commits,
+        reason,
+    })
+}
+
+/// Garde de Push : celui de `ensure_conform`, puis refuse si un commit à pousser est fautif (la raison est celle
+/// de `PushCheckView`). Refait au moment de l'action, avant tout `git push` ; réutilisable par le Force push.
+/// Des commits illisibles refusent aussi. Rien n'est écrit.
+pub fn ensure_pushable(store: &Store, repo: &Path, home: &Path) -> Result<(), String> {
+    ensure_conform(store, repo, home)?;
+    match push_check(store, repo, home) {
+        Some(check) => check.reason.map_or(Ok(()), Err),
+        None => Err("The commits to push could not be read.".to_string()),
+    }
+}
+
 /// Profil rattaché à `repo` (`None` : ni choix manuel ni règle, rien n'est écrit). Son identité est écrite
 /// dans le `.git/config` local quand elle manque ; conforme, rien n'est écrit ; une valeur locale qui
 /// diffère n'est jamais écrasée ici : l'écart est rendu pour `IdentityMismatch` (S-11).

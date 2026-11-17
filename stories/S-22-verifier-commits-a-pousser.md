@@ -24,6 +24,11 @@ Les commits à pousser (absents de toute branche distante du remote cible) sont 
 2. Comparaison des adresses (profil, auteur, committer) sensible ou non à la casse : a) insensible à la casse (proposé, décision de l'humain)
 3. Commit dont l'auteur et le committer sont tous deux fautifs : marque et message : a) « ✕ committer » et message du committer (proposé, décision de l'humain)
 
+### Après la revue 1
+- Deux bloquants (CA-26 e2e, liste qui chevauche) : traités au passage 2 (d'office).
+### Après la revue 2
+- Point « 18 FAIL » Vitest : pris en compte (pour information).
+
 ## Contexte technique
 - Dépend de S-21 (garde Rust nommé pour « commit » et « push », `PushButton` bloqué par l'identité du dépôt, `blocked` passé de `History` à `PushButton`) et de S-20 (`PushButton`, `push` du crate `git`, `push_repository`). Fiches : `stories/S-21-bloquer-commit-et-push-identite.md`, `stories/S-20-pushbutton-push-et-publication.md`. Relire le code livré par S-20 et S-21 avant de coder (emplacements, noms du garde, état de `PushButton`).
 - Lecture des commits à pousser, crate `git` (lecture, `crates/git/src/lib.rs`, `crates/git/src/graph.rs`) :
@@ -68,8 +73,12 @@ Les commits à pousser (absents de toute branche distante du remote cible) sont 
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `87f9e58`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (tests, lint, build verts ; écarts : message committer prioritaire en cas mixte, commande `get_push_check`, refus « commits illisibles », liste en panneau absolu) | — |
+| 1 | reviewer | 2 bloquants : e2e CA-26 rouge (`ahead` non relu au focus), liste de `PushButton` chevauche le panneau droit | à corriger |
+| 2 | dev | terminé (focus relit le dépôt par `open_repository` ; liste de `PushButton` dans le flux ; e2e 182 verts) | — |
+| 2 | reviewer | aucun problème ouvert ; 1 point pour information (« 18 FAIL » Vitest dans `pnpm test` complet, `test:js` vert) | validé |

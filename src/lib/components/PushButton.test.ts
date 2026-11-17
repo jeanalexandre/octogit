@@ -265,6 +265,36 @@ describe("PushButton", () => {
     expect(onrun).toHaveBeenCalledTimes(1);
   });
 
+  it("synchroniser CA-16: a rewrite of pushed commits shows « Force push », and a click opens the dialog without pushing", async () => {
+    const onrun = vi.fn();
+    const onforce = vi.fn();
+    render(PushButton, { ahead: 1, published: true, rewrite: true, onrun, onforce });
+    const button = screen.getByRole("button", { name: "Force push" });
+    expect(button).toHaveAttribute("aria-disabled", "false");
+    expect(button).toHaveAttribute("data-force");
+    expect(screen.queryByRole("button", { name: /^Push/ })).toBeNull();
+    await fireEvent.click(button);
+    expect(onforce).toHaveBeenCalledTimes(1);
+    expect(onrun).not.toHaveBeenCalled();
+  });
+
+  it("synchroniser CA-16: without rewrite the button stays « Push n »", () => {
+    render(PushButton, { ahead: 2, published: true, rewrite: false, onrun: vi.fn() });
+    expect(screen.getByRole("button", { name: "Push 2" })).toBeVisible();
+    expect(screen.queryByText(/force push/i)).toBeNull();
+  });
+
+  it("proteger-l-identite CA-24: an identity block keeps priority, no Force push", () => {
+    render(PushButton, {
+      ahead: 1,
+      published: true,
+      rewrite: true,
+      noProfile: true,
+      onrun: vi.fn(),
+    });
+    expect(screen.queryByText(/force push/i)).toBeNull();
+  });
+
   it("synchroniser CA-15: no state of the button ever says Force push", () => {
     for (const props of [
       { ahead: 2, published: true, blocked: { profileName: "Work", rows: [] } },

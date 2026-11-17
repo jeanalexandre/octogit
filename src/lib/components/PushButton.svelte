@@ -11,7 +11,8 @@
    * `origin`, le refus « No origin remote. » du crate `git` s'affiche en message). Bloqué, sans compteur, par un
    * écart d'identité ou « No profile » (le garde Rust refuse aussi, voir `ensure_conform`) ; bloqué, avec son
    * compteur, par un commit à pousser fautif : raison et liste des commits (le garde Rust refuse aussi, voir
-   * `ensure_pushable`). Jamais de « Force push » ici (S-24).
+   * `ensure_pushable`). « Force push » (dialogue, `--force-with-lease`) seulement après une réécriture locale de
+   * commits déjà poussés (S-24) ; un distant avancé sans réécriture reste un refus, jamais un force.
    */
   let {
     ahead,
@@ -22,9 +23,15 @@
     noProfile = false,
     check = null,
     fixing = false,
+    rewrite = false,
     onrun,
     onfix,
+    onforce,
   }: {
+    /** Des commits déjà poussés ont été réécrits en local : le bouton devient « Force push ». */
+    rewrite?: boolean;
+    /** Clic sur « Force push » : ouvre `ForcePushDialog`, ne pousse rien. */
+    onforce?: () => void;
     /** Une réécriture « Fix commit identity » est en cours : non relançable. */
     fixing?: boolean;
     /** Clic sur « Fix commit identity » (état bloqué par les commits fautifs seulement). */
@@ -61,10 +68,17 @@
   );
   /** La liste des commits à pousser accompagne la raison des commits fautifs, et elle seule. */
   const faulty = $derived(!blocked && !noProfile && !!check?.reason);
-  const inactive = $derived(busy || fixing || reason !== null);
+  /**
+   * « Force push » : des commits déjà poussés ont été réécrits en local. L'identité (écart, « No profile », commit
+   * fautif) garde la priorité : l'état bloqué reste celui de S-21 et S-22.
+   */
+  const force = $derived(rewrite && !blocked && !noProfile && !faulty);
+  const inactive = $derived(busy || fixing || (!force && reason !== null));
 
   function run() {
-    if (!inactive) onrun();
+    if (inactive) return;
+    if (force) onforce?.();
+    else onrun();
   }
 
   function fix() {
@@ -88,19 +102,24 @@
   {#if notice && !(faulty && !busy)}
     {@render noticeLine(false)}
   {/if}
-  {#if reason && !busy}
+  {#if reason && !busy && !force}
     <span id="push-reason" class="reason">{reason}</span>
   {/if}
   <button
     type="button"
+    class:force
+    data-force={force ? "" : undefined}
     aria-disabled={inactive}
     aria-busy={busy}
-    aria-describedby={reason && !busy ? "push-reason" : undefined}
+    aria-describedby={reason && !busy && !force ? "push-reason" : undefined}
     onclick={run}
   >
     {#if busy}
       <span class="spin" aria-hidden="true"><RefreshCw size={16} strokeWidth={1.8} /></span>
       Pushing…
+    {:else if force}
+      <ArrowUpFromLine size={16} strokeWidth={1.8} aria-hidden="true" />
+      Force push
     {:else}
       <ArrowUpFromLine size={16} strokeWidth={1.8} aria-hidden="true" />
       {published && ahead > 0 && !blocked && !noProfile ? `Push ${ahead}` : "Push"}
@@ -235,6 +254,12 @@
   button[aria-disabled="true"] {
     color: var(--muted);
     cursor: default;
+  }
+
+  /* Réécriture : bordure pointillée de 2 px (pas la couleur seule). */
+  button.force {
+    padding: 3px 9px;
+    border: 2px dashed var(--warning);
   }
 
   button.primary {

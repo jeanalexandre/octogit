@@ -1,6 +1,7 @@
 //! Lecture de dépôts Git avec `gix` (graphe, refs). Aucune dépendance à Tauri.
 
 mod fetch;
+mod force_push;
 mod graph;
 mod pull;
 mod push;
@@ -12,6 +13,7 @@ use std::fmt;
 use std::path::Path;
 
 pub use fetch::{fetch, fetch_all, FetchError, FETCH_TIMEOUT};
+pub use force_push::{force_push, read_rewrite, ForcePushError, OverwrittenCommit, Rewrite};
 pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};
 pub use pull::{pull, PullError, PullMode};
 pub use push::{push, PushError};

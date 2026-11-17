@@ -92,6 +92,17 @@ export const commands = {
 	 */
 	pushRepository: (path: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("push_repository", { path })),
 	/**
+	 *  Réécriture locale de commits déjà poussés sur la branche courante de `path` (`PushButton` « Force push »,
+	 *  liste de `ForcePushDialog`), ou `None`. Relue à chaque appel, rien n'est écrit.
+	 */
+	getForcePushCheck: (path: string) => __TAURI_INVOKE<ForcePushView | null>("get_force_push_check", { path }),
+	/**
+	 *  Force push de `ForcePushDialog` en tâche de fond (`--force-with-lease` avec `expected`, le commit de la ref de
+	 *  suivi lu à l'ouverture du dialogue), puis relecture du dépôt. Le refus du bail est la valeur `refused` ; les
+	 *  autres échecs sont un message d'une ligne.
+	 */
+	forcePushRepository: (path: string, expected: string) => typedError<ForcePushOutcomeView_Serialize, string>(__TAURI_INVOKE("force_push_repository", { path, expected })),
+	/**
 	 *  « Fix commit identity » de `PushButton` en tâche de fond : réécrit les commits à pousser fautifs (garde de
 	 *  l'identité du dépôt refait ici), puis rend le dépôt relu. Des modifications non commitées donnent la valeur
 	 *  `refused` ; les autres refus sont un message d'une ligne.
@@ -271,6 +282,37 @@ export type FixCommitIdentityView_Deserialize = { kind: "fixed"; repository: Rep
  */
 export type FixCommitIdentityView_Serialize = { kind: "fixed"; repository: RepositoryView_Serialize } | { kind: "refused"; message: string };
 
+/**
+ *  Résultat du force push : le dépôt relu, ou le refus du bail `--force-with-lease` (la distante a reçu un commit
+ *  depuis la lecture de la ref de suivi) avec la sortie brute de Git, que le front distingue sans analyser de texte.
+ */
+export type ForcePushOutcomeView = ForcePushOutcomeView_Serialize | ForcePushOutcomeView_Deserialize;
+
+/**
+ *  Résultat du force push : le dépôt relu, ou le refus du bail `--force-with-lease` (la distante a reçu un commit
+ *  depuis la lecture de la ref de suivi) avec la sortie brute de Git, que le front distingue sans analyser de texte.
+ */
+export type ForcePushOutcomeView_Deserialize = { kind: "pushed"; repository: RepositoryView_Deserialize } | { kind: "refused"; output: string };
+
+/**
+ *  Résultat du force push : le dépôt relu, ou le refus du bail `--force-with-lease` (la distante a reçu un commit
+ *  depuis la lecture de la ref de suivi) avec la sortie brute de Git, que le front distingue sans analyser de texte.
+ */
+export type ForcePushOutcomeView_Serialize = { kind: "pushed"; repository: RepositoryView_Serialize } | { kind: "refused"; output: string };
+
+/**
+ *  Réécriture locale de commits déjà poussés (`PushButton` « Force push », `ForcePushDialog`) : la branche, sa
+ *  branche distante, le commit de la ref de suivi à lire maintenant (`expected`, le bail du force push) et les
+ *  commits distants écrasés, du plus récent au plus ancien.
+ */
+export type ForcePushView = {
+	branch: string,
+	upstream: string,
+	remote: string,
+	expected: string,
+	commits: OverwrittenCommitView[],
+};
+
 export type LaunchState = LaunchState_Serialize | LaunchState_Deserialize;
 
 export type LaunchState_Deserialize = { screen: "history"; repository: RepositoryView_Deserialize } | { screen: "welcome" };
@@ -302,6 +344,13 @@ export type OpenError =
 
 /**  Qui a désigné le profil : la règle (son motif), ou un choix manuel mémorisé. */
 export type OriginView = { kind: "rule"; pattern: string } | { kind: "manual" };
+
+/**  Un commit distant que le force push écraserait. */
+export type OverwrittenCommitView = {
+	id: string,
+	shortId: string,
+	summary: string,
+};
 
 /**  Profil rattaché à un dépôt, tel que `ProfileBadge` l'affiche. */
 export type ProfileBadgeView = {

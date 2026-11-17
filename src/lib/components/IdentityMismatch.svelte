@@ -122,6 +122,8 @@
   .backdrop {
     position: fixed;
     inset: 0;
+    /* Au-dessus du graphe (1 à 4) et des menus (10). */
+    z-index: 100;
     display: flex;
     align-items: center;
     justify-content: center;

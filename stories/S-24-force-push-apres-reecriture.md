@@ -21,6 +21,12 @@ Quand des commits déjà poussés ont été réécrits en local (amend, rebase, 
 ### Fiche (16/11/2026)
 1. Réécriture locale ET commit distant jamais vu en local : a) « Force push » non proposé tant que ce commit n'est pas intégré par un pull en rebase (proposé, décision de l'humain)
 
+### Après la revue 1
+1. `IdentityMismatch` a probablement le même défaut de superposition (`.backdrop` sans `z-index`) : traiter (d'office), correction commune des dialogues avec `ForcePushDialog`.
+2. Vitest « 20 FAIL » au premier `pnpm test`, vert aux relances : pris en compte (pour information).
+### Après la revue 2
+1. Vitest « 20 FAIL » récurrent au premier `pnpm test` : pris en compte (pour information), cause à chercher hors de cette story.
+
 ## Contexte technique
 - Dépend de S-20 (`PushButton`, push normal, refus quand le distant a avancé) et de S-15 (Amend). Fiches : `stories/S-20-pushbutton-push-et-publication.md`, `stories/S-15-commit-et-amend.md`. S-20 crée `crates/git/src/push.rs`, `src/lib/components/PushButton.svelte` (+ test), `push_repository` dans `src-tauri/src/` et `e2e/push.spec.ts` : relire le code livré avant de coder et prolonger ces fichiers, sans les dupliquer. S-20 laisse le push d'une branche divergée refusé (CA-15) et « Force push » absent : S-24 ne change ce comportement que lorsqu'une réécriture locale est détectée.
 - Existant à réutiliser :
@@ -62,8 +68,12 @@ Quand des commits déjà poussés ont été réécrits en local (amend, rebase, 
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `a462d62`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (reprise après limite de session) ; tests, lint, build ✅ | — |
+| 1 | reviewer | 2 bloquants : z-index du backdrop, garde `ensure_pushable` absent de `force_push_repository` | à corriger |
+| 2 | dev | terminé ; tests, lint, build ✅ | — |
+| 2 | reviewer | bloquants levés, aucun problème | validé |

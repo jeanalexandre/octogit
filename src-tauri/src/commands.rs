@@ -388,6 +388,38 @@ pub async fn push_repository(path: String) -> Result<RepositoryView, String> {
     .map_err(|_| "Push was interrupted.".to_string())?
 }
 
+/// Réécriture locale de commits déjà poussés sur la branche courante de `path` (`PushButton` « Force push »,
+/// liste de `ForcePushDialog`), ou `None`. Relue à chaque appel, rien n'est écrit.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_force_push_check(path: String) -> Option<fetch::ForcePushView> {
+    tauri::async_runtime::spawn_blocking(move || fetch::force_push_check(Path::new(&path)))
+        .await
+        .ok()
+        .flatten()
+}
+
+/// Force push de `ForcePushDialog` en tâche de fond (`--force-with-lease` avec `expected`, le commit de la ref de
+/// suivi lu à l'ouverture du dialogue), puis relecture du dépôt. Le refus du bail est la valeur `refused` ; les
+/// autres échecs sont un message d'une ligne.
+#[tauri::command]
+#[specta::specta]
+pub async fn force_push_repository(
+    path: String,
+    expected: String,
+) -> Result<fetch::ForcePushOutcomeView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fetch::force_push_repository(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+            &expected,
+        )
+    })
+    .await
+    .map_err(|_| "Force push was interrupted.".to_string())?
+}
+
 /// « Fix commit identity » de `PushButton` en tâche de fond : réécrit les commits à pousser fautifs (garde de
 /// l'identité du dépôt refait ici), puis rend le dépôt relu. Des modifications non commitées donnent la valeur
 /// `refused` ; les autres refus sont un message d'une ligne.

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { Workspace } from "./helpers";
+import { isOnTop, Workspace } from "./helpers";
 
 let ws: Workspace;
 test.beforeEach(() => {
@@ -57,6 +57,11 @@ for (const size of sizes) {
       dialog.getByRole("button", { name: "Import local config into Octogit…" }),
     ).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Cancel" })).toBeVisible();
+    // Le dialogue est au premier plan : le graphe ne recouvre ni Cancel ni Overwrite.
+    expect(await isOnTop(dialog.getByRole("button", { name: "Cancel" }))).toBe(true);
+    expect(await isOnTop(dialog.getByRole("button", { name: "Overwrite with profile Pro" }))).toBe(
+      true,
+    );
     expect(ws.gitConfigBytes(repo).equals(before)).toBe(true);
     expect(ws.localConfig(repo, "user.email")).toBe("perso@example.org");
   });

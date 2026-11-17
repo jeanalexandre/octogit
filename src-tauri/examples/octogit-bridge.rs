@@ -63,6 +63,12 @@ struct PullArgs {
 }
 
 #[derive(Deserialize)]
+struct ForcePushArgs {
+    path: String,
+    expected: String,
+}
+
+#[derive(Deserialize)]
 struct SyncActionArgs {
     action: octogit_app::preferences::SyncAction,
 }
@@ -436,6 +442,28 @@ fn main() {
                 &octogit_store::Store::new(octogit_app::data_dir()),
                 &octogit_app::home_dir(),
                 std::path::Path::new(&args.path),
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "get_force_push_check" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            (
+                serde_json::to_string(&octogit_app::fetch::force_push_check(std::path::Path::new(
+                    &args.path,
+                ))),
+                0,
+            )
+        }
+        "force_push_repository" => {
+            let args: ForcePushArgs =
+                serde_json::from_str(&input).expect("arguments { path, expected }");
+            match octogit_app::fetch::force_push_repository(
+                &octogit_store::Store::new(octogit_app::data_dir()),
+                &octogit_app::home_dir(),
+                std::path::Path::new(&args.path),
+                &args.expected,
             ) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),

@@ -67,7 +67,13 @@
     pushCheck = null,
     fixingCommits = false,
     onfixcommits,
+    rewrite = false,
+    onforcepush,
   }: {
+    /** Des commits déjà poussés ont été réécrits en local (`get_force_push_check`) : `PushButton` dit « Force push ». */
+    rewrite?: boolean;
+    /** Clic sur « Force push » de `PushButton` : ouvre `ForcePushDialog` (ne pousse rien). */
+    onforcepush?: () => void;
     /** Une réécriture « Fix commit identity » (commits à pousser fautifs) est en cours. */
     fixingCommits?: boolean;
     /** Clic sur « Fix commit identity » de `PushButton` : réécrit les commits à pousser fautifs. */
@@ -260,6 +266,8 @@
         noProfile={!repository.profile}
         check={pushCheck}
         fixing={fixingCommits}
+        {rewrite}
+        onforce={() => onforcepush?.()}
         onrun={() => onpush?.()}
         onfix={() => onfixcommits?.()}
       />

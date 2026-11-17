@@ -101,6 +101,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::fetch_all_repository,
             commands::pull_repository,
             commands::push_repository,
+            commands::get_force_push_check,
+            commands::force_push_repository,
             commands::fix_commit_identity,
             commands::get_sync_action,
             commands::set_sync_action,

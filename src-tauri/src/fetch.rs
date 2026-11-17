@@ -52,6 +52,89 @@ pub fn push_repository(store: &Store, home: &Path, path: &Path) -> Result<Reposi
     repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
 }
 
+/// Un commit distant que le force push écraserait.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct OverwrittenCommitView {
+    pub id: String,
+    pub short_id: String,
+    pub summary: String,
+}
+
+/// Réécriture locale de commits déjà poussés (`PushButton` « Force push », `ForcePushDialog`) : la branche, sa
+/// branche distante, le commit de la ref de suivi à lire maintenant (`expected`, le bail du force push) et les
+/// commits distants écrasés, du plus récent au plus ancien.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ForcePushView {
+    pub branch: String,
+    pub upstream: String,
+    pub remote: String,
+    pub expected: String,
+    pub commits: Vec<OverwrittenCommitView>,
+}
+
+/// Réécriture détectée sur la branche courante de `path`, ou `None` (aucune, ou lecture impossible). Rien n'est écrit.
+pub fn force_push_check(path: &Path) -> Option<ForcePushView> {
+    let rewrite = octogit_git::read_rewrite(path).ok().flatten()?;
+    Some(ForcePushView {
+        branch: rewrite.branch,
+        upstream: rewrite.upstream,
+        remote: rewrite.remote,
+        expected: rewrite.expected,
+        commits: rewrite
+            .commits
+            .into_iter()
+            .map(|c| OverwrittenCommitView {
+                id: c.id,
+                short_id: c.short_id,
+                summary: c.summary,
+            })
+            .collect(),
+    })
+}
+
+/// Résultat du force push : le dépôt relu, ou le refus du bail `--force-with-lease` (la distante a reçu un commit
+/// depuis la lecture de la ref de suivi) avec la sortie brute de Git, que le front distingue sans analyser de texte.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ForcePushOutcomeView {
+    Pushed { repository: Box<RepositoryView> },
+    Refused { output: String },
+}
+
+/// Force push de `ForcePushDialog` : `--force-with-lease` avec `expected`, le commit de la ref de suivi lu à
+/// l'ouverture du dialogue, puis relecture du dépôt. Le refus du bail est une valeur (`Refused`), rien n'a changé ;
+/// les autres échecs sont un message d'une ligne. Mêmes gardes que le push, refaits ici avant tout `git push` :
+/// un dépôt non conforme, « No profile » ou un commit fautif refuse sans rien lancer.
+pub fn force_push_repository(
+    store: &Store,
+    home: &Path,
+    path: &Path,
+    expected: &str,
+) -> Result<ForcePushOutcomeView, String> {
+    crate::attach::ensure_pushable(store, path, home)?;
+    match octogit_git::force_push(path, expected, octogit_git::FETCH_TIMEOUT) {
+        Ok(_) => {}
+        Err(octogit_git::ForcePushError::LeaseRefused { output, .. }) => {
+            return Ok(ForcePushOutcomeView::Refused { output })
+        }
+        Err(octogit_git::ForcePushError::TimedOut { .. }) => {
+            return Err("Force push timed out.".to_string())
+        }
+        Err(octogit_git::ForcePushError::Failed { .. }) => {
+            return Err("Force push failed.".to_string())
+        }
+        Err(octogit_git::ForcePushError::Spawn(_)) => return Err("Git could not run.".to_string()),
+        Err(other) => return Err(other.to_string()),
+    }
+    repository_view(path)
+        .map(|repository| ForcePushOutcomeView::Pushed {
+            repository: Box::new(repository),
+        })
+        .ok_or_else(|| "Could not read the repository.".to_string())
+}
+
 /// Résultat de « Fix commit identity » : le dépôt relu, ou le refus (modifications non commitées) que le front
 /// distingue sans analyser de texte.
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]

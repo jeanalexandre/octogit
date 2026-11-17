@@ -4,6 +4,7 @@
     commands,
     events,
     type Column,
+    type ForcePushView,
     type LaunchState,
     type MismatchView,
     type ProfileView,
@@ -16,6 +17,7 @@
   } from "./lib/bindings";
   import { runFetchNow, scheduleFetch } from "./lib/fetchScheduler";
   import { sshApi } from "./lib/sshKeys";
+  import ForcePushDialog from "./lib/components/ForcePushDialog.svelte";
   import IdentityMismatch from "./lib/components/IdentityMismatch.svelte";
   import History from "./lib/screens/History.svelte";
   import ProfileSettings from "./lib/screens/ProfileSettings.svelte";
@@ -189,11 +191,27 @@
     pushCheckState = { path, check };
   }
 
+  /** Réécriture de commits déjà poussés du dépôt ouvert (`PushButton` « Force push »), avec le dépôt concerné. */
+  let rewriteState = $state<{ path: string; view: ForcePushView | null } | null>(null);
+  const rewritten = $derived(rewriteState?.path === openPath && rewriteState.view !== null);
+  let rewriteSeq = 0;
+
+  /** Relit la réécriture locale (relue à chaque appel côté cœur : un amend ou un rebase au terminal compte). */
+  async function refreshRewrite(path: string) {
+    const seq = ++rewriteSeq;
+    const view = await commands.getForcePushCheck(path);
+    if (seq !== rewriteSeq || openPath !== path) return;
+    rewriteState = { path, view };
+  }
+
   // Ouverture, puis chaque remplacement du dépôt (fetch, commit, push, pull, changement de profil) relit le classement.
   $effect(() => {
     const path = openPath;
     void (screen?.screen === "history" ? screen.repository : null);
-    if (path !== null) void refreshPushCheck(path);
+    if (path !== null) {
+      void refreshPushCheck(path);
+      void refreshRewrite(path);
+    }
   });
 
   // Un changement du `.git/config` (événement du cœur) ou le retour dans la fenêtre relit l'écart.
@@ -208,6 +226,7 @@
       if (stale) return;
       void refreshIdentity(path);
       void refreshPushCheck(path);
+      void refreshRewrite(path);
     };
     const onFocus = () => {
       refresh();
@@ -369,6 +388,69 @@
       // Échec inattendu : l'affichage garde l'état d'avant.
     } finally {
       pushingPath = null;
+    }
+  }
+
+  /** `ForcePushDialog` ouvert : sa lecture (le bail `expected` y est figé), l'envoi en cours, le refus ou l'échec. */
+  let forceDialog: {
+    path: string;
+    view: ForcePushView;
+    busy: boolean;
+    refused: string | null;
+    error: string | null;
+  } | null = $state(null);
+
+  /**
+   * Clic sur « Force push » de `PushButton` : relit la réécriture, et fige la ref de suivi lue (le bail du force
+   * push) dans le dialogue. Rien n'est poussé ; plus de réécriture à la relecture : pas de dialogue.
+   */
+  async function openForcePush() {
+    const path = openPath;
+    if (path === null || forceDialog !== null || pushingPath !== null) return;
+    const view = await commands.getForcePushCheck(path);
+    if (openPath !== path) return;
+    rewriteState = { path, view };
+    if (view !== null) forceDialog = { path, view, busy: false, refused: null, error: null };
+  }
+
+  /**
+   * Clic sur Force push du dialogue : `--force-with-lease` avec le SHA lu à l'ouverture, sous la même garde que le
+   * fetch et le push, une seule fois à la fois. Réussi : le dialogue se ferme, le dépôt relu remplace l'affichage
+   * (profil et écart gardés). Refus du bail : le dialogue passe à l'état refusé (rien n'a changé).
+   */
+  async function forcePush() {
+    const dialog = forceDialog;
+    if (dialog === null || dialog.busy || pushingPath !== null || fixingCommitsPath !== null)
+      return;
+    const { path } = dialog;
+    forceDialog = { ...dialog, busy: true, error: null };
+    try {
+      await runFetchNow(path, async () => {
+        const result = await commands.forcePushRepository(path, dialog.view.expected);
+        if (result.status !== "ok") {
+          if (forceDialog?.path === path)
+            forceDialog = { ...dialog, busy: false, error: result.error };
+          return;
+        }
+        if (result.data.kind === "refused") {
+          if (forceDialog?.path === path)
+            forceDialog = { ...dialog, busy: false, refused: result.data.output };
+          return;
+        }
+        forceDialog = null;
+        if (screen?.screen !== "history" || screen.repository.path !== path) return;
+        screen = {
+          screen: "history",
+          repository: {
+            ...result.data.repository,
+            profile: screen.repository.profile,
+            mismatch: screen.repository.mismatch,
+          } satisfies RepositoryView,
+        };
+      });
+    } catch {
+      if (forceDialog?.path === path)
+        forceDialog = { ...dialog, busy: false, error: "Force push failed." };
     }
   }
 
@@ -737,6 +819,8 @@
     fixingCommits={fixingCommitsPath !== null && fixingCommitsPath === openPath}
     onfixcommits={fixCommitIdentity}
     {pushCheck}
+    rewrite={rewritten}
+    onforcepush={openForcePush}
   />
 {:else if screen?.screen === "welcome"}
   <Welcome
@@ -745,6 +829,17 @@
     onopen={open}
     onchoose={chooseFolder}
     onprofiles={() => (settingsOpen = true)}
+  />
+{/if}
+
+{#if forceDialog && forceDialog.path === openPath}
+  <ForcePushDialog
+    view={forceDialog.view}
+    busy={forceDialog.busy}
+    refused={forceDialog.refused}
+    error={forceDialog.error}
+    onforce={forcePush}
+    oncancel={() => (forceDialog = null)}
   />
 {/if}
 

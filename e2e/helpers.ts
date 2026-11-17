@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import type { Locator } from "@playwright/test";
 
 /** Règle de rattachement telle que `profiles.json` la stocke. */
 export type StoredRule = { kind: "path" | "remote_owner"; pattern: string };
@@ -11,6 +12,18 @@ export type StoredRule = { kind: "path" | "remote_owner"; pattern: string };
  * conformes (Push n'est alors pas bloqué par S-22).
  */
 export const FIXTURE_IDENTITY = { userName: "Alice Martin", userEmail: "alice@example.com" };
+
+/**
+ * Vrai si l'élément est au premier plan : le point de son centre n'est recouvert par rien d'autre (colonnes du
+ * graphe, menus). `toBeVisible` ne le voit pas, un élément recouvert reste « visible ».
+ */
+export async function isOnTop(locator: Locator): Promise<boolean> {
+  return locator.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    return hit !== null && el.contains(hit);
+  });
+}
 
 /** Dossier temporaire d'un test : données d'Octogit et dépôts fabriqués par `fixtures/`. */
 export class Workspace {
@@ -306,6 +319,41 @@ export class Workspace {
     const path = join(this.root, name);
     execFileSync("sh", [resolve("fixtures", "push.sh"), path, scenario]);
     return path;
+  }
+
+  /** Fabrique un dépôt de `fixtures/force-push.sh` (`pushed`, `amend`, `squash`, `rebase` ou `reset`) ; rend son chemin. */
+  forcePushRepo(
+    scenario: "pushed" | "amend" | "squash" | "rebase" | "reset",
+    name = "my-repo",
+  ): string {
+    const path = join(this.root, name);
+    execFileSync("sh", [resolve("fixtures", "force-push.sh"), path, scenario]);
+    return path;
+  }
+
+  /** L'autre clone de `repo` (fixture `force-push`) pousse un commit sur `origin/develop` : `repo` ne le sait pas avant un fetch. */
+  pushCommitOnDevelopFromOther(repo: string): string {
+    const other = `${repo}-other`;
+    const git = (...args: string[]) =>
+      execFileSync("git", ["-C", other, ...args], {
+        encoding: "utf8",
+        env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+      }).trim();
+    git("fetch", "-q", "origin");
+    git("checkout", "-q", "-B", "develop", "origin/develop");
+    git(
+      "-c",
+      "user.name=Bob Durand",
+      "-c",
+      "user.email=bob@example.com",
+      "commit",
+      "-q",
+      "--allow-empty",
+      "-m",
+      "Bob after fetch",
+    );
+    git("push", "-q", "origin", "develop");
+    return git("rev-parse", "HEAD");
   }
 
   /** Mémorise l'action par défaut de `SyncButton`, comme le ferait une session précédente. */

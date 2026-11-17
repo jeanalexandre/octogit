@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use octogit_app::attach::{current_mismatch, ensure_conform, overwrite_identity};
-use octogit_app::fetch::push_repository;
+use octogit_app::fetch::{force_push_repository, push_repository};
 use octogit_app::open::open_repository_in;
 use octogit_app::working_tree::commit_checked;
 use octogit_identity::{MatchingRule, Profile, RuleKind};
@@ -60,6 +60,29 @@ impl Sandbox {
         fs::write(path.join("staged.txt"), "x\n").unwrap();
         git(&path, &["add", "staged.txt"]);
         path
+    }
+
+    /// Dépôt de `force-push.sh amend` (2 commits poussés dont le dernier est amendé) sous `~/Dev/work/app`,
+    /// rattaché à Work et conforme.
+    fn rewritten_conform_repo(&self) -> PathBuf {
+        let path = self.home.join("Dev/work/app");
+        let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/force-push.sh");
+        assert!(Command::new("sh")
+            .arg(script)
+            .arg(&path)
+            .arg("amend")
+            .status()
+            .unwrap()
+            .success());
+        self.store.set_profiles(&[work_profile()]).unwrap();
+        open_repository_in(&self.store, &path, 1, &self.home).unwrap();
+        overwrite_identity(&self.store, &path, &self.home).unwrap();
+        path
+    }
+
+    fn force_push(&self, repo: &Path) -> Result<(), String> {
+        let expected = git(repo, &["rev-parse", "refs/remotes/origin/develop"]);
+        force_push_repository(&self.store, &self.home, repo, &expected).map(|_| ())
     }
 
     /// Dépôt rattaché à Work par sa règle de chemin, ouvert donc conforme.
@@ -195,6 +218,41 @@ fn proteger_l_identite_ca_19_push_is_refused_on_a_mismatch_and_on_no_profile_wit
 
     assert!(!marker.exists(), "git push must not have been started");
     assert_eq!(origin_develop(&repo), remote);
+}
+
+#[test]
+fn proteger_l_identite_ca_19_force_push_is_refused_on_a_mismatch_and_on_no_profile_without_running_git_push(
+) {
+    let sb = Sandbox::new("ca19-force");
+    let repo = sb.rewritten_conform_repo();
+    let marker = sb.spy_on_push(&repo);
+    let remote = origin_develop(&repo);
+
+    // Écart d'identité.
+    git(
+        &repo,
+        &["config", "--local", "user.email", "perso@example.org"],
+    );
+    assert_eq!(
+        sb.force_push(&repo),
+        Err("Identity does not match profile Work.".to_string())
+    );
+    // « No profile ».
+    sb.store.set_manual_profile(&repo, Some("gone")).unwrap();
+    assert_eq!(sb.force_push(&repo), Err("No profile.".to_string()));
+
+    assert!(!marker.exists(), "git push must not have been started");
+    assert_eq!(origin_develop(&repo), remote);
+}
+
+#[test]
+fn proteger_l_identite_ca_19_a_conform_repository_still_force_pushes_after_a_rewrite() {
+    let sb = Sandbox::new("ca19-force-ok");
+    let repo = sb.rewritten_conform_repo();
+
+    sb.force_push(&repo).unwrap();
+
+    assert_eq!(origin_develop(&repo), git(&repo, &["rev-parse", "HEAD"]));
 }
 
 #[test]

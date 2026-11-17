@@ -35,9 +35,23 @@ pub fn classify_commit(
     if committer.name != attached.user_name || !same_email(committer.email, &attached.user_email) {
         return Some(CommitFault::Committer);
     }
+    author_replacement(attached, profiles, author).map(|_| CommitFault::Author)
+}
+
+/// Auteur d'un commit réécrit par « Fix commit identity » : `Some(Work)` si l'adresse de l'auteur est celle d'un
+/// autre de mes profils (il est remplacé par le profil rattaché), `None` sinon : l'auteur d'origine (un collègue,
+/// ou moi sous l'adresse du profil rattaché) est gardé tel quel.
+pub fn author_replacement<'a>(
+    attached: &'a Profile,
+    profiles: &[Profile],
+    author: &Signature,
+) -> Option<Signature<'a>> {
     let own_address = same_email(author.email, &attached.user_email);
     let other_profile = profiles
         .iter()
         .any(|p| p.id != attached.id && same_email(author.email, &p.user_email));
-    (!own_address && other_profile).then_some(CommitFault::Author)
+    (!own_address && other_profile).then_some(Signature {
+        name: &attached.user_name,
+        email: &attached.user_email,
+    })
 }

@@ -182,6 +182,89 @@ describe("PushButton", () => {
     expect(screen.queryByText(authorCheck.reason)).toBeNull();
   });
 
+  it("proteger-l-identite CA-24: « Fix commit identity » is offered in the faulty-commits state, and a click calls it once", async () => {
+    const onfix = vi.fn();
+    const onrun = vi.fn();
+    render(PushButton, { ahead: 2, published: true, check: authorCheck, onrun, onfix });
+    const fix = screen.getByRole("button", { name: "Fix commit identity" });
+    expect(fix).toHaveAttribute("aria-disabled", "false");
+    await fireEvent.click(fix);
+    expect(onfix).toHaveBeenCalledTimes(1);
+    expect(onrun).not.toHaveBeenCalled();
+    expect(screen.queryByText(/force push/i)).toBeNull();
+  });
+
+  it("proteger-l-identite CA-24: « Fix commit identity » is absent when the repository identity blocks, with no profile, and when nothing is faulty", () => {
+    const states = [
+      { ahead: 2, published: true, blocked: { profileName: "Work", rows: [] }, check: authorCheck },
+      { ahead: 2, published: true, noProfile: true, check: authorCheck },
+      { ahead: 2, published: true, check: { reason: null, commits: authorCheck.commits } },
+      { ahead: 2, published: true },
+    ];
+    for (const props of states) {
+      const { unmount } = render(PushButton, { ...props, onrun: vi.fn(), onfix: vi.fn() });
+      expect(screen.queryByRole("button", { name: /Fix commit identity/ })).toBeNull();
+      unmount();
+    }
+  });
+
+  it("proteger-l-identite CA-24: while the fix runs it cannot be started again", async () => {
+    const onfix = vi.fn();
+    render(PushButton, {
+      ahead: 2,
+      published: true,
+      check: authorCheck,
+      fixing: true,
+      onrun: vi.fn(),
+      onfix,
+    });
+    const fix = screen.getByRole("button", { name: /Fixing/ });
+    expect(fix).toHaveAttribute("aria-disabled", "true");
+    await fireEvent.click(fix);
+    expect(onfix).not.toHaveBeenCalled();
+  });
+
+  it("proteger-l-identite CA-25: a refused fix shows its message as text and leaves the list and the state as they were", () => {
+    const message = "Commit or stash your changes before fixing commit identity.";
+    render(PushButton, {
+      ahead: 2,
+      published: true,
+      check: authorCheck,
+      notice: message,
+      onrun: vi.fn(),
+      onfix: vi.fn(),
+    });
+    expect(screen.getByText(message)).toBeVisible();
+    const fixButton = screen.getByRole("button", { name: "Fix commit identity" });
+    expect(
+      fixButton.compareDocumentPosition(screen.getByRole("alert")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByText(authorCheck.reason)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Push 2" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Fix commit identity" })).toHaveAttribute(
+      "aria-disabled",
+      "false",
+    );
+  });
+
+  it("proteger-l-identite CA-25: once fixed, no fault is left and « Push 2 » is available without Fix commit identity", async () => {
+    const onrun = vi.fn();
+    render(PushButton, {
+      ahead: 2,
+      published: true,
+      check: { reason: null, commits: authorCheck.commits.map((c) => ({ ...c, fault: null })) },
+      onrun,
+      onfix: vi.fn(),
+    });
+    const push = screen.getByRole("button", { name: "Push 2" });
+    expect(push).toHaveAttribute("aria-disabled", "false");
+    expect(screen.queryByRole("button", { name: /Fix commit identity/ })).toBeNull();
+    await fireEvent.click(push);
+    expect(onrun).toHaveBeenCalledTimes(1);
+  });
+
   it("synchroniser CA-15: no state of the button ever says Force push", () => {
     for (const props of [
       { ahead: 2, published: true, blocked: { profileName: "Work", rows: [] } },

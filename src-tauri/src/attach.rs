@@ -293,6 +293,50 @@ pub fn ensure_pushable(store: &Store, repo: &Path, home: &Path) -> Result<(), St
     }
 }
 
+/// Pour « Fix commit identity » : le profil rattaché et les commits à pousser que `push_check` classe fautifs (les
+/// mêmes, pas d'autre ensemble), chacun avec son auteur de remplacement : Work seulement si l'auteur est un autre de
+/// mes profils, sinon l'auteur d'origine est gardé. `None` : aucun profil, ou commits illisibles. Lecture seule.
+pub(crate) fn rewrite_targets(
+    store: &Store,
+    repo: &Path,
+    home: &Path,
+) -> Option<(Profile, Vec<octogit_git::RewriteTarget>)> {
+    let profiles = store.profiles();
+    let (profile, _) = resolve(store, &profiles, repo, home)?;
+    let unpushed = octogit_git::read_unpushed(repo).ok()?;
+    let targets = unpushed
+        .iter()
+        .filter(|c| {
+            octogit_identity::classify_commit(
+                &profile,
+                &profiles,
+                &octogit_identity::Signature {
+                    name: &c.author_name,
+                    email: &c.author_email,
+                },
+                &octogit_identity::Signature {
+                    name: &c.committer_name,
+                    email: &c.committer_email,
+                },
+            )
+            .is_some()
+        })
+        .map(|c| octogit_git::RewriteTarget {
+            id: c.id.clone(),
+            author: octogit_identity::author_replacement(
+                &profile,
+                &profiles,
+                &octogit_identity::Signature {
+                    name: &c.author_name,
+                    email: &c.author_email,
+                },
+            )
+            .map(|s| (s.name.to_string(), s.email.to_string())),
+        })
+        .collect();
+    Some((profile, targets))
+}
+
 /// Profil rattaché à `repo` (`None` : ni choix manuel ni règle, rien n'est écrit). Son identité est écrite
 /// dans le `.git/config` local quand elle manque ; conforme, rien n'est écrit ; une valeur locale qui
 /// diffère n'est jamais écrasée ici : l'écart est rendu pour `IdentityMismatch` (S-11).

@@ -101,6 +101,30 @@ fn author_and_committer_both_faulty_is_reported_as_committer() {
     assert_eq!(result, Some(CommitFault::Committer));
 }
 
+fn replaced(author: Signature) -> Option<(String, String)> {
+    let all = profiles();
+    octogit_identity::author_replacement(&all[0], &all, &author)
+        .map(|s| (s.name.to_string(), s.email.to_string()))
+}
+
+#[test]
+fn proteger_l_identite_ca_24_the_author_is_replaced_by_work_only_when_it_is_another_of_my_profiles()
+{
+    let work = Some(("Jag Work".to_string(), "jag@work.fr".to_string()));
+    assert_eq!(replaced(sig("Jag Perso", "jag@perso.fr")), work);
+    assert_eq!(replaced(sig("J. Pro", "JAG@PRO.FR")), work);
+}
+
+#[test]
+fn proteger_l_identite_ca_21_a_colleague_author_is_kept() {
+    assert_eq!(replaced(sig("Alice Client", "alice@client.fr")), None);
+}
+
+#[test]
+fn proteger_l_identite_ca_24_an_author_with_the_address_of_work_is_kept() {
+    assert_eq!(replaced(sig("Jag W.", "jag@work.fr")), None);
+}
+
 #[test]
 fn a_colleague_author_with_a_conform_committer_is_not_faulty() {
     // Collègue qui n'est aucun de mes profils, committer = moi (rebase, cherry-pick).

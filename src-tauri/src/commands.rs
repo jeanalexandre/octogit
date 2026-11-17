@@ -388,6 +388,23 @@ pub async fn push_repository(path: String) -> Result<RepositoryView, String> {
     .map_err(|_| "Push was interrupted.".to_string())?
 }
 
+/// « Fix commit identity » de `PushButton` en tâche de fond : réécrit les commits à pousser fautifs (garde de
+/// l'identité du dépôt refait ici), puis rend le dépôt relu. Des modifications non commitées donnent la valeur
+/// `refused` ; les autres refus sont un message d'une ligne.
+#[tauri::command]
+#[specta::specta]
+pub async fn fix_commit_identity(path: String) -> Result<fetch::FixCommitIdentityView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fetch::fix_commit_identity(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+        )
+    })
+    .await
+    .map_err(|_| "Fix commit identity was interrupted.".to_string())?
+}
+
 /// Action par défaut de `SyncButton`, commune à tous les dépôts (Fetch All au premier lancement).
 #[tauri::command]
 #[specta::specta]

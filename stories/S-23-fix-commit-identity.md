@@ -23,6 +23,10 @@ Quand `PushButton` est bloqué par des commits fautifs (S-22), « Fix commit ide
 2. Échec de la signature pendant la réécriture : a) tout refuser, branche inchangée, message d'une ligne (proposé, décision de l'humain)
 3. Copie de sauvegarde de la branche avant réécriture : a) non, le reflog suffit (proposé, décision de l'humain)
 
+### Après la revue 1
+1. Mineur : message de refus affiché en haut à droite, loin du bouton, au lieu de sous le bouton comme la maquette : traiter (d'office)
+2. Pour information : les commits non fautifs au-dessus d'un commit réécrit changent de SHA (inévitable avec Git, documenté au README) : pris en compte (pour information)
+
 ## Contexte technique
 - Dépend de S-22 (lecture des commits à pousser avec auteur et committer séparés, classement conforme / « author » / « committer », commande qui rend le profil attendu et la liste classée, état bloqué de `PushButton` avec liste « ✕ author » / « ✕ committer » / « ✓ », marque sur le nœud) et de S-21 (garde Rust nommé pour « commit » et « push », `blocked` de `History` à `PushButton`). Fiches : `stories/S-22-verifier-commits-a-pousser.md`, `stories/S-21-bloquer-commit-et-push-identite.md`, `stories/S-20-pushbutton-push-et-publication.md`. Ces stories ne sont pas encore dans le code : relire ce qu'elles livrent (noms du module de lecture des commits à pousser, de la fonction de classement, de la commande, du garde) avant de coder, et les prolonger sans les dupliquer. La décision 1 de S-22 (branche courante seulement ou toutes les branches locales) fixe aussi le périmètre de la réécriture : réécrire exactement les commits que S-22 classe fautifs, pas d'autre ensemble.
 - Crate `git` (`crates/git/src/lib.rs`, `crates/git/src/working_tree.rs` pour le modèle de sous-processus : `Command::new("git")`, `GIT_TERMINAL_PROMPT=0`) : nouveau module d'écriture (exporté depuis `lib.rs`), exemple `rewrite_identity` : réécrit en une opération les commits à pousser désignés, à n'importe quelle position, y compris sous un commit de merge à pousser (la topologie est conservée : un merge reste un merge) ; pour chaque commit réécrit, committer = nom et adresse de Work (`GIT_COMMITTER_NAME` / `GIT_COMMITTER_EMAIL`), auteur d'origine (nom, adresse, date : `GIT_AUTHOR_*`) conservé sauf si l'adresse est celle d'un autre de mes profils, auquel cas Work (la date d'auteur d'origine reste conservée) ; message et arbre inchangés ; signature selon Work par `commit.gpgsign` / `gpg.format` / `user.signingkey` lus de `.git/config` local (déjà écrits par `expected_values` de `crates/identity/src/local.rs`), jamais `~/.gitconfig` ; commits non fautifs et commits déjà sur une branche distante du remote cible jamais réécrits ; seule la branche courante change de pointeur, arbre de travail et index inchangés (réécriture sans checkout, par exemple `git commit-tree` et `git update-ref` avec la valeur ancienne attendue, ou autre moyen qui respecte cette contrainte). Refus avant toute écriture si l'arbre de travail ou l'index ont des modifications non commitées : erreur typée dont le message est « Commit or stash your changes before fixing commit identity. ». Écriture atomique : en cas d'échec, la branche garde son pointeur d'origine.
@@ -64,7 +68,11 @@ Quand `PushButton` est bloqué par des commits fautifs (S-22), « Fix commit ide
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `fe0faf2`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé, 21 fichiers, tests/lint/build verts | — |
+| 2 | reviewer | revue 1 : `stories/S-23-revue-1.md` | validé (1 mineur) |
+| 3 | dev | terminé, mineur 1 traité (message sous le bouton) | — |
+| 4 | reviewer | revue 2 : `stories/S-23-revue-2.md` | validé |

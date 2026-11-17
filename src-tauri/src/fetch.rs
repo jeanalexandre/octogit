@@ -52,6 +52,47 @@ pub fn push_repository(store: &Store, home: &Path, path: &Path) -> Result<Reposi
     repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
 }
 
+/// Résultat de « Fix commit identity » : le dépôt relu, ou le refus (modifications non commitées) que le front
+/// distingue sans analyser de texte.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum FixCommitIdentityView {
+    Fixed { repository: Box<RepositoryView> },
+    Refused { message: String },
+}
+
+/// « Fix commit identity » de `PushButton` : refait le garde de l'identité du dépôt (la réécriture crée des
+/// commits : non conforme ou « No profile » refusent avec la même raison que Commit et Push), réécrit en un geste
+/// les commits à pousser que le classement dit fautifs, puis rend le dépôt relu. Des modifications non commitées
+/// donnent `Refused` (rien n'a changé). L'erreur est le message d'une ligne affiché près du bouton.
+pub fn fix_commit_identity(
+    store: &Store,
+    home: &Path,
+    path: &Path,
+) -> Result<FixCommitIdentityView, String> {
+    crate::attach::ensure_conform(store, path, home)?;
+    let (profile, targets) = crate::attach::rewrite_targets(store, path, home)
+        .ok_or_else(|| "The commits to push could not be read.".to_string())?;
+    match octogit_git::rewrite_identity(path, (&profile.user_name, &profile.user_email), &targets) {
+        Ok(_) => {}
+        Err(refusal @ octogit_git::RewriteError::Dirty) => {
+            return Ok(FixCommitIdentityView::Refused {
+                message: refusal.to_string(),
+            })
+        }
+        Err(octogit_git::RewriteError::Spawn(_)) => return Err("Git could not run.".to_string()),
+        Err(octogit_git::RewriteError::Failed { .. }) => {
+            return Err("Fix commit identity failed.".to_string())
+        }
+        Err(other) => return Err(other.to_string()),
+    }
+    repository_view(path)
+        .map(|repository| FixCommitIdentityView::Fixed {
+            repository: Box::new(repository),
+        })
+        .ok_or_else(|| "Could not read the repository.".to_string())
+}
+
 fn run_and_reread(
     path: &Path,
     fetch: fn(&Path, std::time::Duration) -> Result<String, octogit_git::FetchError>,

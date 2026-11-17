@@ -91,6 +91,12 @@ export const commands = {
 	 *  (distante en avance, pas d'`origin`…).
 	 */
 	pushRepository: (path: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("push_repository", { path })),
+	/**
+	 *  « Fix commit identity » de `PushButton` en tâche de fond : réécrit les commits à pousser fautifs (garde de
+	 *  l'identité du dépôt refait ici), puis rend le dépôt relu. Des modifications non commitées donnent la valeur
+	 *  `refused` ; les autres refus sont un message d'une ligne.
+	 */
+	fixCommitIdentity: (path: string) => typedError<FixCommitIdentityView_Serialize, string>(__TAURI_INVOKE("fix_commit_identity", { path })),
 	/**  Action par défaut de `SyncButton`, commune à tous les dépôts (Fetch All au premier lancement). */
 	getSyncAction: () => __TAURI_INVOKE<SyncAction>("get_sync_action"),
 	/**  Mémorise l'action par défaut de `SyncButton`. Un échec d'écriture est ignoré. */
@@ -246,6 +252,24 @@ export type FileChangeView = {
 	path: string,
 	status: ChangeStatusView,
 };
+
+/**
+ *  Résultat de « Fix commit identity » : le dépôt relu, ou le refus (modifications non commitées) que le front
+ *  distingue sans analyser de texte.
+ */
+export type FixCommitIdentityView = FixCommitIdentityView_Serialize | FixCommitIdentityView_Deserialize;
+
+/**
+ *  Résultat de « Fix commit identity » : le dépôt relu, ou le refus (modifications non commitées) que le front
+ *  distingue sans analyser de texte.
+ */
+export type FixCommitIdentityView_Deserialize = { kind: "fixed"; repository: RepositoryView_Deserialize } | { kind: "refused"; message: string };
+
+/**
+ *  Résultat de « Fix commit identity » : le dépôt relu, ou le refus (modifications non commitées) que le front
+ *  distingue sans analyser de texte.
+ */
+export type FixCommitIdentityView_Serialize = { kind: "fixed"; repository: RepositoryView_Serialize } | { kind: "refused"; message: string };
 
 export type LaunchState = LaunchState_Serialize | LaunchState_Deserialize;
 

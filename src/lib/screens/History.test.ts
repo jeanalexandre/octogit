@@ -752,6 +752,42 @@ describe("History", () => {
         "false",
       );
     });
+
+    it("proteger-l-identite CA-24: the « Fix commit identity » button of PushButton asks the fix once, and is not offered while the repository identity blocks", async () => {
+      const onfixcommits = vi.fn();
+      const { unmount } = render(
+        History,
+        props({ repository: { ...ahead2, profile: attached }, pushCheck, onfixcommits }),
+      );
+      await fireEvent.click(screen.getByRole("button", { name: "Fix commit identity" }));
+      expect(onfixcommits).toHaveBeenCalledTimes(1);
+      unmount();
+      render(
+        History,
+        props({
+          repository: { ...ahead2, profile: attached },
+          pushCheck,
+          blocked: { profileName: "Work", rows: [] },
+          onfixcommits,
+        }),
+      );
+      expect(screen.queryByRole("button", { name: "Fix commit identity" })).toBeNull();
+    });
+
+    it("proteger-l-identite CA-25: after the fix (no fault read), the marks of the graph are gone and Push is available", () => {
+      const fixed = {
+        ...pushCheck,
+        reason: null,
+        commits: pushCheck.commits.map((c) => ({ ...c, fault: null })),
+      };
+      const { container } = render(
+        History,
+        props({ repository: { ...ahead2, profile: attached }, pushCheck: fixed }),
+      );
+      expect(marks(container)).toEqual([]);
+      expect(screen.queryByRole("button", { name: /Fix commit identity/ })).toBeNull();
+      expect(screen.queryByText(/force push/i)).toBeNull();
+    });
   });
 
   it("explorer-l-historique CA-25: a merge commit opens the merge variant", async () => {

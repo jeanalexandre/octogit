@@ -1,5 +1,6 @@
 <script lang="ts">
   import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
+  import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type { MismatchView, PushCheckView } from "../bindings";
@@ -20,8 +21,14 @@
     blocked = null,
     noProfile = false,
     check = null,
+    fixing = false,
     onrun,
+    onfix,
   }: {
+    /** Une réécriture « Fix commit identity » est en cours : non relançable. */
+    fixing?: boolean;
+    /** Clic sur « Fix commit identity » (état bloqué par les commits fautifs seulement). */
+    onfix?: () => void;
     /** Commits à pousser et leur classement (`get_push_check`) ; `reason` vide : aucun n'est fautif. */
     check?: Pick<PushCheckView, "reason" | "commits"> | null;
     /** L'identité du `.git/config` local diffère du profil : bouton bloqué, même raison que Commit. */
@@ -54,10 +61,14 @@
   );
   /** La liste des commits à pousser accompagne la raison des commits fautifs, et elle seule. */
   const faulty = $derived(!blocked && !noProfile && !!check?.reason);
-  const inactive = $derived(busy || reason !== null);
+  const inactive = $derived(busy || fixing || reason !== null);
 
   function run() {
     if (!inactive) onrun();
+  }
+
+  function fix() {
+    if (!fixing && !busy) onfix?.();
   }
 
   const marks = { author: "✕ author", committer: "✕ committer" } as const;
@@ -68,11 +79,14 @@
   class:stacked={faulty && !busy}
   data-push-checked={check !== null ? "" : undefined}
 >
-  {#if notice}
-    <span class="notice" role="alert">
+  {#snippet noticeLine(below: boolean)}
+    <span class="notice" class:below role="alert">
       <TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
       {notice}
     </span>
+  {/snippet}
+  {#if notice && !(faulty && !busy)}
+    {@render noticeLine(false)}
   {/if}
   {#if reason && !busy}
     <span id="push-reason" class="reason">{reason}</span>
@@ -104,6 +118,18 @@
         </li>
       {/each}
     </ul>
+    <button type="button" class="primary" aria-disabled={fixing} aria-busy={fixing} onclick={fix}>
+      {#if fixing}
+        <span class="spin" aria-hidden="true"><RefreshCw size={16} strokeWidth={1.8} /></span>
+        Fixing…
+      {:else}
+        <GitCommitHorizontal size={16} strokeWidth={1.8} aria-hidden="true" />
+        Fix commit identity
+      {/if}
+    </button>
+    {#if notice}
+      {@render noticeLine(true)}
+    {/if}
   {/if}
 </span>
 
@@ -176,6 +202,12 @@
     white-space: nowrap;
   }
 
+  /* Sous « Fix commit identity » : sa propre ligne, sous le bouton (maquette). */
+  .notice.below {
+    flex: 0 0 100%;
+    white-space: normal;
+  }
+
   .reason {
     max-width: 44ch;
     color: var(--muted);
@@ -203,6 +235,19 @@
   button[aria-disabled="true"] {
     color: var(--muted);
     cursor: default;
+  }
+
+  button.primary {
+    border-color: var(--brand);
+    background: var(--brand);
+    color: var(--on-brand);
+    font-weight: 600;
+  }
+
+  button.primary[aria-disabled="true"] {
+    border-color: var(--border);
+    background: var(--surface-raised);
+    color: var(--muted);
   }
 
   .spin {

@@ -441,6 +441,17 @@ fn main() {
                 Err(error) => (serde_json::to_string(&error), 3),
             }
         }
+        "fix_commit_identity" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            match octogit_app::fetch::fix_commit_identity(
+                &octogit_store::Store::new(octogit_app::data_dir()),
+                &octogit_app::home_dir(),
+                std::path::Path::new(&args.path),
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
         "get_sync_action" => (
             serde_json::to_string(&octogit_app::commands::get_sync_action()),
             0,

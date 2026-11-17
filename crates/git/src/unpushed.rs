@@ -26,7 +26,7 @@ fn read_failed(error: FetchError) -> GitError {
 }
 
 /// Remote cible de la branche `branch` : celui de son suivi (`branch.<nom>.remote`), sinon `origin` s'il existe.
-fn target_remote(path: &Path, branch: &str) -> Result<Option<String>, GitError> {
+pub(crate) fn target_remote(path: &Path, branch: &str) -> Result<Option<String>, GitError> {
     let key = format!("branch.{branch}.remote");
     match fetch_with(path, FETCH_TIMEOUT, &["config", "--local", "--get", &key]) {
         Ok(output) if !output.trim().is_empty() && output.trim() != "." => {

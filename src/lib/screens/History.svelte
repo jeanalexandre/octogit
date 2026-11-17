@@ -65,7 +65,13 @@
     pushNotice = null,
     onpush,
     pushCheck = null,
+    fixingCommits = false,
+    onfixcommits,
   }: {
+    /** Une réécriture « Fix commit identity » (commits à pousser fautifs) est en cours. */
+    fixingCommits?: boolean;
+    /** Clic sur « Fix commit identity » de `PushButton` : réécrit les commits à pousser fautifs. */
+    onfixcommits?: () => void;
     /** Commits à pousser de la branche courante et leur classement (`get_push_check`), ou `null` tant qu'il n'est pas lu. */
     pushCheck?: PushCheckView | null;
     /** Un push lancé par `PushButton` est en cours. */
@@ -253,7 +259,9 @@
         {blocked}
         noProfile={!repository.profile}
         check={pushCheck}
+        fixing={fixingCommits}
         onrun={() => onpush?.()}
+        onfix={() => onfixcommits?.()}
       />
       {#if tracking}
         <span class="sync" role="group" aria-label="Ahead and behind">

@@ -345,7 +345,7 @@
    */
   async function push() {
     const path = openPath;
-    if (path === null || pushingPath !== null) return;
+    if (path === null || pushingPath !== null || fixingCommitsPath !== null) return;
     pushNotice = null;
     pushingPath = path;
     try {
@@ -369,6 +369,49 @@
       // Échec inattendu : l'affichage garde l'état d'avant.
     } finally {
       pushingPath = null;
+    }
+  }
+
+  /** Dépôt dont une réécriture « Fix commit identity » est en cours (`null` : aucune). */
+  let fixingCommitsPath: string | null = $state(null);
+
+  /**
+   * Clic sur « Fix commit identity » de `PushButton` : réécrit les commits à pousser fautifs, une seule réécriture à
+   * la fois, sous la même garde que le fetch et le push (jamais en même temps qu'un fetch du même dépôt). Le dépôt
+   * relu remplace l'affichage (profil et écart gardés) ; le classement des commits est alors relu (plus de fautif,
+   * marques du graphe retirées). Un refus (modifications non commitées, garde d'identité, signature) ou un échec
+   * laisse le dépôt tel quel et affiche son message près du bouton.
+   */
+  async function fixCommitIdentity() {
+    const path = openPath;
+    if (path === null || fixingCommitsPath !== null || pushingPath !== null) return;
+    pushNotice = null;
+    fixingCommitsPath = path;
+    try {
+      await runFetchNow(path, async () => {
+        const result = await commands.fixCommitIdentity(path);
+        if (screen?.screen !== "history" || screen.repository.path !== path) return;
+        if (result.status !== "ok") {
+          pushNotice = { path, text: result.error };
+          return;
+        }
+        if (result.data.kind === "refused") {
+          pushNotice = { path, text: result.data.message };
+          return;
+        }
+        screen = {
+          screen: "history",
+          repository: {
+            ...result.data.repository,
+            profile: screen.repository.profile,
+            mismatch: screen.repository.mismatch,
+          } satisfies RepositoryView,
+        };
+      });
+    } catch {
+      // Échec inattendu : l'affichage garde l'état d'avant.
+    } finally {
+      fixingCommitsPath = null;
     }
   }
 
@@ -691,6 +734,8 @@
     pushing={pushingPath !== null && pushingPath === openPath}
     pushNotice={pushNotice !== null && pushNotice.path === openPath ? pushNotice.text : null}
     onpush={push}
+    fixingCommits={fixingCommitsPath !== null && fixingCommitsPath === openPath}
+    onfixcommits={fixCommitIdentity}
     {pushCheck}
   />
 {:else if screen?.screen === "welcome"}

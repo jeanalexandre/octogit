@@ -95,7 +95,7 @@
 </head>
 <body>
 <h1>History — main screen</h1>
-<p class="note">Low fidelity: layout and content only (colours: <code>ux/direction/neon.html</code>). Width ≈ 1 500 px. WIP selected by default on repo open. Layout from the reference of 05/11/2026.</p>
+<p class="note">Low fidelity: layout and content only (colours: <code>ux/direction/neon.html</code>). Width ≈ 1 500 px. WIP selected by default on repo open when there are changes, otherwise the last commit (section 2, « No changes »). Graph column is at least 64 px wide. Layout from the reference of 05/11/2026.</p>
 
 <h2>1 · Default: WIP selected, identity matches profile</h2>
 <div class="frame lofi">
@@ -225,11 +225,31 @@
     </div>
   </div>
   <div class="state">
-    <div class="label">No changes</div>
+    <div class="label">No changes → no WIP row, last commit selected, CommitDetail + Amend</div>
     <div class="card panel">
-      <h3>Working changes</h3>
-      <div class="muted">Working tree clean.</div>
-      <span class="btn disabled" style="text-align:center">Commit to feature/profiles</span>
+      <div><span class="mono">a3f9c21</span> <span class="btn" style="padding:0 6px">Copy SHA</span> <span class="muted">✓ Signed</span></div>
+      <h3>feat(profiles): inject core.sshCommand per profile</h3>
+      <div class="small">Author: J. Gautreau · jag@work-company.fr<br>Date: 22 Oct 2026 · 10:12</div>
+      <div class="muted small">4 files changed · +141 −23</div>
+      <div class="muted small">Summary</div>
+      <div class="input">feat(profiles): inject core.sshCommand per profile</div>
+      <div class="muted small">Description</div>
+      <div class="input textarea">Every git command gets -c core.sshCommand with the profile key.</div>
+      <span class="btn disabled" style="text-align:center">Amend a3f9c21  ⌘↵</span>
+      <div class="ok small">✓ Identity matches profile Work · jag@work-company.fr</div>
+    </div>
+  </div>
+  <div class="state">
+    <div class="label">No changes, identity mismatch → Amend refused (J-13)</div>
+    <div class="card panel">
+      <div><span class="mono">a3f9c21</span> <span class="btn" style="padding:0 6px">Copy SHA</span> <span class="muted">✓ Signed</span></div>
+      <h3>feat(profiles): inject core.sshCommand per profile</h3>
+      <div class="muted small">Summary</div>
+      <div class="input">feat(profiles): inject core.sshCommand per profile key</div>
+      <div class="muted small">Description</div>
+      <div class="input textarea">Every git command gets -c core.sshCommand with the profile key.</div>
+      <span class="btn disabled" style="text-align:center">Amend a3f9c21  ⌘↵</span>
+      <div class="small">Identity does not match profile Work. <span class="btn" style="padding:0 6px">Fix repository identity</span></div>
     </div>
   </div>
 </div>

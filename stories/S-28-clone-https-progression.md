@@ -33,6 +33,8 @@ Compléter `CloneDialog` (S-27) : sans profil, créer un profil à la volée et 
 
 ### Après la revue 3
 1. Rien à traiter. Compteur d'objets / événement Tauri réel : pris en compte (pour information), action ajoutée à `notes-production.md`. Point `welcome.md` : toujours à décider par l'humain (`/ksm:ux`).
+2. `welcome.md` contre CA-17 : b) `Clone…` disparaît de l'état vide de `Welcome` (réponse de l'humain, 18/11/2026). Cela contredit CA-17 de `demarrer-un-depot` et le code livré par S-28 (`CloneDialog` en « No profile yet » depuis l'état vide) : rien n'est changé dans cette story ; amendement de la spec par `/ksm:spec demarrer-un-depot`, puis nouvelle story par `/ksm:plan`.
+3. Test sur la place de la phrase CA-10 (`CloneDialog.test.ts`, S-27) : pas de vérification demandée (réponse de l'humain, 18/11/2026).
 
 ## Contexte technique
 - Dépend de S-27 (fiche `stories/S-27-cloner-avec-un-profil.md`, à lire pour ce qu'elle crée) : `CloneDialog.svelte`, bouton Clone… de `Welcome` et entrée de `RepoPicker`, fonction de clone du crate `git`, commande `clone_repository(url, folder, profile_id)`, `last_clone_parent` du `store`, nom du dépôt déduit de l'URL. S-27 refuse toute URL `http(s)://` : S-28 remplace ce refus par la conversion (CA-18) et supprime la liste de profils vide figée de S-27 (« No profile yet » et « Create profile… » y sont renvoyés à S-28). Ne pas redéfinir ce que S-27 a déjà posé.

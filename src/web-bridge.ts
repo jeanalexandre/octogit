@@ -24,6 +24,10 @@ const testHeaders = [
   ["fake_ssh_mode", "x-octogit-fake-ssh-mode"],
   ["fake_ssh_account", "x-octogit-fake-ssh-account"],
   ["ssh_test_timeout_ms", "x-octogit-ssh-test-timeout-ms"],
+  // Mode `serve` (clone) : dépôts `--bare` servis, clé acceptée, retard de la réponse en secondes (clone lent).
+  ["fake_ssh_serve_root", "x-octogit-fake-ssh-serve-root"],
+  ["fake_ssh_allowed_key", "x-octogit-fake-ssh-allowed-key"],
+  ["fake_ssh_delay", "x-octogit-fake-ssh-delay"],
 ] as const;
 
 declare global {
@@ -87,6 +91,30 @@ function watchWorkingTree(path: unknown): Promise<null> {
   },
 };
 
+/**
+ * Clone : le pont lance un processus par commande, la progression ne peut pas lui être poussée. Pendant le clone,
+ * `get_clone_progress` relit la dernière progression écrite par le processus du clone et l'événement
+ * `clone-progress` est émis à chaque changement, comme le ferait Tauri.
+ */
+async function cloneWithProgress(args: unknown): Promise<unknown> {
+  let last = "";
+  const timer = setInterval(() => {
+    void call("get_clone_progress")
+      .then((progress) => {
+        const text = JSON.stringify(progress);
+        if (progress === null || text === last) return;
+        last = text;
+        emit("clone-progress", progress);
+      })
+      .catch(() => undefined);
+  }, 100);
+  try {
+    return await call("clone_repository", args);
+  } finally {
+    clearInterval(timer);
+  }
+}
+
 async function call(command: string, args?: unknown): Promise<unknown> {
   const headers: Record<string, string> = {};
   if (dataDir) headers["x-octogit-data-dir"] = dataDir;
@@ -127,6 +155,7 @@ async function call(command: string, args?: unknown): Promise<unknown> {
       return null;
     }
     if (command === "watch_working_tree") return watchWorkingTree((args as { path: string }).path);
+    if (command === "clone_repository") return cloneWithProgress(args);
     if (command === "choose_folder") return window.__octogitChosenFolder ?? null;
     if (command === "choose_ssh_key") return window.__octogitChosenFile ?? null;
     if (command === "copy_public_key") {

@@ -19,7 +19,9 @@ pub use branch::{check_branch_name, create_branch, BranchError, BranchNameCheck}
 pub use checkout::{
     checkout, plan_checkout, CheckoutChoice, CheckoutError, CheckoutPlan, LocalCommit,
 };
-pub use clone::{clone, CloneError, CLONE_TIMEOUT};
+pub use clone::{
+    clone, clone_with, github_ssh_url, parse_progress, CloneError, CloneProgress, CLONE_TIMEOUT,
+};
 pub use fetch::{fetch, fetch_all, FetchError, FETCH_TIMEOUT};
 pub use force_push::{force_push, read_rewrite, ForcePushError, OverwrittenCommit, Rewrite};
 pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};

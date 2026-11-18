@@ -5,6 +5,7 @@
     events,
     type CheckoutChoiceView,
     type CloneError,
+    type CloneProgress,
     type Column,
     type ForcePushView,
     type LaunchState,
@@ -820,11 +821,20 @@
   ): Promise<ProfileView & { notUpdated: string[]; failed: string[] }> {
     const importing = importDraft !== null && profile.id === "";
     const importPath = openPath;
+    const creatingFromClone = cloneDialog?.draft != null && profile.id === "";
     const result = await commands.saveProfile(profile);
     if (result.status !== "ok") throw result.error;
     profiles = await commands.listProfiles();
     // Les dépôts récents ont pu être réécrits : leur badge est relu.
     recent = await commands.listRecentRepositories();
+    if (creatingFromClone && cloneDialog !== null) {
+      // Retour à `CloneDialog` avec le nouveau profil sélectionné, URL et dossier gardés.
+      cloneDialog = {
+        ...cloneDialog,
+        draft: { ...cloneDialog.draft, profileId: result.data.profile.id },
+      };
+      closeSettings();
+    }
     if (importing && importPath !== null) {
       // Le dépôt est rattaché à ce profil à la main (ses valeurs sont écrites dans son `.git/config` comme par Overwrite), puis on y revient.
       const attached = await commands.attachRepository(importPath, result.data.profile.id);
@@ -891,13 +901,33 @@
   }
 
   /** `CloneDialog` ouvert (par Clone… de `Welcome` ou de `RepoPicker`, ou ⌘⇧C), avec son état de clone. */
-  let cloneDialog: { lastParent: string | null; busy: boolean; error: string | null } | null =
-    $state(null);
+  let cloneDialog: {
+    lastParent: string | null;
+    busy: boolean;
+    error: string | null;
+    /** Objets reçus et total du clone en cours. */
+    progress: CloneProgress | null;
+    /** URL, dossier (et profil) à rendre au dialogue qui revient de `ProfileSettings` (« Create profile… »). */
+    draft: { profileId?: string; url?: string; folder?: string } | null;
+  } | null = $state(null);
 
   async function openClone() {
     if (cloneDialog !== null || settingsOpen) return;
     profiles = await commands.listProfiles();
-    cloneDialog = { lastParent: await commands.getLastCloneParent(), busy: false, error: null };
+    cloneDialog = {
+      lastParent: await commands.getLastCloneParent(),
+      busy: false,
+      error: null,
+      progress: null,
+      draft: null,
+    };
+  }
+
+  /** « Create profile… » de `CloneDialog` : `ProfileSettings` s'ouvre ; au Save, le dialogue revient avec le nouveau profil. */
+  function createProfileFromClone(draft: { url: string; folder: string }) {
+    if (cloneDialog === null) return;
+    cloneDialog = { ...cloneDialog, draft };
+    settingsOpen = true;
   }
 
   function cloneErrorText(failure: CloneError): string {
@@ -905,9 +935,11 @@
       case "failed":
         return failure.output.trim();
       case "httpsNotSupported":
-        return "Clone over HTTPS: only the equivalent SSH URL is cloned.";
+        return "Only github.com URLs can be cloned over HTTPS (converted to SSH).";
       case "unknownProfile":
         return "This profile no longer exists.";
+      case "cancelled":
+        return "The clone was cancelled.";
       case "other":
         return failure.message;
     }
@@ -915,15 +947,35 @@
 
   async function cloneRepository(url: string, folder: string, profileId: string) {
     if (cloneDialog === null) return;
-    cloneDialog = { ...cloneDialog, busy: true, error: null };
+    cloneDialog = { ...cloneDialog, busy: true, error: null, progress: null };
     const result = await commands.cloneRepository(url, folder, profileId);
     if (result.status === "ok") {
       cloneDialog = null;
       await show(result.data);
     } else if (cloneDialog !== null) {
-      cloneDialog = { ...cloneDialog, busy: false, error: cloneErrorText(result.error) };
+      // Annulé : la destination est revenue à son état d'avant, la saisie revient sans message d'erreur.
+      cloneDialog = {
+        ...cloneDialog,
+        busy: false,
+        progress: null,
+        error: result.error.kind === "cancelled" ? null : cloneErrorText(result.error),
+      };
     }
   }
+
+  onMount(() => {
+    let off: (() => void) | undefined;
+    let gone = false;
+    void events.cloneProgress
+      .listen((event) => {
+        if (cloneDialog?.busy) cloneDialog = { ...cloneDialog, progress: event.payload };
+      })
+      .then((unlisten) => (gone ? unlisten() : (off = unlisten)));
+    return () => {
+      gone = true;
+      off?.();
+    };
+  });
 
   async function chooseFolder() {
     const path = await commands.chooseFolder();
@@ -1037,17 +1089,22 @@
     onchoose={chooseFolder}
     onclone={openClone}
     onprofiles={() => (settingsOpen = true)}
+    noProfile={profiles.length === 0}
   />
 {/if}
 
-{#if cloneDialog !== null}
+{#if cloneDialog !== null && !settingsOpen}
   <CloneDialog
     {profiles}
     lastParent={cloneDialog.lastParent}
     busy={cloneDialog.busy}
     error={cloneDialog.error}
+    progress={cloneDialog.progress}
+    initial={cloneDialog.draft ?? undefined}
     onclone={cloneRepository}
     oncancel={() => (cloneDialog = null)}
+    oncancelclone={() => void commands.cancelClone()}
+    oncreateprofile={createProfileFromClone}
     onchoosefolder={() => commands.chooseFolder()}
   />
 {/if}

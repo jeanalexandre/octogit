@@ -82,6 +82,22 @@ describe("Welcome", () => {
     }
   });
 
+  it("demarrer-un-depot CA-5 : without a profile, « Create a first profile » opens the profile creation form", async () => {
+    const onprofiles = vi.fn();
+    render(Welcome, props({ recent: [], noProfile: true, onclone: vi.fn(), onprofiles }));
+    expect(screen.getByRole("heading", { name: "Welcome to Octogit" })).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole("button", { name: /Create a first profile/ }));
+    expect(onprofiles).toHaveBeenCalledOnce();
+  });
+
+  it("demarrer-un-depot CA-5 : with a profile, no « Create a first profile »; Clone… stays reachable without one", () => {
+    const { unmount } = render(Welcome, props({ onprofiles: vi.fn() }));
+    expect(screen.queryByRole("button", { name: /Create a first profile/ })).toBeNull();
+    unmount();
+    render(Welcome, props({ noProfile: true, onclone: vi.fn(), onprofiles: vi.fn() }));
+    expect(screen.getByRole("button", { name: /Clone…/ })).toBeEnabled();
+  });
+
   it("shows the error message that names the folder, and still the title", () => {
     render(Welcome, props({ error: "notes is not a Git repository." }));
     expect(screen.getByRole("alert")).toHaveTextContent("notes is not a Git repository.");

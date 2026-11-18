@@ -136,7 +136,8 @@ fn proteger_l_identite_ca_12_a_clone_with_work_writes_its_values_before_history_
 }
 
 #[test]
-fn demarrer_un_depot_ca_15_an_https_url_is_refused_and_nothing_is_written() {
+fn demarrer_un_depot_ca_18_an_https_url_of_another_host_than_github_is_refused_and_nothing_is_written(
+) {
     let sb = Sandbox::new("https");
     sb.store
         .set_profiles(&[sb.profile("p1", "Work", false, Vec::new())])
@@ -145,8 +146,8 @@ fn demarrer_un_depot_ca_15_an_https_url_is_refused_and_nothing_is_written() {
     let before = fs::read(sb.root.join("data/profiles.json")).unwrap();
 
     for url in [
-        "https://github.com/org/app.git",
-        "http://github.com/org/app.git",
+        "https://gitlab.com/org/app.git",
+        "http://example.org/org/app.git",
     ] {
         let error = clone_repository_in(&sb.store, url, &dest, "p1", 10, &sb.home).unwrap_err();
         assert_eq!(error, CloneError::HttpsNotSupported);

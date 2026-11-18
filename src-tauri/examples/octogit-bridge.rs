@@ -286,16 +286,46 @@ fn main() {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| d.as_secs());
-            match octogit_app::clone::clone_repository(
+            // Le pont lance un processus par commande : la progression et l'annulation passent par deux
+            // fichiers du dossier de données (`clone.progress` écrit ici, `clone.cancel` posé par `cancel_clone`).
+            let progress_file = octogit_app::data_dir().join("clone.progress");
+            let cancel_file = octogit_app::data_dir().join("clone.cancel");
+            let _ = std::fs::remove_file(&cancel_file);
+            let _ = std::fs::remove_file(&progress_file);
+            let result = octogit_app::clone::clone_repository_with(
                 &octogit_store::Store::new(octogit_app::data_dir()),
                 &args.url,
                 std::path::Path::new(&args.folder),
                 &args.profile_id,
                 now,
-            ) {
+                &octogit_app::home_dir(),
+                &mut |progress| {
+                    let _ = std::fs::write(
+                        &progress_file,
+                        serde_json::to_string(&progress).expect("serializable progress"),
+                    );
+                },
+                &|| cancel_file.exists(),
+            );
+            let _ = std::fs::remove_file(&cancel_file);
+            let _ = std::fs::remove_file(&progress_file);
+            match result {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }
+        }
+        // Cancel du clone en cours (autre processus du pont) : pose le fichier que le clone surveille.
+        "cancel_clone" => {
+            let _ = std::fs::write(octogit_app::data_dir().join("clone.cancel"), "");
+            (serde_json::to_string(&()), 0)
+        }
+        // Dernière progression du clone en cours (`null` : aucune), lue par l'interface de test qui émet
+        // l'événement `clone-progress` à la place de Tauri.
+        "get_clone_progress" => {
+            let text = std::fs::read_to_string(octogit_app::data_dir().join("clone.progress"))
+                .ok()
+                .filter(|text| !text.is_empty());
+            (Ok(text.unwrap_or_else(|| "null".to_string())), 0)
         }
         "overwrite_identity" => {
             let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");

@@ -243,6 +243,29 @@ export class Workspace {
     return bare;
   }
 
+  /**
+   * `git@github.com:org/app.git` pour le faux `ssh` en mode `serve` : un dépôt `--bare` (3 commits de `simple`) dans
+   * `<racine>/org/app.git` ; rend la racine (`fake_ssh_serve_root`). Sans réseau.
+   */
+  githubServeRoot(): string {
+    const root = join(this.root, "serve");
+    mkdirSync(join(root, "org"), { recursive: true });
+    const source = this.repo("simple", "serve-source");
+    execFileSync("git", ["clone", "-q", "--bare", source, join(root, "org", "app.git")], {
+      env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+    });
+    return root;
+  }
+
+  /** Donne au profil `name` la clé `keyPath` (chemin absolu) à la place de `~/.ssh/id_ed25519_<n>`. */
+  useSshKey(name: string, keyPath: string): void {
+    const file = join(this.dataDir, "profiles.json");
+    const content = JSON.parse(readFileSync(file, "utf8"));
+    for (const profile of content.profiles)
+      if (profile.name === name) profile.ssh_key_path = keyPath;
+    writeFileSync(file, JSON.stringify(content));
+  }
+
   /** Dossier ordinaire (pas un dépôt Git) avec un fichier et un sous-dossier ; rend son chemin. */
   plainFolder(name = "notes"): string {
     const path = join(this.root, name);

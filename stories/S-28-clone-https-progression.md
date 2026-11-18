@@ -23,6 +23,17 @@ Compléter `CloneDialog` (S-27) : sans profil, créer un profil à la volée et 
 ### Fiche (18/11/2026)
 1. URL `https://` ou `http://` d'un hôte autre que github.com : a) refusée avec un message ; la prise en charge d'autres hôtes fera l'objet d'une évolution ultérieure, hors de cette story (réponse de l'humain, 18/11/2026)
 
+### Après la revue 1
+1. Mineur 2 (Cancel avant enregistrement du drapeau) : traiter (d'office), passage 2.
+2. À décider : `ux/ecrans/welcome.md` dit « pas de clone sans profil » pour l'état vide, alors que la fiche et CA-17 gardent `Clone…` atteignable. Implémentation conforme à la fiche et à la spec ; lever l'ambiguïté de `welcome.md` relève de `/ksm:ux` (en attente de l'humain, ne bloque pas).
+3. Compteur d'objets non vu de bout en bout (événement Tauri réel) : pris en compte (pour information) ; test manuel sous `pnpm tauri dev`.
+
+### Après la revue 2
+1. Mineur 1 (Cancel anticipé reçu hors clone qui annule le clone suivant) : traiter (d'office), passage 3.
+
+### Après la revue 3
+1. Rien à traiter. Compteur d'objets / événement Tauri réel : pris en compte (pour information), action ajoutée à `notes-production.md`. Point `welcome.md` : toujours à décider par l'humain (`/ksm:ux`).
+
 ## Contexte technique
 - Dépend de S-27 (fiche `stories/S-27-cloner-avec-un-profil.md`, à lire pour ce qu'elle crée) : `CloneDialog.svelte`, bouton Clone… de `Welcome` et entrée de `RepoPicker`, fonction de clone du crate `git`, commande `clone_repository(url, folder, profile_id)`, `last_clone_parent` du `store`, nom du dépôt déduit de l'URL. S-27 refuse toute URL `http(s)://` : S-28 remplace ce refus par la conversion (CA-18) et supprime la liste de profils vide figée de S-27 (« No profile yet » et « Create profile… » y sont renvoyés à S-28). Ne pas redéfinir ce que S-27 a déjà posé.
 - `stack.md` : Architecture (clone par le binaire `git` en sous-processus, sortie brute ; `app` sans logique), Intégrations (OpenSSH du système ; clé imposée `ssh -i <clé> -o IdentitiesOnly=yes -o IdentityAgent=none` ; faux `ssh` de test en tête du `PATH` qui enregistre les options reçues ; `origin` = dépôt `--bare` par chemin ; jamais d'appel réel à GitHub), conversion `https://github.com/…` en SSH reportée par la spec, Tests ciblés. Aucune nouvelle dépendance attendue.
@@ -63,7 +74,13 @@ Compléter `CloneDialog` (S-27) : sans profil, créer un profil à la volée et 
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `f5d4c3d`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; tests, lint, build verts ; écarts non contractuels (LC_ALL=C, Unpacking objects, SIGTERM puis SIGKILL, faux ssh mode serve) | — |
+| 1 | reviewer | 1 bloquant (restore supprime le contenu d'une destination existante non vide), 1 mineur (Cancel avant enregistrement du drapeau) | à corriger |
+| 2 | dev | terminé ; restore ne touche plus une destination non vide ; CloneState mémorise un Cancel anticipé | — |
+| 2 | reviewer | bloquant 1 et mineur 2 levés ; 1 mineur (Cancel anticipé hors clone) | validé |
+| 3 | dev | terminé ; Cancel anticipé horodaté (fenêtre 2 s) | — |
+| 3 | reviewer | mineur levé, aucun problème | validé |

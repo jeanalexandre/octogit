@@ -65,7 +65,8 @@ pub fn builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .events(collect_events![
             working_tree::WorkingTreeChanged,
-            working_tree::RepoConfigChanged
+            working_tree::RepoConfigChanged,
+            clone::CloneProgress
         ])
         .commands(collect_commands![
             commands::get_launch_state,
@@ -80,6 +81,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::choose_folder,
             commands::get_last_clone_parent,
             commands::clone_repository,
+            commands::cancel_clone,
             commands::get_hidden_columns,
             commands::set_hidden_columns,
             commands::get_section_layout,
@@ -132,6 +134,7 @@ pub fn run() {
     let events = builder.clone();
     tauri::Builder::default()
         .manage(commands::WatchState::default())
+        .manage(commands::CloneState::default())
         .setup(move |app| {
             events.mount_events(app);
             Ok(())

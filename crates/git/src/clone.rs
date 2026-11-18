@@ -3,11 +3,60 @@
 
 use std::fmt;
 use std::fs::File;
-use std::path::Path;
-use std::process::{Command, Stdio};
+use std::io::{Read, Seek, SeekFrom};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 use crate::fetch::capture_file;
+
+/// Objets reçus et total annoncé par `git clone --progress`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CloneProgress {
+    pub received: u32,
+    pub total: u32,
+}
+
+/// Dernier `Receiving objects: 45% (9/20)` du texte (lignes terminées par `\r` ou `\n`) ; les petits clones
+/// affichent `Unpacking objects` à la place.
+pub fn parse_progress(text: &str) -> Option<CloneProgress> {
+    text.split(['\r', '\n']).rev().find_map(|line| {
+        // Sous `transfer.unpackLimit` (100 objets), `git` range le paquet par `unpack-objects` : « Unpacking objects ».
+        let line = line.trim_start();
+        let rest = line
+            .strip_prefix("Receiving objects:")
+            .or_else(|| line.strip_prefix("Unpacking objects:"))?;
+        let open = rest.find('(')?;
+        let close = open + rest[open..].find(')')?;
+        let (received, total) = rest[open + 1..close].split_once('/')?;
+        Some(CloneProgress {
+            received: received.trim().parse().ok()?,
+            total: total.trim().parse().ok()?,
+        })
+    })
+}
+
+/// Forme SSH d'une URL `http(s)://github.com/org/app[.git]` : `git@github.com:org/app.git`.
+/// `None` : autre hôte ou autre forme (aucune conversion, l'appelant refuse).
+pub fn github_ssh_url(url: &str) -> Option<String> {
+    let url = url.trim();
+    let lower = url.to_ascii_lowercase();
+    let rest = lower
+        .strip_prefix("https://")
+        .or_else(|| lower.strip_prefix("http://"))?;
+    let path = rest.strip_prefix("github.com/")?;
+    // Le chemin garde la casse d'origine.
+    let path = &url[url.len() - path.len()..];
+    let path = path.trim_end_matches('/');
+    let path = path.strip_suffix(".git").unwrap_or(path);
+    let (org, app) = path.split_once('/')?;
+    let valid = |s: &str| {
+        !s.is_empty()
+            && s.chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+    };
+    (valid(org) && valid(app)).then(|| format!("git@github.com:{org}/{app}.git"))
+}
 
 /// Délai maximal d'un clone ; au-delà, le processus est tué (`git` retire alors le dossier qu'il a créé).
 pub const CLONE_TIMEOUT: Duration = Duration::from_secs(600);
@@ -20,6 +69,8 @@ pub enum CloneError {
     Failed { output: String },
     /// Le clone a dépassé le délai et a été tué.
     TimedOut { output: String },
+    /// Le clone a été annulé : le processus est tué, la destination est revenue à son état d'avant.
+    Cancelled,
 }
 
 impl fmt::Display for CloneError {
@@ -28,6 +79,7 @@ impl fmt::Display for CloneError {
             CloneError::Spawn(message) => write!(f, "cannot run git: {message}"),
             CloneError::Failed { output } => write!(f, "{}", output.trim()),
             CloneError::TimedOut { .. } => write!(f, "git clone timed out"),
+            CloneError::Cancelled => write!(f, "git clone cancelled"),
         }
     }
 }
@@ -42,23 +94,122 @@ pub fn clone(
     ssh_command: Option<&str>,
     timeout: Duration,
 ) -> Result<String, CloneError> {
+    clone_with(url, destination, ssh_command, timeout, &mut |_| {}, &|| {
+        false
+    })
+}
+
+/// Comme `clone`, avec la progression (`on_progress`, à chaque changement) et l'annulation : dès que
+/// `cancelled` rend vrai, `git` est arrêté et la destination revient à son état d'avant (absente si elle
+/// n'existait pas, vide si elle existait vide, intacte si elle contenait des fichiers) ; le résultat est `CloneError::Cancelled`.
+pub fn clone_with(
+    url: &str,
+    destination: &Path,
+    ssh_command: Option<&str>,
+    timeout: Duration,
+    on_progress: &mut dyn FnMut(CloneProgress),
+    cancelled: &dyn Fn() -> bool,
+) -> Result<String, CloneError> {
     let (file, log) = capture_file().map_err(|e| CloneError::Spawn(e.to_string()))?;
     let stderr = file
         .try_clone()
         .map_err(|e| CloneError::Spawn(e.to_string()))?;
-    let result = run(url, destination, ssh_command, timeout, file, stderr, &log);
+    let state = Destination::before(destination);
+    let result = run(
+        url,
+        destination,
+        ssh_command,
+        timeout,
+        (file, stderr),
+        &log,
+        on_progress,
+        cancelled,
+        &state,
+    );
     let _ = std::fs::remove_file(&log);
     result
 }
 
+/// État de la destination avant le clone : ce que `git` crée (la destination et ses dossiers parents
+/// absents) est retiré à l'annulation ou au délai ; un dossier qui existait vide est vidé, pas supprimé.
+struct Destination {
+    existed: bool,
+    /// Le dossier existait avec du contenu : rien n'y est jamais supprimé.
+    non_empty: bool,
+    /// Dossiers absents avant le clone, de la destination vers le haut.
+    created: Vec<PathBuf>,
+}
+
+impl Destination {
+    fn before(destination: &Path) -> Self {
+        let created = destination
+            .ancestors()
+            .take_while(|p| !p.as_os_str().is_empty() && !p.exists())
+            .map(Path::to_path_buf)
+            .collect();
+        Destination {
+            existed: destination.exists(),
+            non_empty: std::fs::read_dir(destination).is_ok_and(|mut d| d.next().is_some()),
+            created,
+        }
+    }
+
+    fn restore(&self, destination: &Path) {
+        if self.non_empty {
+            return;
+        }
+        if self.existed {
+            if let Ok(entries) = std::fs::read_dir(destination) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    let _ = if path.is_dir() && !path.is_symlink() {
+                        std::fs::remove_dir_all(&path)
+                    } else {
+                        std::fs::remove_file(&path)
+                    };
+                }
+            }
+            return;
+        }
+        for (i, path) in self.created.iter().enumerate() {
+            let _ = if i == 0 {
+                std::fs::remove_dir_all(path)
+            } else {
+                std::fs::remove_dir(path)
+            };
+        }
+    }
+}
+
+/// Arrête `child` : SIGTERM d'abord (`git` retire alors ce qu'il a créé et arrête ses sous-processus),
+/// SIGKILL après 2 s.
+fn terminate(child: &mut Child) {
+    let _ = Command::new("kill")
+        .arg("-TERM")
+        .arg(child.id().to_string())
+        .status();
+    let until = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < until {
+        if matches!(child.try_wait(), Ok(Some(_))) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+#[allow(clippy::too_many_arguments)]
 fn run(
     url: &str,
     destination: &Path,
     ssh_command: Option<&str>,
     timeout: Duration,
-    stdout: File,
-    stderr: File,
+    (stdout, stderr): (File, File),
     log: &Path,
+    on_progress: &mut dyn FnMut(CloneProgress),
+    cancelled: &dyn Fn() -> bool,
+    state: &Destination,
 ) -> Result<String, CloneError> {
     let mut command = Command::new("git");
     command
@@ -66,6 +217,8 @@ fn run(
         .arg(url)
         .arg(destination)
         .env("GIT_TERMINAL_PROMPT", "0")
+        // Messages en anglais, comme l'interface : « Receiving objects » est lu pour la progression.
+        .env("LC_ALL", "C")
         .stdin(Stdio::null())
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr));
@@ -77,9 +230,44 @@ fn run(
         .map_err(|e| CloneError::Spawn(e.to_string()))?;
     let deadline = Instant::now() + timeout;
     let read = || String::from_utf8_lossy(&std::fs::read(log).unwrap_or_default()).into_owned();
+    let mut offset = 0;
+    let mut pending = String::new();
+    let mut last = None;
+    let mut report = |offset: &mut u64| {
+        // Seule la fin du journal est relue : les lignes de progression s'ajoutent, séparées par `\r`.
+        let Ok(mut file) = File::open(log) else {
+            return;
+        };
+        if file.seek(SeekFrom::Start(*offset)).is_err() {
+            return;
+        }
+        let mut bytes = Vec::new();
+        if file.read_to_end(&mut bytes).is_err() {
+            return;
+        }
+        *offset += bytes.len() as u64;
+        pending.push_str(&String::from_utf8_lossy(&bytes));
+        if let Some(progress) = parse_progress(&pending) {
+            if last != Some(progress) {
+                last = Some(progress);
+                on_progress(progress);
+            }
+        }
+        // La ligne en cours d'écriture est gardée pour être complétée au prochain tour.
+        if let Some(end) = pending.rfind(['\r', '\n']) {
+            pending.drain(..=end);
+        }
+    };
     loop {
+        report(&mut offset);
+        if cancelled() {
+            terminate(&mut child);
+            state.restore(destination);
+            return Err(CloneError::Cancelled);
+        }
         match child.try_wait() {
             Ok(Some(status)) => {
+                report(&mut offset);
                 let output = read();
                 return if status.success() {
                     Ok(output)
@@ -88,8 +276,8 @@ fn run(
                 };
             }
             Ok(None) if Instant::now() >= deadline => {
-                let _ = child.kill();
-                let _ = child.wait();
+                terminate(&mut child);
+                state.restore(destination);
                 return Err(CloneError::TimedOut { output: read() });
             }
             Ok(None) => std::thread::sleep(Duration::from_millis(20)),
@@ -187,6 +375,161 @@ mod tests {
         assert!(recorded.contains("-i\n/home/me/.ssh/id_work"), "{recorded}");
         assert!(recorded.contains("git@example.invalid"), "{recorded}");
         assert!(!dest.exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_18_an_https_github_url_becomes_its_ssh_form_with_or_without_dot_git() {
+        for url in [
+            "https://github.com/org/app.git",
+            "https://github.com/org/app",
+            "http://github.com/org/app.git",
+            "  https://GitHub.com/org/app/  ",
+        ] {
+            assert_eq!(
+                github_ssh_url(url).as_deref(),
+                Some("git@github.com:org/app.git"),
+                "{url}"
+            );
+        }
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_18_other_hosts_and_other_shapes_have_no_ssh_form() {
+        for url in [
+            "https://gitlab.com/org/app.git",
+            "https://github.com.evil.example/org/app.git",
+            "https://github.com/org",
+            "https://github.com/org/app/tree/main",
+            "https://github.com/org/app.git?x=1",
+            "git@github.com:org/app.git",
+            "",
+        ] {
+            assert_eq!(github_ssh_url(url), None, "{url}");
+        }
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_12_progress_lines_give_received_and_total_objects() {
+        let text = "Cloning into 'app'...\nReceiving objects:   5% (1/20)\rReceiving objects:  45% (9/20), 1.2 MiB | 3 MiB/s\r";
+        assert_eq!(
+            parse_progress(text),
+            Some(CloneProgress {
+                received: 9,
+                total: 20
+            })
+        );
+        assert_eq!(parse_progress("Cloning into 'app'...\n"), None);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_12_a_clone_reports_received_and_total_objects() {
+        let dir = workspace("progress");
+        let origin = bare_origin(&dir);
+        let dest = dir.join("app");
+        let mut seen = Vec::new();
+        let output = clone_with(
+            &format!("file://{}", origin.display()),
+            &dest,
+            None,
+            Duration::from_secs(30),
+            &mut |p| seen.push(p),
+            &|| false,
+        )
+        .unwrap();
+        let last = seen
+            .last()
+            .unwrap_or_else(|| panic!("no progress in {output:?}"));
+        assert!(last.total > 0 && last.received == last.total, "{seen:?}");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// `GIT_SSH_COMMAND` qui ne répond jamais : le clone reste en cours jusqu'au Cancel.
+    fn slow_ssh(dir: &Path) -> String {
+        let script = dir.join("slow.sh");
+        std::fs::write(&script, "exec sleep 30\n").unwrap();
+        format!("sh {}", script.display())
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_12_cancel_stops_the_clone_and_leaves_the_destination_absent() {
+        let dir = workspace("cancel-absent");
+        let ssh = slow_ssh(&dir);
+        let dest = dir.join("Dev/Pro/app");
+        let started = Instant::now();
+        let flag = std::sync::atomic::AtomicBool::new(false);
+        let error = std::thread::scope(|scope| {
+            scope.spawn(|| {
+                std::thread::sleep(Duration::from_millis(500));
+                flag.store(true, std::sync::atomic::Ordering::SeqCst);
+            });
+            clone_with(
+                "git@example.invalid:org/app.git",
+                &dest,
+                Some(&ssh),
+                Duration::from_secs(30),
+                &mut |_| {},
+                &|| flag.load(std::sync::atomic::Ordering::SeqCst),
+            )
+            .unwrap_err()
+        });
+        assert_eq!(error, CloneError::Cancelled);
+        assert!(started.elapsed() < Duration::from_secs(15));
+        assert!(!dest.exists());
+        assert!(!dir.join("Dev").exists(), "leading folders git created");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_12_cancel_keeps_an_existing_empty_destination_empty() {
+        let dir = workspace("cancel-empty");
+        let ssh = slow_ssh(&dir);
+        let dest = dir.join("app");
+        std::fs::create_dir_all(&dest).unwrap();
+        let error = clone_with(
+            "git@example.invalid:org/app.git",
+            &dest,
+            Some(&ssh),
+            Duration::from_secs(30),
+            &mut |_| {},
+            &|| {
+                // Le clone a démarré quand `git` a posé son `.git`.
+                dest.join(".git").exists()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error, CloneError::Cancelled);
+        assert!(dest.is_dir());
+        assert_eq!(std::fs::read_dir(&dest).unwrap().count(), 0);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_12_cancel_never_deletes_the_content_of_a_non_empty_destination() {
+        let dir = workspace("cancel-non-empty");
+        let ssh = slow_ssh(&dir);
+        let dest = dir.join("app");
+        std::fs::create_dir_all(dest.join("sub")).unwrap();
+        std::fs::write(dest.join("mine.txt"), "keep").unwrap();
+        std::fs::write(dest.join("sub/deep.txt"), "keep too").unwrap();
+        let error = clone_with(
+            "git@example.invalid:org/app.git",
+            &dest,
+            Some(&ssh),
+            Duration::from_secs(30),
+            &mut |_| {},
+            &|| true,
+        )
+        .unwrap_err();
+        assert_eq!(error, CloneError::Cancelled);
+        assert_eq!(
+            std::fs::read_to_string(dest.join("mine.txt")).unwrap(),
+            "keep"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dest.join("sub/deep.txt")).unwrap(),
+            "keep too"
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 

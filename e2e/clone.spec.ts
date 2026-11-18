@@ -183,7 +183,7 @@ for (const via of ["Escape", "Cancel"] as const) {
   });
 }
 
-test("demarrer-un-depot CA-15 : une URL https:// est refusée avec un message, rien n'est écrit", async ({
+test("demarrer-un-depot CA-18 : une URL https:// d'un autre hôte que github.com est refusée avec un message, rien n'est écrit", async ({
   page,
 }) => {
   ws.rememberProfiles(["Pro"]);
@@ -191,16 +191,172 @@ test("demarrer-un-depot CA-15 : une URL https:// est refusée avec un message, r
   await welcome(page);
   await page.getByRole("button", { name: /Clone…/ }).click();
   await dialog(page).getByRole("radio", { name: "Pro" }).check();
-  await dialog(page).getByLabel("URL").fill("https://github.com/org/app.git");
+  await dialog(page).getByLabel("URL").fill("https://gitlab.com/org/app.git");
   await dialog(page).getByLabel("Folder").fill(dest);
 
   await expect(dialog(page).getByRole("alert")).toContainText(
-    "Clone over HTTPS: only the equivalent SSH URL is cloned.",
+    "Only github.com URLs can be cloned over HTTPS (converted to SSH).",
   );
   await expect(cloneButton(page)).toBeDisabled();
   expect(existsSync(dest)).toBe(false);
   expect(existsSync(join(ws.dataDir, "repositories.json"))).toBe(false);
 });
+
+/** Clone `https://github.com/org/app.git` : le faux `ssh` sert `org/app.git` et n'accepte que la clé de Pro. */
+function githubClone(known: "Pro" | "Perso" = "Pro") {
+  ws.rememberProfiles(["Pro", "Perso"]);
+  const key = ws.sshKey("id_pro");
+  const perso = ws.sshKey("id_perso");
+  ws.useSshKey("Pro", key);
+  ws.useSshKey("Perso", perso);
+  const url = ws.urlWith({
+    fake_ssh_mode: "serve",
+    fake_ssh_serve_root: ws.githubServeRoot(),
+    fake_ssh_allowed_key: known === "Pro" ? key : perso,
+  });
+  return { key, url, dest: join(ws.root, "Dev", "Pro", "app") };
+}
+
+async function fillGithubClone(page: Page, dest: string) {
+  await page.getByRole("button", { name: /Clone…/ }).click();
+  await dialog(page).getByRole("radio", { name: "Pro" }).check();
+  await dialog(page).getByLabel("URL").fill("https://github.com/org/app.git");
+  await dialog(page).getByLabel("Folder").fill(dest);
+}
+
+test("demarrer-un-depot CA-18 : l'URL https://github.com est proposée en SSH, cochée par défaut, et le clone utilise l'URL SSH avec la seule clé du profil", async ({
+  page,
+}) => {
+  const { key, url, dest } = githubClone();
+  await page.goto(url);
+  await fillGithubClone(page, dest);
+
+  const box = dialog(page).getByRole("checkbox", { name: "Use git@github.com:org/app.git?" });
+  await expect(box).toBeChecked();
+  // L'URL saisie reste affichée telle quelle.
+  await expect(dialog(page).getByLabel("URL")).toHaveValue("https://github.com/org/app.git");
+  await cloneButton(page).click();
+
+  await expect(page.getByRole("heading", { name: "app", exact: true })).toBeVisible();
+  expect(ws.localConfig(dest, "remote.origin.url")).toBe("git@github.com:org/app.git");
+  const log = ws.fakeSshLog();
+  expect(log.length).toBeGreaterThan(0);
+  for (const line of log) {
+    expect(line).toContain(`-i ${key} -o IdentitiesOnly=yes -o IdentityAgent=none`);
+    expect(line.split(" -i ")).toHaveLength(2);
+  }
+});
+
+test("demarrer-un-depot CA-18 : case décochée, le clic sur Clone est refusé avec un message et rien n'est cloné ni écrit", async ({
+  page,
+}) => {
+  const { url, dest } = githubClone();
+  await page.goto(url);
+  await fillGithubClone(page, dest);
+
+  await dialog(page)
+    .getByRole("checkbox", { name: /Use git@github.com:org\/app.git/ })
+    .uncheck();
+  await cloneButton(page).click();
+
+  await expect(dialog(page).getByRole("alert")).toContainText(
+    "Cloning over HTTPS is not supported",
+  );
+  await expect(dialog(page)).toBeVisible();
+  expect(existsSync(dest)).toBe(false);
+  expect(existsSync(join(ws.root, "Dev"))).toBe(false);
+  expect(existsSync(join(ws.dataDir, "repositories.json"))).toBe(false);
+  expect(ws.fakeSshLog()).toEqual([]);
+});
+
+test("demarrer-un-depot CA-11 : un dépôt privé que la clé du profil ne peut pas lire échoue, seule cette clé est présentée", async ({
+  page,
+}) => {
+  // GitHub ne connaît que la clé de Perso (l'agent la porte) : le profil Pro échoue.
+  const { key, url, dest } = githubClone("Perso");
+  await page.goto(url);
+  await fillGithubClone(page, dest);
+  await cloneButton(page).click();
+
+  await expect(dialog(page).getByRole("alert")).toContainText("Clone failed:");
+  await expect(dialog(page).getByRole("alert")).toContainText("Permission denied");
+  expect(existsSync(dest)).toBe(false);
+  expect(ws.fakeSshLog()[0]).toContain(`-i ${key} -o IdentitiesOnly=yes -o IdentityAgent=none`);
+});
+
+test("demarrer-un-depot CA-12 : pendant le clone, la progression et Cancel s'affichent ; Cancel arrête le clone, le dossier est absent et rien n'est écrit", async ({
+  page,
+}) => {
+  const { url, dest } = githubClone();
+  // Clone lent : le faux `ssh` attend avant de servir le dépôt.
+  await page.goto(`${url}&fake_ssh_delay=8`);
+  await fillGithubClone(page, dest);
+  await cloneButton(page).click();
+
+  await expect(dialog(page).getByText("Cloning app with profile Pro…")).toBeVisible();
+  await expect(dialog(page).getByRole("progressbar")).toBeVisible();
+  await expect(dialog(page).getByLabel("URL")).toBeDisabled();
+  await dialog(page)
+    .getByRole("button", { name: /Cancel/ })
+    .click();
+
+  // Le clone s'arrête : la saisie revient, sans message d'erreur, le dossier de destination est absent.
+  await expect(dialog(page).getByRole("progressbar")).toHaveCount(0);
+  await expect(dialog(page).getByLabel("URL")).toBeEnabled();
+  await expect(dialog(page).getByLabel("Folder")).toHaveValue(dest);
+  await expect(dialog(page).getByRole("alert")).toHaveCount(0);
+  expect(existsSync(dest)).toBe(false);
+  expect(existsSync(join(ws.root, "Dev"))).toBe(false);
+  expect(existsSync(join(ws.dataDir, "repositories.json"))).toBe(false);
+  await expect(cloneButton(page)).toBeEnabled();
+});
+
+test("demarrer-un-depot CA-5 : sans profil, Welcome propose « Create a first profile », qui ouvre le formulaire de création", async ({
+  page,
+}) => {
+  await welcome(page);
+  await page.getByRole("button", { name: /Create a first profile/ }).click();
+  await expect(page.getByRole("heading", { name: "Create a first profile" })).toBeVisible();
+  await expect(page.getByLabel("user.name")).toHaveValue("");
+});
+
+for (const size of sizes) {
+  test(`demarrer-un-depot CA-17 : sans profil, CloneDialog propose « Create profile… », et après Save il revient avec le profil, l'URL et le dossier gardés (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const dest = join(ws.root, "Dev", "Pro", "app");
+    await welcome(page);
+    await page.getByRole("button", { name: /Clone…/ }).click();
+
+    await expect(dialog(page).getByText("No profile yet")).toBeVisible();
+    await expect(dialog(page).getByRole("radio")).toHaveCount(0);
+    await dialog(page).getByLabel("URL").fill("git@github.com:org/app.git");
+    await dialog(page).getByLabel("Folder").fill(dest);
+    // Aucun clone sans profil.
+    await expect(cloneButton(page)).toBeDisabled();
+    expect(existsSync(dest)).toBe(false);
+
+    await dialog(page).getByRole("button", { name: "Create profile…" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Create a first profile" })).toBeVisible();
+    await page.getByLabel("Name", { exact: true }).fill("Pro");
+    await page.getByLabel("user.name").fill("Jean");
+    await page.getByLabel("user.email").fill("jean@pro.fr");
+    await page.evaluate((p) => {
+      window.__octogitChosenFile = p;
+    }, ws.sshKey("id_ed25519_pro"));
+    await page.getByRole("button", { name: "Choose…" }).click();
+    await page.getByRole("button", { name: "Create profile" }).click();
+
+    await expect(dialog(page)).toBeVisible();
+    await expect(dialog(page).getByRole("radio", { name: "Pro" })).toBeChecked();
+    await expect(dialog(page).getByLabel("URL")).toHaveValue("git@github.com:org/app.git");
+    await expect(dialog(page).getByLabel("Folder")).toHaveValue(dest);
+    await expect(cloneButton(page)).toBeEnabled();
+    expect(ws.readProfilesFile().profiles[0].name).toBe("Pro");
+  });
+}
 
 test("demarrer-un-depot CA-15 : un clone qui échoue garde le dialogue ouvert, les champs et la sortie de git, sans rien écrire", async ({
   page,

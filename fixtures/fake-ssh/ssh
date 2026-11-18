@@ -2,12 +2,32 @@
 # Faux ssh de test, à placer en tête du PATH.
 # Enregistre les options reçues dans $FAKE_SSH_LOG (défaut : ./fake-ssh.log), une ligne par appel.
 # Réponse selon $FAKE_SSH_MODE : ok (défaut), denied (refus), silent (silence au-delà de 10 s).
-# Mode ok : « Hi $FAKE_SSH_ACCOUNT! » (défaut : octogit).
+# Mode ok : « Hi $FAKE_SSH_ACCOUNT! » (défaut : octogit). Mode serve : sert un dépôt --bare (voir plus bas).
 # Si $FAKE_SSH_ENV_OUT est posé, y écrit l'environnement reçu ; si $FAKE_SSH_ASKPASS_OUT est posé et que
 # $SSH_ASKPASS l'est aussi, y écrit ce que rend ce programme d'appoint (la passphrase, pour les tests).
 echo "$*" >> "${FAKE_SSH_LOG:-./fake-ssh.log}"
 [ -n "$FAKE_SSH_ENV_OUT" ] && env > "$FAKE_SSH_ENV_OUT"
 if [ -n "$FAKE_SSH_ASKPASS_OUT" ] && [ -n "$SSH_ASKPASS" ]; then "$SSH_ASKPASS" "Enter passphrase" > "$FAKE_SSH_ASKPASS_OUT"; fi
+for last; do :; done
+case "${FAKE_SSH_MODE:-ok}" in
+  # Mode serve (clone) : sert `git upload-pack` sur le dépôt `--bare` $FAKE_SSH_SERVE_ROOT/<chemin demandé>, comme
+  # GitHub le ferait pour `git@github.com:org/app.git` (dépôt `org/app.git`). Si $FAKE_SSH_ALLOWED_KEY est posé,
+  # seule cette clé est acceptée, et seulement avec `-o IdentitiesOnly=yes -o IdentityAgent=none` (agent ignoré,
+  # donc la clé d'un autre profil n'est jamais présentée) ; sinon refus « Permission denied ».
+  # $FAKE_SSH_DELAY (secondes) retarde la réponse : clone lent, pour la progression et Cancel.
+  serve)
+    if [ -n "$FAKE_SSH_ALLOWED_KEY" ]; then
+      case " $* " in
+        *" -i $FAKE_SSH_ALLOWED_KEY -o IdentitiesOnly=yes -o IdentityAgent=none "*) ;;
+        *) echo "git@github.com: Permission denied (publickey)." >&2; exit 255 ;;
+      esac
+    fi
+    [ -n "$FAKE_SSH_DELAY" ] && sleep "$FAKE_SSH_DELAY"
+    repo="${last#git-upload-pack }"
+    repo="${repo#\'}"
+    repo="${repo%\'}"
+    exec git upload-pack "$FAKE_SSH_SERVE_ROOT/$repo" ;;
+esac
 case "${FAKE_SSH_MODE:-ok}" in
   ok) echo "Hi ${FAKE_SSH_ACCOUNT:-octogit}! You've successfully authenticated, but GitHub does not provide shell access." >&2; exit 1 ;;
   denied) echo "git@github.com: Permission denied (publickey)." >&2; exit 255 ;;

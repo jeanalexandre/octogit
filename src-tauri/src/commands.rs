@@ -121,30 +121,141 @@ pub fn get_last_clone_parent() -> Option<String> {
         .map(|p| p.to_string_lossy().into_owned())
 }
 
-/// `CloneDialog` : clone `url` dans `folder` avec le profil `profile_id`, puis ouvre le dépôt.
+/// Clone en cours (un seul à la fois) : l'indicateur d'annulation que `cancel_clone` lève.
+#[derive(Default)]
+pub struct CloneState(std::sync::Mutex<CloneSlot>);
+
+#[derive(Default)]
+pub struct CloneSlot {
+    flag: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+    /// Instant d'un Cancel reçu hors de tout clone : il ne vaut que pour un clone qui démarre
+    /// dans `EARLY_CANCEL_WINDOW` (Cancel arrivé juste avant l'enregistrement du drapeau).
+    early_cancel: Option<std::time::Instant>,
+}
+
+/// Durée pendant laquelle un Cancel reçu hors de tout clone s'applique encore au clone qui démarre.
+const EARLY_CANCEL_WINDOW: std::time::Duration = std::time::Duration::from_secs(2);
+
+impl CloneState {
+    /// Enregistre le clone qui démarre ; `None` si un clone tourne déjà. Un Cancel récent le lève aussitôt.
+    fn begin(&self) -> Option<std::sync::Arc<std::sync::atomic::AtomicBool>> {
+        self.begin_at(std::time::Instant::now())
+    }
+
+    fn begin_at(
+        &self,
+        now: std::time::Instant,
+    ) -> Option<std::sync::Arc<std::sync::atomic::AtomicBool>> {
+        let mut slot = self.0.lock().ok()?;
+        if slot.flag.is_some() {
+            return None;
+        }
+        let early = slot
+            .early_cancel
+            .take()
+            .is_some_and(|at| now.saturating_duration_since(at) <= EARLY_CANCEL_WINDOW);
+        let flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(early));
+        slot.flag = Some(flag.clone());
+        Some(flag)
+    }
+
+    fn cancel(&self) {
+        self.cancel_at(std::time::Instant::now());
+    }
+
+    fn cancel_at(&self, now: std::time::Instant) {
+        if let Ok(mut slot) = self.0.lock() {
+            match slot.flag.as_ref() {
+                Some(flag) => flag.store(true, std::sync::atomic::Ordering::SeqCst),
+                None => slot.early_cancel = Some(now),
+            }
+        }
+    }
+
+    fn end(&self) {
+        if let Ok(mut slot) = self.0.lock() {
+            slot.flag = None;
+            slot.early_cancel = None;
+        }
+    }
+}
+
+#[cfg(test)]
+mod clone_state_tests {
+    use super::CloneState;
+    use std::sync::atomic::Ordering;
+
+    #[test]
+    fn demarrer_un_depot_ca_12_a_cancel_before_the_flag_exists_applies_to_the_clone_that_starts() {
+        let state = CloneState::default();
+        state.cancel();
+        let flag = state.begin().unwrap();
+        assert!(flag.load(Ordering::SeqCst));
+        state.end();
+        assert!(!state.begin().unwrap().load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_12_a_stale_cancel_received_outside_any_clone_does_not_cancel_the_next_clone(
+    ) {
+        use super::EARLY_CANCEL_WINDOW;
+        let state = CloneState::default();
+        let t0 = std::time::Instant::now();
+        state.cancel_at(t0);
+        let later = t0 + EARLY_CANCEL_WINDOW + std::time::Duration::from_millis(1);
+        assert!(!state.begin_at(later).unwrap().load(Ordering::SeqCst));
+    }
+}
+
+/// `CloneDialog` : clone `url` dans `folder` avec le profil `profile_id`, puis ouvre le dépôt. La progression part
+/// par l'événement `clone-progress` (`CloneProgress`) ; `cancel_clone` l'arrête (`CloneError::Cancelled`).
 #[tauri::command]
 #[specta::specta]
 pub async fn clone_repository(
+    app: tauri::AppHandle,
     url: String,
     folder: String,
     profile_id: String,
 ) -> Result<RepositoryView, CloneError> {
+    use std::sync::atomic::Ordering;
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
-    tauri::async_runtime::spawn_blocking(move || {
-        clone::clone_repository(
+    let Some(flag) = app.state::<CloneState>().begin() else {
+        return Err(CloneError::Other {
+            message: "A clone is already running.".to_string(),
+        });
+    };
+    let emitter = app.clone();
+    let watched = flag.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        clone::clone_repository_with(
             &Store::new(data_dir()),
             &url,
             Path::new(&folder),
             &profile_id,
             now,
+            &crate::home_dir(),
+            &mut |progress| {
+                let _ = tauri_specta::Event::emit(&progress, &emitter);
+            },
+            &|| watched.load(Ordering::SeqCst),
         )
     })
-    .await
-    .map_err(|_| CloneError::Other {
+    .await;
+    app.state::<CloneState>().end();
+    result.map_err(|_| CloneError::Other {
         message: "The clone was interrupted.".to_string(),
     })?
+}
+
+/// `CloneDialog`, Cancel pendant le clone : arrête `git clone` ; `clone_repository` rend alors
+/// `CloneError::Cancelled` et la destination est revenue à son état d'avant. Reçu juste avant l'enregistrement
+/// du clone, il s'applique à ce clone.
+#[tauri::command]
+#[specta::specta]
+pub fn cancel_clone(app: tauri::AppHandle) {
+    app.state::<CloneState>().cancel();
 }
 
 #[tauri::command]

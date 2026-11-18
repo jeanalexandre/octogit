@@ -27,8 +27,17 @@ export const commands = {
 	chooseFolder: () => __TAURI_INVOKE<string | null>("choose_folder"),
 	/**  Dernier dossier parent d'un clone réussi ; `None` : aucun clone réussi auparavant. */
 	getLastCloneParent: () => __TAURI_INVOKE<string | null>("get_last_clone_parent"),
-	/**  `CloneDialog` : clone `url` dans `folder` avec le profil `profile_id`, puis ouvre le dépôt. */
+	/**
+	 *  `CloneDialog` : clone `url` dans `folder` avec le profil `profile_id`, puis ouvre le dépôt. La progression part
+	 *  par l'événement `clone-progress` (`CloneProgress`) ; `cancel_clone` l'arrête (`CloneError::Cancelled`).
+	 */
 	cloneRepository: (url: string, folder: string, profileId: string) => typedError<RepositoryView_Serialize, CloneError>(__TAURI_INVOKE("clone_repository", { url, folder, profileId })),
+	/**
+	 *  `CloneDialog`, Cancel pendant le clone : arrête `git clone` ; `clone_repository` rend alors
+	 *  `CloneError::Cancelled` et la destination est revenue à son état d'avant. Reçu juste avant l'enregistrement
+	 *  du clone, il s'applique à ce clone.
+	 */
+	cancelClone: () => __TAURI_INVOKE<void>("cancel_clone"),
 	getHiddenColumns: () => __TAURI_INVOKE<Column[]>("get_hidden_columns"),
 	setHiddenColumns: (columns: Column[]) => __TAURI_INVOKE<void>("set_hidden_columns", { columns }),
 	/**  Hauteurs et repli des sections de `BranchSidebar`, communs à tous les dépôts. */
@@ -163,6 +172,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	cloneProgress: makeEvent<CloneProgress, CloneProgress>("clone-progress"),
 	repoConfigChanged: makeEvent<RepoConfigChanged, RepoConfigChanged>("repo-config-changed"),
 	workingTreeChanged: makeEvent<WorkingTreeChanged, WorkingTreeChanged>("working-tree-changed"),
 };
@@ -229,14 +239,22 @@ remote: string;
 commits: LocalCommitView[] };
 
 export type CloneError = 
-/**  URL `http://` ou `https://` : refusée (la conversion en SSH est S-28). Rien n'est écrit. */
+/**  URL `http://` ou `https://` qui n'a pas de forme SSH (hôte autre que github.com) : refusée. Rien n'est écrit. */
 { kind: "httpsNotSupported" } | 
 /**  Le profil choisi n'existe pas. */
 { kind: "unknownProfile" } | 
 /**  `git clone` a échoué ; `output` est sa sortie brute. */
 { kind: "failed"; output: string } | 
+/**  Le clone a été annulé (Cancel) : la destination est revenue à son état d'avant, rien n'est écrit. */
+{ kind: "cancelled" } | 
 /**  Le clone a réussi mais ne peut pas être ouvert ou mémorisé. */
 { kind: "other"; message: string };
+
+/**  Progression d'un clone : objets reçus et total (événement `clone-progress`, typé par tauri-specta). */
+export type CloneProgress = {
+	received: number,
+	total: number,
+};
 
 /**  Colonnes du graphe que l'on peut masquer. */
 export type Column = "author" | "date" | "sha";

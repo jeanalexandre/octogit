@@ -13,7 +13,10 @@
     onchoose,
     onclone,
     onprofiles,
+    noProfile = false,
   }: {
+    /** Aucun profil enregistré : « Create a first profile » ouvre `ProfileSettings` sur son formulaire de création. */
+    noProfile?: boolean;
     /** « Clone… » (⌘⇧C) : ouvre `CloneDialog`. */
     onclone?: () => void;
     /** « Profiles » (⌘,) : ouvre `ProfileSettings`. */
@@ -55,6 +58,16 @@
     </section>
   {/if}
 
+  {#if noProfile}
+    <p class="muted">
+      No profile yet. A profile is a Git identity and an SSH key; repositories are attached to it by
+      rules.
+    </p>
+    <button type="button" class="open-folder" onclick={() => onprofiles?.()}>
+      <User size={16} strokeWidth={1.8} aria-hidden="true" /> Create a first profile
+    </button>
+  {/if}
+
   <button type="button" class="open-folder" onclick={onchoose}>
     <Folder size={16} strokeWidth={1.8} aria-hidden="true" /> Open folder… <kbd>⌘O</kbd>
   </button>
@@ -94,6 +107,11 @@
 
   section {
     width: min(640px, 100%);
+  }
+
+  .muted {
+    margin: 0;
+    color: var(--muted);
   }
 
   .error {

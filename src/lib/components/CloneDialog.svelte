@@ -2,23 +2,28 @@
   import { untrack } from "svelte";
   import Copy from "@lucide/svelte/icons/copy";
   import FolderOpen from "@lucide/svelte/icons/folder-open";
+  import Plus from "@lucide/svelte/icons/plus";
   import X from "@lucide/svelte/icons/x";
-  import type { ProfileView } from "../bindings";
-  import { isHttpUrl, proposedFolder, repositoryNameFromUrl } from "../cloneName";
+  import type { CloneProgress, ProfileView } from "../bindings";
+  import { githubSshUrl, isHttpUrl, proposedFolder, repositoryNameFromUrl } from "../cloneName";
 
   /**
-   * Cloner : profil d'abord (ordre de `ProfileSettings`, aucun sélectionné), URL SSH, dossier pré-rempli par le
-   * dernier dossier parent de clone. Échap et Cancel ferment sans rien écrire ; pendant le clone, les champs et
-   * Clone sont désactivés (la barre de progression et Cancel du clone en cours viennent avec S-28).
+   * Cloner : profil d'abord (ordre de `ProfileSettings`, aucun sélectionné ; sans profil : « No profile yet » et
+   * « Create profile… »), URL, dossier pré-rempli par le dernier dossier parent de clone. Une URL `https://github.com/…`
+   * est clonée par sa forme SSH (case cochée par défaut). Échap et Cancel ferment sans rien écrire ; pendant le
+   * clone, les champs et Clone sont désactivés, la barre de progression et Cancel (qui arrête le clone) s'affichent.
    */
   let {
     profiles,
     lastParent,
     busy = false,
     error = null,
+    progress = null,
     initial,
     onclone,
     oncancel,
+    oncancelclone,
+    oncreateprofile,
     onchoosefolder,
   }: {
     profiles: ProfileView[];
@@ -28,11 +33,17 @@
     busy?: boolean;
     /** Sortie brute de `git` d'un clone échoué ; `null` sinon. */
     error?: string | null;
-    /** Valeurs de départ (tests). */
+    /** Objets reçus et total du clone en cours ; `null` : rien reçu encore (barre indéterminée). */
+    progress?: CloneProgress | null;
+    /** Valeurs de départ (retour de la création d'un profil, tests). */
     initial?: { profileId?: string; url?: string; folder?: string };
     onclone: (url: string, folder: string, profileId: string) => void;
     /** Cancel ou Échap : ferme sans rien écrire. */
     oncancel: () => void;
+    /** Cancel pendant le clone : arrête `git clone`. */
+    oncancelclone?: () => void;
+    /** « Create profile… » (sans profil) : ouvre `ProfileSettings` ; l'URL et le dossier saisis sont rendus. */
+    oncreateprofile?: (draft: { url: string; folder: string }) => void;
     /** Sélecteur de dossier (Choose…) ; `null` : annulé. */
     onchoosefolder: () => Promise<string | null>;
   } = $props();
@@ -52,8 +63,15 @@
   );
   const profile = $derived(profiles.find((p) => p.id === profileId) ?? null);
   const https = $derived(isHttpUrl(url));
+  /** Forme SSH de l'URL `https://github.com/…` ; `null` : pas d'URL https, ou un hôte sans forme SSH. */
+  const sshUrl = $derived(https ? githubSshUrl(url) : null);
+  /** Case « Use git@github.com:org/app.git? », cochée par défaut. */
+  let useSsh = $state(true);
+  /** Clone refusé (case décochée) : message affiché jusqu'au prochain changement de l'URL ou de la case. */
+  let refused = $state(false);
+  const unsupportedHost = $derived(https && sshUrl === null);
   const ready = $derived(
-    profile !== null && url.trim() !== "" && folder.trim() !== "" && !https && !busy,
+    profile !== null && url.trim() !== "" && folder.trim() !== "" && !unsupportedHost && !busy,
   );
 
   async function choose() {
@@ -65,7 +83,16 @@
   }
 
   function submit() {
-    if (ready && profile) onclone(url.trim(), folder.trim(), profile.id);
+    if (!ready || !profile) return;
+    if (sshUrl !== null) {
+      if (!useSsh) {
+        refused = true;
+        return;
+      }
+      onclone(sshUrl, folder.trim(), profile.id);
+      return;
+    }
+    onclone(url.trim(), folder.trim(), profile.id);
   }
 
   function focusOnMount(node: HTMLElement) {
@@ -116,6 +143,16 @@
           />
           {p.name}
         </label>
+      {:else}
+        <p class="muted">No profile yet</p>
+        <div>
+          <button
+            type="button"
+            onclick={() => oncreateprofile?.({ url: url.trim(), folder: folder.trim() })}
+          >
+            <Plus size={16} strokeWidth={1.8} aria-hidden="true" /> Create profile…
+          </button>
+        </div>
       {/each}
     </fieldset>
 
@@ -124,6 +161,7 @@
       <input
         type="text"
         bind:value={url}
+        oninput={() => (refused = false)}
         disabled={busy}
         spellcheck="false"
         autocomplete="off"
@@ -154,19 +192,50 @@
       <p class="muted">.git/config will get the {profile.name} identity, SSH key and signing.</p>
     {/if}
 
-    {#if https}
-      <p class="error" role="alert">Clone over HTTPS: only the equivalent SSH URL is cloned.</p>
+    {#if sshUrl !== null}
+      <label class="check">
+        <input
+          type="checkbox"
+          bind:checked={useSsh}
+          disabled={busy}
+          onchange={() => (refused = false)}
+        />
+        Use {sshUrl}?
+      </label>
+    {/if}
+
+    {#if unsupportedHost}
+      <p class="error" role="alert">
+        Only github.com URLs can be cloned over HTTPS (converted to SSH).
+      </p>
+    {:else if refused}
+      <p class="error" role="alert">
+        Cloning over HTTPS is not supported: tick “Use {sshUrl}?” to clone over SSH.
+      </p>
     {:else if error !== null && !busy}
       <p class="error" role="alert">Clone failed: <span class="output">{error}</span></p>
     {/if}
 
     {#if busy && profile}
       <p class="muted" role="status">Cloning {name} with profile {profile.name}…</p>
+      <div class="progress">
+        {#if progress !== null && progress.total > 0}
+          <progress value={progress.received} max={progress.total} aria-label="Clone progress"
+          ></progress>
+          <span class="muted">{progress.received} / {progress.total} objects</span>
+        {:else}
+          <progress aria-label="Clone progress"></progress>
+        {/if}
+      </div>
     {/if}
 
     <div class="choices">
       {#if !busy}
         <button type="button" onclick={oncancel}>
+          <X size={16} strokeWidth={1.8} aria-hidden="true" /> Cancel
+        </button>
+      {:else}
+        <button type="button" onclick={() => oncancelclone?.()}>
           <X size={16} strokeWidth={1.8} aria-hidden="true" /> Cancel
         </button>
       {/if}
@@ -249,6 +318,24 @@
   .row {
     display: flex;
     gap: 8px;
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  progress {
+    flex: 1;
+    height: 8px;
+    accent-color: var(--brand);
   }
 
   input[type="text"] {

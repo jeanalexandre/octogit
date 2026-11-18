@@ -26,6 +26,8 @@ function props(overrides = {}) {
     error: null,
     onclone: vi.fn(),
     oncancel: vi.fn(),
+    oncancelclone: vi.fn(),
+    oncreateprofile: vi.fn(),
     onchoosefolder: vi.fn(async () => null),
     ...overrides,
   };
@@ -128,18 +130,89 @@ describe("CloneDialog", () => {
     ).toBeTruthy();
   });
 
-  it("demarrer-un-depot CA-15 : an https URL is refused with a message and Clone stays disabled", async () => {
-    const p = props();
+  async function fillHttps(
+    p: ReturnType<typeof props>,
+    address = "https://github.com/org/app.git",
+  ) {
     render(CloneDialog, p);
     await fireEvent.click(screen.getByRole("radio", { name: /Pro/ }));
-    await fireEvent.input(url(), { target: { value: "https://github.com/o/app.git" } });
+    await fireEvent.input(url(), { target: { value: address } });
     await fireEvent.input(folder(), { target: { value: "/work/app" } });
+  }
+
+  it("demarrer-un-depot CA-18 : an https github.com URL offers « Use git@github.com:org/app.git? », checked by default, and clones the SSH URL", async () => {
+    const p = props();
+    await fillHttps(p);
+    const box = screen.getByRole("checkbox", { name: "Use git@github.com:org/app.git?" });
+    expect(box).toBeChecked();
+    // L'URL saisie reste affichée telle quelle.
+    expect(url()).toHaveValue("https://github.com/org/app.git");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(cloneButton()).toBeEnabled();
+    await fireEvent.click(cloneButton());
+    expect(p.onclone).toHaveBeenCalledWith("git@github.com:org/app.git", "/work/app", "p2");
+  });
+
+  it("demarrer-un-depot CA-18 : unchecked, the click on Clone is refused with a message and nothing is cloned", async () => {
+    const p = props();
+    await fillHttps(p);
+    await fireEvent.click(
+      screen.getByRole("checkbox", { name: /Use git@github.com:org\/app.git/ }),
+    );
+    await fireEvent.click(cloneButton());
+    expect(p.onclone).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Clone over HTTPS: only the equivalent SSH URL is cloned.",
+      "Cloning over HTTPS is not supported: tick “Use git@github.com:org/app.git?” to clone over SSH.",
+    );
+    // Recocher efface le refus et rend le clone possible.
+    await fireEvent.click(
+      screen.getByRole("checkbox", { name: /Use git@github.com:org\/app.git/ }),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    await fireEvent.click(cloneButton());
+    expect(p.onclone).toHaveBeenCalledOnce();
+  });
+
+  it("demarrer-un-depot CA-18 : an https URL of another host than github.com is refused with a message, Clone disabled", async () => {
+    const p = props();
+    await fillHttps(p, "https://gitlab.com/org/app.git");
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Only github.com URLs can be cloned over HTTPS (converted to SSH).",
     );
     expect(cloneButton()).toBeDisabled();
     await fireEvent.click(cloneButton());
     expect(p.onclone).not.toHaveBeenCalled();
+  });
+
+  it("demarrer-un-depot CA-17 : without a profile, « No profile yet » and « Create profile… » show and Clone stays disabled", async () => {
+    const p = props({ profiles: [] });
+    render(CloneDialog, p);
+    expect(screen.getByText("No profile yet")).toBeInTheDocument();
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
+    await fireEvent.input(url(), { target: { value: "git@github.com:o/app.git" } });
+    await fireEvent.input(folder(), { target: { value: "/work/app" } });
+    expect(cloneButton()).toBeDisabled();
+    await fireEvent.click(cloneButton());
+    expect(p.onclone).not.toHaveBeenCalled();
+  });
+
+  it("demarrer-un-depot CA-17 : « Create profile… » hands over the URL and the folder typed so far", async () => {
+    const p = props({ profiles: [], oncreateprofile: vi.fn() });
+    render(CloneDialog, p);
+    await fireEvent.input(url(), { target: { value: "git@github.com:o/app.git" } });
+    await fireEvent.input(folder(), { target: { value: "/work/app" } });
+    await fireEvent.click(screen.getByRole("button", { name: /Create profile…/ }));
+    expect(p.oncreateprofile).toHaveBeenCalledWith({
+      url: "git@github.com:o/app.git",
+      folder: "/work/app",
+    });
+  });
+
+  it("demarrer-un-depot CA-17 : with profiles, no « Create profile… »", () => {
+    render(CloneDialog, props());
+    expect(screen.queryByText("No profile yet")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Create profile…/ })).toBeNull();
   });
 
   it("demarrer-un-depot CA-16 : Escape and Cancel close the dialog without cloning", async () => {
@@ -168,6 +241,42 @@ describe("CloneDialog", () => {
     expect(url()).toBeDisabled();
     expect(folder()).toBeDisabled();
     expect(cloneButton()).toBeDisabled();
+  });
+
+  const running = {
+    busy: true,
+    initial: {
+      profileId: "p2",
+      url: "git@github.com:pro-company/client-git.git",
+      folder: "/w/client-git",
+    },
+  };
+
+  it("demarrer-un-depot CA-12 : the clone in progress shows its sentence, a progress bar, the received objects over the total and Cancel", () => {
+    render(CloneDialog, props({ ...running, progress: { received: 9, total: 20 } }));
+    expect(screen.getByText("Cloning client-git with profile Pro…")).toBeInTheDocument();
+    const bar = screen.getByRole("progressbar");
+    expect(bar).toHaveAttribute("value", "9");
+    expect(bar).toHaveAttribute("max", "20");
+    expect(screen.getByText("9 / 20 objects")).toBeInTheDocument();
+    const cancel = screen.getByRole("button", { name: /Cancel/ });
+    expect(cancel).toBeEnabled();
+    expect(cancel.firstElementChild?.tagName.toLowerCase()).toBe("svg");
+  });
+
+  it("demarrer-un-depot CA-12 : before the first report the bar is indeterminate and no counter shows", () => {
+    render(CloneDialog, props(running));
+    const bar = screen.getByRole("progressbar");
+    expect(bar).not.toHaveAttribute("value");
+    expect(screen.queryByText(/objects/)).toBeNull();
+  });
+
+  it("demarrer-un-depot CA-12 : Cancel during the clone stops the clone, it does not close the dialog by itself", async () => {
+    const p = props({ ...running, oncancelclone: vi.fn() });
+    render(CloneDialog, p);
+    await fireEvent.click(screen.getByRole("button", { name: /Cancel/ }));
+    expect(p.oncancelclone).toHaveBeenCalledOnce();
+    expect(p.oncancel).not.toHaveBeenCalled();
   });
 
   it("shows « Clone failed: » with the raw output and keeps the fields", async () => {

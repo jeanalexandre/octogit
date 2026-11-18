@@ -74,6 +74,9 @@ function bridge(): Plugin {
             ["x-octogit-fake-ssh-mode", "FAKE_SSH_MODE"],
             ["x-octogit-fake-ssh-account", "FAKE_SSH_ACCOUNT"],
             ["x-octogit-ssh-test-timeout-ms", "OCTOGIT_SSH_TEST_TIMEOUT_MS"],
+            ["x-octogit-fake-ssh-serve-root", "FAKE_SSH_SERVE_ROOT"],
+            ["x-octogit-fake-ssh-allowed-key", "FAKE_SSH_ALLOWED_KEY"],
+            ["x-octogit-fake-ssh-delay", "FAKE_SSH_DELAY"],
           ] as const) {
             const value = req.headers[name];
             if (typeof value === "string" && value) env[variable] = value;

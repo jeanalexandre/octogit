@@ -450,6 +450,14 @@ export class Workspace {
     }
   }
 
+  /** Mémorise une largeur de graphe pour un dépôt déjà dans les récents, comme une session précédente. */
+  storeGraphWidth(repo: string, width: number): void {
+    const path = join(this.dataDir, "repositories.json");
+    const file = JSON.parse(readFileSync(path, "utf8"));
+    file.graph_widths = { ...file.graph_widths, [repo]: width };
+    writeFileSync(path, JSON.stringify(file));
+  }
+
   /** Dossier SSH de ce test (jamais le vrai `~/.ssh`), créé à la demande. */
   get sshDir(): string {
     const dir = join(this.root, "ssh");

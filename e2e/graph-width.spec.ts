@@ -67,6 +67,75 @@ for (const size of sizes) {
   });
 }
 
+/** L'en-tête « Graph » tient entier dans la colonne et ne touche pas « Commit message ». */
+async function expectGraphHeaderWhole(page: Page, column: number) {
+  const head = page.getByRole("group", { name: "Column headers" });
+  const graph = await head.getByText("Graph", { exact: true }).evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const r = range.getBoundingClientRect();
+    const cell = el.getBoundingClientRect();
+    return { left: r.left, right: r.right, cellLeft: cell.left, cellRight: cell.right };
+  });
+  const message = await head.getByText("Commit message", { exact: true }).boundingBox();
+  expect(graph.cellRight - graph.cellLeft).toBe(column);
+  expect(graph.left).toBeGreaterThanOrEqual(graph.cellLeft);
+  expect(graph.right).toBeLessThanOrEqual(graph.cellRight);
+  expect(graph.right).toBeLessThanOrEqual(message!.x);
+}
+
+for (const size of sizes) {
+  test(`organiser-l-espace CA-11 : un dépôt à une seule lane a une colonne de 64 px et l'en-tête « Graph » entier (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    await openRepo(page, [ws.repo("simple")]);
+    expect(await widthOf(page)).toBe(64);
+    expect(await columnOf(page)).toBe(64);
+    await expect(fade(page)).toHaveCount(0);
+    await expectGraphHeaderWhole(page, 64);
+  });
+}
+
+test("organiser-l-espace CA-13 : glisser au plus bas ou flèche gauche ne descend pas sous 64 px, l'en-tête reste entier", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1500, height: 900 });
+  await openRepo(page, [ws.repo("wide")]);
+  const box = (await separator(page).boundingBox())!;
+  const x = box.x + box.width / 2;
+  const y = box.y + 200;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x - 2000, y, { steps: 6 });
+  await expect.poll(() => widthOf(page)).toBe(64);
+  await page.mouse.up();
+  expect(await columnOf(page)).toBe(64);
+  await expectGraphHeaderWhole(page, 64);
+
+  await separator(page).focus();
+  await page.keyboard.press("ArrowLeft");
+  expect(await widthOf(page)).toBe(64);
+  expect(await columnOf(page)).toBe(64);
+  await expectGraphHeaderWhole(page, 64);
+});
+
+test("organiser-l-espace CA-13 : une largeur mémorisée sous 64 px est affichée à 64 px, double-clic revient au défaut", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1500, height: 900 });
+  const repo = ws.repo("wide");
+  ws.rememberRecent([repo]);
+  ws.storeGraphWidth(repo, 40);
+  await page.goto(ws.url);
+  await expect(separator(page)).toBeVisible();
+  await expect.poll(() => widthOf(page)).toBe(64);
+  expect(await columnOf(page)).toBe(64);
+  await separator(page).dblclick();
+  const zone = await zoneOf(page);
+  await expect.poll(() => widthOf(page)).toBe(Math.floor(0.4 * zone));
+});
+
 test("organiser-l-espace CA-12 : un fetch qui ajoute des lanes ne change pas la largeur, un fondu signale les nouvelles, la réouverture la recalcule", async ({
   page,
 }) => {

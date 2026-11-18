@@ -60,7 +60,11 @@ La colonne du graphe mesure au moins 64 px (au défaut et au glisser), l'en-têt
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `171fce0`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : plancher 64 px (`LANES_MARGIN` séparée), infobulle auteur au-dessus du nom, tests et e2e verts | — |
+| 1 | reviewer | CA-11, CA-13 couverts ; CA-18 partiel : infobulle auteur recouverte par l'en-tête collant (z-index), voir `S-69-revue-1.md` | à corriger |
+| 2 | dev | terminé : `.who:hover/:focus-within` à `z-index: 5`, e2e ligne défilée (rouge constaté), tests verts | — |
+| 2 | reviewer | tous critères couverts, bloquant 1 levé, voir `S-69-revue-2.md` | validé |

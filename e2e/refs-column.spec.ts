@@ -132,6 +132,60 @@ for (const size of sizes) {
   });
 }
 
+for (const gap of [0, 8, 14]) {
+  test(`organiser-l-espace CA-18 : ligne défilée contre l'en-tête collant (${gap} px dessous), l'infobulle de l'auteur reste entière au survol et au focus`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1500, height: 900 });
+    ws.rememberRecent([ws.repo("search")]);
+    await page.goto(ws.url);
+    const items = page.locator('[role="listitem"]:has([data-trait])');
+    await expect(items.first()).toContainText("Task 120");
+    // Défile pour que la 6e ligne ait son haut à `gap` px sous l'en-tête collant.
+    await page.evaluate((g) => {
+      const rows = document.querySelector<HTMLElement>(".rows")!;
+      const head = rows.querySelector<HTMLElement>('[aria-label="Column headers"]')!;
+      const target = rows.querySelectorAll<HTMLElement>('[role="listitem"]')[5]!;
+      rows.scrollTop +=
+        target.getBoundingClientRect().top - head.getBoundingClientRect().bottom - g;
+    }, gap);
+    const head = page.getByRole("group", { name: "Column headers" });
+    const headBottom = (await head.boundingBox())!;
+    // Première ligne dont le haut est sous l'en-tête.
+    const index = await items.evaluateAll(
+      (els, bottom) => els.findIndex((el) => el.getBoundingClientRect().top >= bottom - 1),
+      headBottom.y + headBottom.height,
+    );
+    const author = items.nth(index).locator(".author");
+    const tooltip = page.getByRole("tooltip");
+    const check = async () => {
+      await expect(tooltip).toHaveCount(1);
+      const tip = (await tooltip.boundingBox())!;
+      // Les quatre coins et le centre de la boîte restent sur l'infobulle : ni couverte ni rognée.
+      const points = await page.evaluate(
+        ([x, y, w, h]) =>
+          [
+            [x + 2, y + 2],
+            [x + w - 2, y + 2],
+            [x + w / 2, y + h / 2],
+            [x + 2, y + h - 2],
+            [x + w - 2, y + h - 2],
+          ].map(
+            ([px, py]) => document.elementFromPoint(px, py)?.closest('[role="tooltip"]') !== null,
+          ),
+        [tip.x, tip.y, tip.width, tip.height],
+      );
+      expect(points).toEqual([true, true, true, true, true]);
+    };
+    await author.hover();
+    await check();
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toHaveCount(0);
+    await author.focus();
+    await check();
+  });
+}
+
 test("organiser-l-espace CA-18 : l'infobulle du nom d'auteur donne l'adresse, au survol et au focus clavier", async ({
   page,
 }) => {
@@ -140,15 +194,40 @@ test("organiser-l-espace CA-18 : l'infobulle du nom d'auteur donne l'adresse, au
   const author = sso.getByText("Valérie Olivier", { exact: true });
   await expect(page.getByRole("tooltip")).toHaveCount(0);
   await author.hover();
-  await expect(page.getByRole("tooltip")).toHaveText("Valérie Olivier <v.olivier@pro-company.fr>");
-  const size = await page
-    .getByRole("tooltip")
-    .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  expect(size).toBeGreaterThanOrEqual(12);
+  const tooltip = page.getByRole("tooltip");
+  // Au-dessus du nom, bord gauche sur la colonne Auteur, sans recouvrir le message de la ligne.
+  const checkPlacement = async () => {
+    await expect(tooltip).toHaveText("Valérie Olivier <v.olivier@pro-company.fr>");
+    const size = await tooltip.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(size).toBeGreaterThanOrEqual(12);
+    const tip = (await tooltip.boundingBox())!;
+    const name = (await author.boundingBox())!;
+    const message = (await sso.locator("button").first().boundingBox())!;
+    const head = (await page.getByRole("group", { name: "Column headers" }).boundingBox())!;
+    const authorHeader = (await page
+      .getByRole("group", { name: "Column headers" })
+      .getByText("Author", { exact: true })
+      .boundingBox())!;
+    expect(tip.y + tip.height).toBeLessThanOrEqual(name.y + 1);
+    expect(Math.abs(tip.x - authorHeader.x)).toBeLessThanOrEqual(1);
+    const apart =
+      tip.y + tip.height <= message.y + 1 ||
+      tip.x + tip.width <= message.x ||
+      tip.x >= message.x + message.width;
+    expect(apart).toBe(true);
+    // Visible : rien ne la couvre, pas même l'en-tête collant.
+    const covered = await page.evaluate(
+      ([x, y]) => document.elementFromPoint(x, y)?.closest('[role="tooltip"]') === null,
+      [tip.x + tip.width / 2, tip.y + tip.height / 2],
+    );
+    expect(covered).toBe(false);
+    expect(tip.y).toBeGreaterThanOrEqual(head.y);
+  };
+  await checkPlacement();
   await page.mouse.move(0, 0);
-  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await expect(tooltip).toHaveCount(0);
   await author.focus();
-  await expect(page.getByRole("tooltip")).toHaveText("Valérie Olivier <v.olivier@pro-company.fr>");
+  await checkPlacement();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("tooltip")).toHaveCount(0);
 });

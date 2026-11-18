@@ -924,6 +924,12 @@
     min-width: 0;
   }
 
+  /* Infobulle ouverte : le nom passe au-dessus de l'en-tête collant (z-index 2), qui sinon la couvre. */
+  .who:hover,
+  .who:focus-within {
+    z-index: 5;
+  }
+
   .author {
     display: block;
   }
@@ -940,6 +946,15 @@
     background: var(--surface-raised);
     color: var(--ink);
     white-space: nowrap;
+  }
+
+  /* Infobulle de l'auteur : au-dessus du nom, bord gauche sur la colonne Auteur, le message reste visible. */
+  .who .tooltip {
+    top: auto;
+    right: auto;
+    bottom: 100%;
+    left: 0;
+    transform: none;
   }
 
   .sha {

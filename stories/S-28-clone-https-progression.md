@@ -33,7 +33,7 @@ Compléter `CloneDialog` (S-27) : sans profil, créer un profil à la volée et 
 
 ### Après la revue 3
 1. Rien à traiter. Compteur d'objets / événement Tauri réel : pris en compte (pour information), action ajoutée à `notes-production.md`. Point `welcome.md` : toujours à décider par l'humain (`/ksm:ux`).
-2. `welcome.md` contre CA-17 : b) `Clone…` disparaît de l'état vide de `Welcome` (réponse de l'humain, 18/11/2026). Cela contredit CA-17 de `demarrer-un-depot` et le code livré par S-28 (`CloneDialog` en « No profile yet » depuis l'état vide) : rien n'est changé dans cette story ; amendement de la spec par `/ksm:spec demarrer-un-depot`, puis nouvelle story par `/ksm:plan`.
+2. `welcome.md` contre CA-17 : a) `Clone…` reste dans l'état vide de `Welcome` ; le texte de `ux/ecrans/welcome.md` et du périmètre de `specs/demarrer-un-depot.md` est corrigé (« pas de clone sans profil » devient « Clone… reste disponible et ouvre `CloneDialog` en « No profile yet », où aucun clone n'est possible sans profil »). Réponse d'abord donnée en b, changée en a après discussion (réponse de l'humain, 18/11/2026). Aucun changement de code, aucune story.
 3. Test sur la place de la phrase CA-10 (`CloneDialog.test.ts`, S-27) : pas de vérification demandée (réponse de l'humain, 18/11/2026).
 
 ## Contexte technique

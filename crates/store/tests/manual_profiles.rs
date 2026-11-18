@@ -71,7 +71,7 @@ fn proteger_l_identite_ca_8_a_version_4_file_is_read_without_attachment_then_upg
         .unwrap();
 
     let written = fs::read_to_string(dir.join("repositories.json")).unwrap();
-    assert!(written.contains("\"version\": 5"));
+    assert!(written.contains("\"version\": 6"));
     let store = Store::new(&dir);
     assert_eq!(store.graph_width(Path::new("/work/octogit")), Some(312));
     assert_eq!(store.recent_repositories().len(), 2);

@@ -33,7 +33,7 @@ impl fmt::Display for FetchError {
 impl std::error::Error for FetchError {}
 
 /// Fichier temporaire de sortie : pas de tubes, donc rien ne bloque si un petit-processus survit au kill.
-fn capture_file() -> std::io::Result<(File, PathBuf)> {
+pub(crate) fn capture_file() -> std::io::Result<(File, PathBuf)> {
     static N: AtomicU32 = AtomicU32::new(0);
     let path = std::env::temp_dir().join(format!(
         "octogit-fetch-{}-{}.log",

@@ -21,6 +21,14 @@ struct OpenArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct CloneArgs {
+    url: String,
+    folder: String,
+    profile_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct AttachArgs {
     path: String,
     profile_id: String,
@@ -264,6 +272,27 @@ fn main() {
         "open_repository" => {
             let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
             match octogit_app::commands::open_repository(args.path) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "get_last_clone_parent" => (
+            serde_json::to_string(&octogit_app::commands::get_last_clone_parent()),
+            0,
+        ),
+        "clone_repository" => {
+            let args: CloneArgs =
+                serde_json::from_str(&input).expect("arguments { url, folder, profileId }");
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs());
+            match octogit_app::clone::clone_repository(
+                &octogit_store::Store::new(octogit_app::data_dir()),
+                &args.url,
+                std::path::Path::new(&args.folder),
+                &args.profile_id,
+                now,
+            ) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

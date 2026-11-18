@@ -7,6 +7,7 @@ use octogit_store::Store;
 use tauri::Manager;
 
 use crate::attach::{self, ProfileBadgeView};
+use crate::clone::{self, CloneError};
 use crate::data_dir;
 use crate::detail::{self, CommitDetailView};
 use crate::fetch;
@@ -109,6 +110,41 @@ pub fn has_manual_profile(path: String) -> bool {
 #[specta::specta]
 pub async fn choose_folder(app: tauri::AppHandle) -> Option<String> {
     octogit_platform::pick_folder(&app).map(|p| p.to_string_lossy().into_owned())
+}
+
+/// Dernier dossier parent d'un clone réussi ; `None` : aucun clone réussi auparavant.
+#[tauri::command]
+#[specta::specta]
+pub fn get_last_clone_parent() -> Option<String> {
+    Store::new(data_dir())
+        .last_clone_parent()
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
+/// `CloneDialog` : clone `url` dans `folder` avec le profil `profile_id`, puis ouvre le dépôt.
+#[tauri::command]
+#[specta::specta]
+pub async fn clone_repository(
+    url: String,
+    folder: String,
+    profile_id: String,
+) -> Result<RepositoryView, CloneError> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    tauri::async_runtime::spawn_blocking(move || {
+        clone::clone_repository(
+            &Store::new(data_dir()),
+            &url,
+            Path::new(&folder),
+            &profile_id,
+            now,
+        )
+    })
+    .await
+    .map_err(|_| CloneError::Other {
+        message: "The clone was interrupted.".to_string(),
+    })?
 }
 
 #[tauri::command]

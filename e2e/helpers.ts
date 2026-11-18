@@ -164,7 +164,11 @@ export class Workspace {
   }
 
   /** Contenu décodé de `repositories.json`. */
-  readRepositoriesFile(): { version: number; manual_profiles?: Record<string, string> } {
+  readRepositoriesFile(): {
+    version: number;
+    manual_profiles?: Record<string, string>;
+    last_clone_parent?: string;
+  } {
     return JSON.parse(readFileSync(join(this.dataDir, "repositories.json"), "utf8"));
   }
 
@@ -227,6 +231,16 @@ export class Workspace {
   /** Remplace l'URL de `origin` (sans réseau) : `git@github.com:owner/repo.git`. */
   setOrigin(repo: string, url: string): void {
     execFileSync("git", ["-C", repo, "remote", "set-url", "origin", url]);
+  }
+
+  /** `origin` de test pour un clone : un dépôt `--bare` (3 commits de `simple`) créé par chemin, sans réseau. */
+  bareOrigin(name = "origin.git"): string {
+    const source = this.repo("simple", `${name}-source`);
+    const bare = join(this.root, name);
+    execFileSync("git", ["clone", "-q", "--bare", source, bare], {
+      env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+    });
+    return bare;
   }
 
   /** Dossier ordinaire (pas un dépôt Git) avec un fichier et un sous-dossier ; rend son chemin. */

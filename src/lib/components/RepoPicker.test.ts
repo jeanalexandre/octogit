@@ -39,6 +39,15 @@ describe("RepoPicker", () => {
     expect(p.onchoose).toHaveBeenCalledOnce();
   });
 
+  it("demarrer-un-depot CA-8 : offers Clone… and asks to open the clone dialog", async () => {
+    const onclone = vi.fn();
+    render(RepoPicker, props({ onclone }));
+    await fireEvent.click(screen.getByRole("button", { name: /repo-b/ }));
+    await fireEvent.click(screen.getByRole("menuitem", { name: /Clone…/ }));
+    expect(onclone).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("closes on a click outside the picker", async () => {
     render(RepoPicker, props());
     await fireEvent.click(screen.getByRole("button", { name: /repo-b/ }));

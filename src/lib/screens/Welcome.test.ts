@@ -63,6 +63,25 @@ describe("Welcome", () => {
     expect(p.onchoose).toHaveBeenCalledOnce();
   });
 
+  it("demarrer-un-depot CA-1 : offers Open folder…, Clone… and Profiles with their shortcuts", async () => {
+    const onclone = vi.fn();
+    render(Welcome, props({ onclone, onprofiles: vi.fn() }));
+    expect(screen.getByRole("button", { name: /Open folder…/ })).toHaveTextContent("⌘O");
+    expect(screen.getByRole("button", { name: /Profiles/ })).toHaveTextContent("⌘,");
+    const clone = screen.getByRole("button", { name: /Clone…/ });
+    expect(clone).toHaveTextContent("⌘⇧C");
+    await fireEvent.click(clone);
+    expect(onclone).toHaveBeenCalledOnce();
+  });
+
+  it("demarrer-un-depot CA-1 : each of the three buttons has an icon before its label", () => {
+    render(Welcome, props({ onclone: vi.fn(), onprofiles: vi.fn() }));
+    for (const name of [/Open folder…/, /Clone…/, /Profiles/]) {
+      const button = screen.getByRole("button", { name });
+      expect(button.firstElementChild?.tagName.toLowerCase()).toBe("svg");
+    }
+  });
+
   it("shows the error message that names the folder, and still the title", () => {
     render(Welcome, props({ error: "notes is not a Git repository." }));
     expect(screen.getByRole("alert")).toHaveTextContent("notes is not a Git repository.");

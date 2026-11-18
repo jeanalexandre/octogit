@@ -39,6 +39,7 @@
     onpaneltoggle,
     onopen,
     onchoose,
+    onclone,
     onhidecolumns,
     ontogglefolder,
     onsectionheight,
@@ -157,6 +158,8 @@
     lastFetched?: number | null;
     onopen: (path: string) => void;
     onchoose: () => void;
+    /** « Clone… » du `RepoPicker` : ouvre `CloneDialog`. */
+    onclone?: () => void;
     onhidecolumns: (columns: Column[]) => void;
     /** Clés des dossiers repliés de `BranchSidebar` pour ce dépôt. */
     collapsedFolders?: string[];
@@ -355,7 +358,7 @@
 <main class="history">
   <header>
     <h1 class="visually-hidden">{repository.name}</h1>
-    <RepoPicker {recent} current={repository.path} {onopen} {onchoose} />
+    <RepoPicker {recent} current={repository.path} {onopen} {onchoose} {onclone} />
     <Toolbar
       refs={repository.refs}
       onselect={(name) => oncheckout?.(name)}

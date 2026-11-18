@@ -24,6 +24,7 @@ Cloner un dépôt depuis `Welcome` ou `RepoPicker` par `CloneDialog` : profil ch
 ## Décisions de l'humain
 ### Fiche (18/11/2026)
 1. Clone dont l'écriture du profil échoue : a) on garde le dossier cloné, `History` s'ouvre avec un badge non conforme et un message ; commit et push restent bloqués (S-16, S-21), rien n'est supprimé (réponse de l'humain, 18/11/2026)
+2. Message d'avertissement après un clone dont l'écriture du profil échoue : b) badge non conforme seul, sans message, aucun élargissement de contrat ; amende la décision 1 (« et un message » retiré) (réponse de l'humain, 18/11/2026)
 
 ## Contexte technique
 - `stack.md` : Architecture (clone par le binaire `git` en sous-processus, sortie brute ; crates `git`, `identity`, `store`, `platform` ; `app` sans logique), Données (fichier JSON des dépôts, champ `version`, migration dans `store` testée par un fichier d'exemple versionné ; « dernier dossier de clone » y est déjà prévu), Intégrations (OpenSSH du système, clé imposée par `core.sshCommand`, jamais d'appel réel à GitHub dans les tests : `origin` = dépôt `--bare` par chemin), Tests ciblés. Aucune nouvelle dépendance : `dialog` et `clipboard` déjà en place.
@@ -70,8 +71,21 @@ Cloner un dépôt depuis `Welcome` ou `RepoPicker` par `CloneDialog` : profil ch
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `67a0242`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (24 fichiers ; tests, lint, build verts). Écart : échec d'écriture du profil au clone, `History` s'ouvre avec badge non conforme mais sans message (décision 1 de la fiche en demande un ; il faudrait élargir le contrat `RepositoryView`/`mismatch`). Rouge non constaté : `crates/git/src/clone.rs`, `cloneName`, `e2e/clone.spec.ts`. Autres écarts mineurs : Choose… fixe le dossier parent (`<choisi>/<nom>`), URL https refusée dès la saisie (message anglais), Cancel masqué et Échap ignoré pendant le clone | question avant revue (tranchée : décision 2, badge seul) |
+| 1 | reviewer | revue 1 : `stories/S-27-revue-1.md` ; 2 bloquants (clone sans `spawn_blocking`, phrase CA-10 mal placée), 1 mineur (icônes) | à corriger |
+
+| 2 | dev | terminé (problèmes 1 à 3 corrigés ; tests, lint, build verts ; rouge constaté sur les deux tests ajoutés). Écarts : icônes Lucide équivalentes à la maquette, échec de jointure en `CloneError::Other`, sans effet sur le contrat | revue |
+| 2 | reviewer | revue 2 : `stories/S-27-revue-2.md` ; aucun problème, 3 retours levés | validé |
+
+### Après la revue 2 (d'office)
+- Point « pour information » (aucune assertion sur la place de la phrase CA-10) : pris en compte (pour information).
+
+### Après la revue 1 (d'office)
+- Problème 3 (mineur, icônes Welcome et icône de Clone) : traiter au passage 2, aligner sur la maquette.
+- Point « pour information » (sortie `git` localisée) : pris en compte (pour information), S-54.
+- Point « pour information » (mémorisation échouée après clone réussi) : pris en compte (pour information), S-54.

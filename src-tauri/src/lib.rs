@@ -2,6 +2,7 @@
 //! ou dans des modules testables sans runtime (`launch`).
 
 pub mod attach;
+pub mod clone;
 pub mod commands;
 pub mod detail;
 pub mod fetch;
@@ -77,6 +78,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::reset_to_rules,
             commands::has_manual_profile,
             commands::choose_folder,
+            commands::get_last_clone_parent,
+            commands::clone_repository,
             commands::get_hidden_columns,
             commands::set_hidden_columns,
             commands::get_section_layout,

@@ -25,6 +25,10 @@ export const commands = {
 	hasManualProfile: (path: string) => __TAURI_INVOKE<boolean>("has_manual_profile", { path }),
 	/**  Sélecteur de dossier natif ; `None` si annulé. En mode test, le pont d'interface répond à sa place. */
 	chooseFolder: () => __TAURI_INVOKE<string | null>("choose_folder"),
+	/**  Dernier dossier parent d'un clone réussi ; `None` : aucun clone réussi auparavant. */
+	getLastCloneParent: () => __TAURI_INVOKE<string | null>("get_last_clone_parent"),
+	/**  `CloneDialog` : clone `url` dans `folder` avec le profil `profile_id`, puis ouvre le dépôt. */
+	cloneRepository: (url: string, folder: string, profileId: string) => typedError<RepositoryView_Serialize, CloneError>(__TAURI_INVOKE("clone_repository", { url, folder, profileId })),
 	getHiddenColumns: () => __TAURI_INVOKE<Column[]>("get_hidden_columns"),
 	setHiddenColumns: (columns: Column[]) => __TAURI_INVOKE<void>("set_hidden_columns", { columns }),
 	/**  Hauteurs et repli des sections de `BranchSidebar`, communs à tous les dépôts. */
@@ -223,6 +227,16 @@ branch: string;
 remote: string; 
 /**  Commits de la locale absents de la distante. */
 commits: LocalCommitView[] };
+
+export type CloneError = 
+/**  URL `http://` ou `https://` : refusée (la conversion en SSH est S-28). Rien n'est écrit. */
+{ kind: "httpsNotSupported" } | 
+/**  Le profil choisi n'existe pas. */
+{ kind: "unknownProfile" } | 
+/**  `git clone` a échoué ; `output` est sa sortie brute. */
+{ kind: "failed"; output: string } | 
+/**  Le clone a réussi mais ne peut pas être ouvert ou mémorisé. */
+{ kind: "other"; message: string };
 
 /**  Colonnes du graphe que l'on peut masquer. */
 export type Column = "author" | "date" | "sha";

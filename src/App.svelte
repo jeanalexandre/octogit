@@ -4,6 +4,7 @@
     commands,
     events,
     type CheckoutChoiceView,
+    type CloneError,
     type Column,
     type ForcePushView,
     type LaunchState,
@@ -19,6 +20,7 @@
   import type { BranchInput, BranchNameVerdict } from "./lib/branchInput";
   import { runFetchNow, scheduleFetch } from "./lib/fetchScheduler";
   import { sshApi } from "./lib/sshKeys";
+  import CloneDialog from "./lib/components/CloneDialog.svelte";
   import ForcePushDialog from "./lib/components/ForcePushDialog.svelte";
   import IdentityMismatch from "./lib/components/IdentityMismatch.svelte";
   import RefContextMenu, {
@@ -869,18 +871,57 @@
     throw result.error;
   }
 
+  async function show(repository: RepositoryView) {
+    error = null;
+    settingsOpen = false;
+    importDraft = null;
+    mismatchHidden = false;
+    openCount++;
+    screen = { screen: "history", repository: repository satisfies RepositoryView };
+    recent = await commands.listRecentRepositories();
+  }
+
   async function open(path: string) {
     const result = await commands.openRepository(path);
     if (result.status === "ok") {
-      error = null;
-      settingsOpen = false;
-      importDraft = null;
-      mismatchHidden = false;
-      openCount++;
-      screen = { screen: "history", repository: result.data satisfies RepositoryView };
-      recent = await commands.listRecentRepositories();
+      await show(result.data);
     } else {
       error = `${result.error.name} is not a Git repository.`;
+    }
+  }
+
+  /** `CloneDialog` ouvert (par Clone… de `Welcome` ou de `RepoPicker`, ou ⌘⇧C), avec son état de clone. */
+  let cloneDialog: { lastParent: string | null; busy: boolean; error: string | null } | null =
+    $state(null);
+
+  async function openClone() {
+    if (cloneDialog !== null || settingsOpen) return;
+    profiles = await commands.listProfiles();
+    cloneDialog = { lastParent: await commands.getLastCloneParent(), busy: false, error: null };
+  }
+
+  function cloneErrorText(failure: CloneError): string {
+    switch (failure.kind) {
+      case "failed":
+        return failure.output.trim();
+      case "httpsNotSupported":
+        return "Clone over HTTPS: only the equivalent SSH URL is cloned.";
+      case "unknownProfile":
+        return "This profile no longer exists.";
+      case "other":
+        return failure.message;
+    }
+  }
+
+  async function cloneRepository(url: string, folder: string, profileId: string) {
+    if (cloneDialog === null) return;
+    cloneDialog = { ...cloneDialog, busy: true, error: null };
+    const result = await commands.cloneRepository(url, folder, profileId);
+    if (result.status === "ok") {
+      cloneDialog = null;
+      await show(result.data);
+    } else if (cloneDialog !== null) {
+      cloneDialog = { ...cloneDialog, busy: false, error: cloneErrorText(result.error) };
     }
   }
 
@@ -901,6 +942,14 @@
     ) {
       event.preventDefault();
       void chooseFolder();
+    } else if (
+      event.metaKey &&
+      event.shiftKey &&
+      !event.altKey &&
+      event.key.toLowerCase() === "c"
+    ) {
+      event.preventDefault();
+      if (screen !== null) void openClone();
     }
   }
 </script>
@@ -940,6 +989,7 @@
     onsectiontoggle={toggleSection}
     onopen={open}
     onchoose={chooseFolder}
+    onclone={openClone}
     onhidecolumns={hideColumns}
     {loadDetail}
     {workingTree}
@@ -985,7 +1035,20 @@
     {error}
     onopen={open}
     onchoose={chooseFolder}
+    onclone={openClone}
     onprofiles={() => (settingsOpen = true)}
+  />
+{/if}
+
+{#if cloneDialog !== null}
+  <CloneDialog
+    {profiles}
+    lastParent={cloneDialog.lastParent}
+    busy={cloneDialog.busy}
+    error={cloneDialog.error}
+    onclone={cloneRepository}
+    oncancel={() => (cloneDialog = null)}
+    onchoosefolder={() => commands.chooseFolder()}
   />
 {/if}
 

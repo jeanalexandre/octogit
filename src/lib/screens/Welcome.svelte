@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Copy from "@lucide/svelte/icons/copy";
+  import Folder from "@lucide/svelte/icons/folder";
+  import User from "@lucide/svelte/icons/user";
   import type { RecentView } from "../bindings";
   import ProfileBadge from "../components/ProfileBadge.svelte";
   import { formatRelative } from "../relativeTime";
@@ -8,8 +11,11 @@
     error,
     onopen,
     onchoose,
+    onclone,
     onprofiles,
   }: {
+    /** « Clone… » (⌘⇧C) : ouvre `CloneDialog`. */
+    onclone?: () => void;
     /** « Profiles » (⌘,) : ouvre `ProfileSettings`. */
     onprofiles?: () => void;
     recent: RecentView[];
@@ -50,10 +56,13 @@
   {/if}
 
   <button type="button" class="open-folder" onclick={onchoose}>
-    Open folder… <kbd>⌘O</kbd>
+    <Folder size={16} strokeWidth={1.8} aria-hidden="true" /> Open folder… <kbd>⌘O</kbd>
+  </button>
+  <button type="button" class="open-folder" onclick={() => onclone?.()}>
+    <Copy size={16} strokeWidth={1.8} aria-hidden="true" /> Clone… <kbd>⌘⇧C</kbd>
   </button>
   <button type="button" class="open-folder" onclick={() => onprofiles?.()}>
-    Profiles <kbd>⌘,</kbd>
+    <User size={16} strokeWidth={1.8} aria-hidden="true" /> Profiles <kbd>⌘,</kbd>
   </button>
 </main>
 
@@ -170,6 +179,9 @@
   }
 
   .open-folder {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     padding: 8px 16px;
     border: 0;
     border-radius: 6px;

@@ -9,7 +9,7 @@ use octogit_identity::Profile;
 use serde::{Deserialize, Serialize};
 
 pub const REPOSITORIES_FILE: &str = "repositories.json";
-pub const REPOSITORIES_VERSION: u32 = 5;
+pub const REPOSITORIES_VERSION: u32 = 6;
 
 pub const PREFERENCES_FILE: &str = "preferences.json";
 pub const PREFERENCES_VERSION: u32 = 4;
@@ -81,6 +81,9 @@ struct RepositoriesFile {
     /// les règles (absent avant la version 5).
     #[serde(default)]
     manual_profiles: BTreeMap<String, String>,
+    /// Dossier parent du dernier clone réussi, quel que soit son profil (absent avant la version 6).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    last_clone_parent: Option<PathBuf>,
 }
 
 /// Format de la version 1 (S-1) : un seul dépôt mémorisé.
@@ -111,6 +114,7 @@ impl Store {
             collapsed_folders: BTreeMap::new(),
             graph_widths: BTreeMap::new(),
             manual_profiles: BTreeMap::new(),
+            last_clone_parent: None,
         }
     }
 
@@ -126,7 +130,7 @@ impl Store {
             return Self::empty_repositories();
         };
         match value.get("version").and_then(|v| v.as_u64()) {
-            Some(2..=5) => serde_json::from_value::<RepositoriesFile>(value)
+            Some(2..=6) => serde_json::from_value::<RepositoriesFile>(value)
                 .unwrap_or_else(|_| Self::empty_repositories()),
             Some(1) => {
                 let Ok(old) = serde_json::from_value::<RepositoriesFileV1>(value) else {
@@ -239,6 +243,18 @@ impl Store {
             Some(id) => file.manual_profiles.insert(key, id.to_string()),
             None => file.manual_profiles.remove(&key),
         };
+        self.write_repositories(file)
+    }
+
+    /// Dossier parent du dernier clone réussi ; `None` : aucun clone réussi auparavant.
+    pub fn last_clone_parent(&self) -> Option<PathBuf> {
+        self.read_repositories().last_clone_parent
+    }
+
+    /// Mémorise le dossier parent du dernier clone réussi.
+    pub fn set_last_clone_parent(&self, parent: &Path) -> io::Result<()> {
+        let mut file = self.read_repositories();
+        file.last_clone_parent = Some(parent.to_path_buf());
         self.write_repositories(file)
     }
 

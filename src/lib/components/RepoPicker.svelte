@@ -6,7 +6,10 @@
     current,
     onopen,
     onchoose,
+    onclone,
   }: {
+    /** « Clone… » : ouvre `CloneDialog`. */
+    onclone?: () => void;
     recent: RecentView[];
     /** Chemin du dépôt affiché. */
     current: string;
@@ -52,6 +55,9 @@
       {/each}
       <button type="button" role="menuitem" class="open-folder" onclick={() => pick(onchoose)}>
         Open folder…
+      </button>
+      <button type="button" role="menuitem" onclick={() => pick(() => onclone?.())}>
+        Clone…
       </button>
     </div>
   {/if}

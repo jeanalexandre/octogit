@@ -914,6 +914,13 @@
     throw result.error;
   }
 
+  async function searchMessages(query: string) {
+    if (screen?.screen !== "history") throw "No repository is open.";
+    const result = await commands.searchCommitMessages(screen.repository.path, query);
+    if (result.status === "ok") return result.data;
+    throw result.error;
+  }
+
   async function show(repository: RepositoryView) {
     error = null;
     settingsOpen = false;
@@ -1080,6 +1087,7 @@
       onclone={openClone}
       onhidecolumns={hideColumns}
       {loadDetail}
+      {searchMessages}
       {workingTree}
       onstageall={() => moveAll(commands.stageAll)}
       onunstageall={() => moveAll(commands.unstageAll)}

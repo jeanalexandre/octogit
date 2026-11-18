@@ -33,7 +33,16 @@
     wipSelected = false,
     onselectwip,
     faults = {},
+    highlighted = new Set<string>(),
+    matchesOnly = false,
+    reveal = null,
   }: {
+    /** Résultats de la recherche (`SearchBox`) : identifiants des commits surlignés. */
+    highlighted?: ReadonlySet<string>;
+    /** « Show matches only » : seules les lignes des commits surlignés restent affichées (les lanes restent celles de tout l'historique). */
+    matchesOnly?: boolean;
+    /** Une nouvelle valeur fait défiler le graphe jusqu'à la ligne de ce commit (résultat de recherche choisi). */
+    reveal?: { id: string } | null;
     /** Clic droit (ou touche menu, Maj+F10 sur le résumé) sur une ligne de commit : l'identifiant du commit. */
     oncommitcontextmenu?: (id: string, event: MouseEvent) => void;
     /** Saisie en ligne d'un nom, à la place des étiquettes de la ligne de ce commit. */
@@ -108,19 +117,37 @@
     return () => observer.disconnect();
   });
 
+  /** Fait défiler la liste jusqu'à la ligne du commit `id`, si elle n'est pas déjà entièrement visible. */
+  function scrollToCommit(id: string) {
+    const index = rows.findIndex((c) => c.id === id);
+    const element = rowsElement;
+    if (index < 0 || !element) return;
+    const top = index * ROW;
+    const height = element.clientHeight || FALLBACK_HEIGHT;
+    if (top < element.scrollTop || top + ROW > element.scrollTop + height)
+      element.scrollTop = Math.max(0, top - Math.floor(height / 2));
+  }
+
   // La saisie en ligne s'ouvre sur une ligne que la liste virtualisée peut ne pas montrer : on la fait défiler en vue.
   $effect(() => {
     const id = inline?.commit;
     if (id === undefined) return;
+    untrack(() => scrollToCommit(id));
+  });
+
+  // « Show matches only » change les lignes affichées : le commit sélectionné reste en vue.
+  $effect(() => {
+    void matchesOnly;
     untrack(() => {
-      const index = commits.findIndex((c) => c.id === id);
-      const element = rowsElement;
-      if (index < 0 || !element) return;
-      const top = index * ROW;
-      const height = element.clientHeight || FALLBACK_HEIGHT;
-      if (top < element.scrollTop || top + ROW > element.scrollTop + height)
-        element.scrollTop = Math.max(0, top - Math.floor(height / 2));
+      if (selected !== null) scrollToCommit(selected);
     });
+  });
+
+  // Un résultat de recherche choisi défile de même ; l'objet change à chaque choix, même sur le même commit.
+  $effect(() => {
+    const target = reveal;
+    if (target === null) return;
+    untrack(() => scrollToCommit(target.id));
   });
 
   /** Clic droit sur une ligne de commit (hors étiquette de ref, qui a son propre menu). */
@@ -245,14 +272,13 @@
       ...COLUMNS.filter((c) => shown(c.id)).map((c) => WIDTHS[c.id]),
     ].join(" "),
   );
+  /** Lignes affichées : tout l'historique, ou les seuls résultats de la recherche. */
+  const rows = $derived(matchesOnly ? commits.filter((c) => highlighted.has(c.id)) : commits);
   const first = $derived(Math.max(0, Math.floor(scrollTop / ROW) - OVERSCAN));
   const last = $derived(
-    Math.min(
-      commits.length,
-      Math.ceil((scrollTop + (viewport || FALLBACK_HEIGHT)) / ROW) + OVERSCAN,
-    ),
+    Math.min(rows.length, Math.ceil((scrollTop + (viewport || FALLBACK_HEIGHT)) / ROW) + OVERSCAN),
   );
-  const visible = $derived(commits.slice(first, last));
+  const visible = $derived(rows.slice(first, last));
 
   /** Le nœud WIP se tient sur la lane du commit que HEAD désigne (lane 0 sans commit). */
   const headCommit = $derived.by(() => {
@@ -384,13 +410,15 @@
           </div>
         </div>
       {/if}
-      <div class="spacer" role="list" style="height: {commits.length * ROW}px">
+      <div class="spacer" role="list" style="height: {rows.length * ROW}px">
         {#each visible as commit, i (commit.id)}
           {@const labels = labelMap[commit.id] ?? []}
           <!-- Le clic droit d'une ligne de commit ouvre son menu ; le clavier passe par le résumé (Maj+F10). -->
           <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
           <div
             class="row"
+            class:match={highlighted.has(commit.id)}
+            data-match={highlighted.has(commit.id) ? "" : undefined}
             role="listitem"
             style="--lane: var(--lane-{commit.color + 1}); top: {(first + i) * ROW}px"
             oncontextmenu={(event) => oncommitmenu(commit.id, event)}
@@ -484,6 +512,7 @@
                 type="button"
                 class="summary"
                 data-commit={commit.id}
+                data-matched={highlighted.has(commit.id) ? "" : undefined}
                 aria-current={selected === commit.id ? "true" : undefined}
                 onclick={() => onselect(commit.id)}
                 onkeydown={(e) => {
@@ -692,6 +721,15 @@
   /* La ligne WIP n'est pas virtualisée : elle ferme l'en-tête collant, dans le flux. */
   .row.wip {
     position: relative;
+  }
+
+  /* Résultat de recherche : fond teinté du focus et résumé en gras (jamais la couleur seule) ; la sélection l'emporte. */
+  .row.match .band {
+    background: color-mix(in srgb, var(--focus) 28%, var(--surface));
+  }
+
+  .summary[data-matched] {
+    font-weight: 700;
   }
 
   /* Lien en pointillés du nœud WIP vers le commit que HEAD désigne. */

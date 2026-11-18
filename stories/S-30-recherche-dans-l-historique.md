@@ -60,8 +60,22 @@
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `c88b710`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (tests, lint, build, e2e 260, audit ✅) ; écart ux.md : `SearchBox` en seconde ligne sous le `header` (+40 px) au lieu de dans l'en-tête de la maquette | — |
+| 1 | reviewer | validé avec 2 mineurs (`stories/S-30-revue-1.md`) | validé |
+| 2 | dev | terminé (tests, lint, build ✅) ; 2 mineurs traités, rouge constaté | — |
+| 2 | reviewer | validé, aucun problème (`stories/S-30-revue-2.md`) | validé |
+
+## Décisions de l'humain
+### Écart en attente (passage 1, avant revue 1)
+- Question 1 : `dev` a posé `SearchBox` dans une seconde ligne sous le `header` de `History` (maquette `ux/maquettes/history.html` ligne 112 : dans l'en-tête). Raison : dans le `header`, `.path` s'effondre à 1280 px et `e2e/panel.spec.ts` échoue ; avec `flex-wrap` la hauteur bouge au chargement. Coût : environ 40 px de hauteur. Options : a) accepter la seconde ligne et amender `ux/ecrans/history.md` et la maquette via `/ksm:ux` (proposé) ; b) exiger la position dans l'en-tête (nouveau passage `dev`).
+- Autres écarts de `dev` (commande `search_commit_messages`, fixture `fixtures/search.sh`, compteur `aria-live`, flèches en CSS, choix d'implémentation) : dans la fiche ou sans effet sur un contrat existant ; non transmis au reviewer.
+- Réponse : a) accepter la seconde ligne ; `ux/ecrans/history.md` et la maquette à amender par `/ksm:ux`. L'humain constate aussi que l'en-tête de `History` ne respecte pas du tout la maquette : à reprendre en fin de parcours (18/11/2026).
+
+### Après la revue 1
+- Mineur 1 (README dit « dans l'en-tête » alors que `SearchBox` est en seconde ligne) : traiter (d'office), passage 2.
+- Mineur 2 (Entrée avance depuis le rang de la recherche, pas depuis le commit sélectionné après un clic ailleurs) : traiter (d'office), passage 2 : Entrée part du commit sélectionné s'il est dans les résultats ; sinon comportement actuel ; test à ajouter.

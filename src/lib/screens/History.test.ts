@@ -122,6 +122,7 @@ function props(overrides = {}) {
     onchoose: vi.fn(),
     onhidecolumns: vi.fn(),
     loadDetail: vi.fn(async () => detail()),
+    searchMessages: vi.fn(async (): Promise<string[]> => []),
     ...overrides,
   };
 }
@@ -913,5 +914,179 @@ describe("History", () => {
     await fireEvent.click(screen.getByRole("button", { name: /Merge feature\/profiles/ }));
     const panel = await screen.findByRole("region", { name: "Commit detail" });
     await vi.waitFor(() => expect(panel).toHaveAttribute("data-variant", "merge"));
+  });
+
+  describe("search (J-5)", () => {
+    /** Le dépôt sans stash : `b` (« Main work ») est aussi la cible du stash de `repository`. */
+    const noStash = { ...repository, refs: refs.filter((r) => r.kind !== "stash") };
+    const A = "a".repeat(40);
+    const B = "b".repeat(40);
+    const C = "c".repeat(40);
+
+    const box = () => screen.getByRole("searchbox", { name: "Search history" });
+    const count = () => document.querySelector("[data-search-count]") as HTMLElement;
+    const search = (text: string) => fireEvent.input(box(), { target: { value: text } });
+    const commitRows = () => document.querySelectorAll("[data-commit]");
+    const matched = () =>
+      screen
+        .getAllByRole("listitem")
+        .filter((row) => row.hasAttribute("data-match"))
+        .map((row) => row.textContent);
+    const selectedSummary = () =>
+      screen
+        .getAllByRole("button")
+        .find((b) => b.getAttribute("aria-current") === "true" && b.hasAttribute("data-commit"));
+
+    it("explorer-l-historique CA-17: Cmd+F gives the focus to SearchBox", async () => {
+      render(History, props());
+      expect(box()).not.toHaveFocus();
+      await fireEvent.keyDown(document.body, { key: "f", metaKey: true });
+      expect(box()).toHaveFocus();
+    });
+
+    it("explorer-l-historique CA-17: a plain F does not take the focus", async () => {
+      render(History, props());
+      await fireEvent.keyDown(document.body, { key: "f" });
+      expect(box()).not.toHaveFocus();
+    });
+
+    it("explorer-l-historique CA-18: matching rows are highlighted, case ignored, the counter reads « 1 / n »", async () => {
+      render(History, props({ repository: noStash }));
+      await search("PROFILES");
+      await vi.waitFor(() => expect(count()).toHaveTextContent("1 / 2"));
+      expect(matched()).toHaveLength(2);
+      expect(matched()[0]).toContain("Merge feature/profiles");
+      expect(matched()[1]).toContain("Add profiles");
+    });
+
+    it("explorer-l-historique CA-18: author name and SHA are searched too", async () => {
+      render(History, props({ repository: noStash }));
+      await search("bob durand");
+      await vi.waitFor(() => expect(count()).toHaveTextContent("1 / 1"));
+      expect(matched()).toHaveLength(1);
+      expect(matched()[0]).toContain("Main work");
+    });
+
+    it("explorer-l-historique CA-18: a commit found only by its description is highlighted too", async () => {
+      const searchMessages = vi.fn(async () => [C]);
+      render(History, props({ repository: noStash, searchMessages }));
+      await search("body words");
+      await vi.waitFor(() => expect(count()).toHaveTextContent("1 / 1"));
+      expect(searchMessages).toHaveBeenCalledWith("body words");
+      expect(matched()).toHaveLength(1);
+      expect(matched()[0]).toContain("Add profiles");
+    });
+
+    it("explorer-l-historique CA-18: a failing description search leaves the other matches", async () => {
+      const searchMessages = vi.fn(async () => Promise.reject("boom"));
+      render(History, props({ repository: noStash, searchMessages }));
+      await search("profiles");
+      await vi.waitFor(() => expect(count()).toHaveTextContent("1 / 2"));
+    });
+
+    it("explorer-l-historique CA-18: a stash line is never a result", async () => {
+      render(History, props());
+      await search("Main work");
+      await vi.waitFor(() => expect(count()).toHaveTextContent("No results"));
+      expect(matched()).toEqual([]);
+    });
+
+    it("explorer-l-historique CA-19: Enter selects the next result, Shift+Enter the previous, the counter follows", async () => {
+      const p = props({ repository: noStash });
+      render(History, p);
+      await search("profiles");
+      await vi.waitFor(() => expect(count()).toHaveTextContent("1 / 2"));
+      expect(selectedSummary()).toHaveTextContent("Merge feature/profiles");
+      await fireEvent.keyDown(box(), { key: "Enter" });
+      expect(count()).toHaveTextContent("2 / 2");
+      expect(selectedSummary()).toHaveTextContent("Add profiles");
+      expect(p.loadDetail).toHaveBeenLastCalledWith(C);
+      await fireEvent.keyDown(box(), { key: "Enter", shiftKey: true });
+      expect(count()).toHaveTextContent("1 / 2");
+      expect(selectedSummary()).toHaveTextContent("Merge feature/profiles");
+      expect(p.loadDetail).toHaveBeenLastCalledWith(A);
+    });
+
+    it("explorer-l-historique CA-19: Enter steps from the selected commit when it is a result, not from the last search position", async () => {
+      render(History, props({ repository: noStash }));
+      await search("profiles");
+      await vi.waitFor(() => expect(count()).toHaveTextContent("1 / 2"));
+      const row = screen
+        .getAllByRole("button")
+        .find((b) => b.hasAttribute("data-commit") && b.textContent?.includes("Add profiles"));
+      await fireEvent.click(row as HTMLElement);
+      await vi.waitFor(() => expect(selectedSummary()).toHaveTextContent("Add profiles"));
+      await fireEvent.keyDown(box(), { key: "Enter" });
+      expect(count()).toHaveTextContent("1 / 2");
+      expect(selectedSummary()).toHaveTextContent("Merge feature/profiles");
+    });
+
+    it("explorer-l-historique CA-19: Enter after the last result goes back to the first", async () => {
+      render(History, props({ repository: noStash }));
+      await search("profiles");
+      await vi.waitFor(() => expect(count()).toHaveTextContent("1 / 2"));
+      await fireEvent.keyDown(box(), { key: "Enter" });
+      await fireEvent.keyDown(box(), { key: "Enter" });
+      expect(count()).toHaveTextContent("1 / 2");
+      expect(selectedSummary()).toHaveTextContent("Merge feature/profiles");
+    });
+
+    it("explorer-l-historique CA-20: a full SHA selects its commit and opens its detail", async () => {
+      const p = props({ repository: noStash });
+      render(History, p);
+      await search(C);
+      await vi.waitFor(() => expect(selectedSummary()).toHaveTextContent("Add profiles"));
+      expect(p.loadDetail).toHaveBeenLastCalledWith(C);
+      expect(count()).toHaveTextContent("1 / 1");
+    });
+
+    it("explorer-l-historique CA-20: an abbreviated SHA does the same", async () => {
+      const p = props({ repository: noStash });
+      render(History, p);
+      await search("bbbbbbb");
+      await vi.waitFor(() => expect(selectedSummary()).toHaveTextContent("Main work"));
+      expect(p.loadDetail).toHaveBeenLastCalledWith(B);
+    });
+
+    it("explorer-l-historique CA-21: no result says so and the selection does not change", async () => {
+      const p = props({ repository: noStash });
+      render(History, p);
+      await fireEvent.click(screen.getByRole("button", { name: /Add profiles/ }));
+      await search("zzz");
+      await vi.waitFor(() => expect(count()).toHaveTextContent("No results"));
+      expect(selectedSummary()).toHaveTextContent("Add profiles");
+      expect(p.loadDetail).toHaveBeenCalledTimes(1);
+      expect(matched()).toEqual([]);
+    });
+
+    it("explorer-l-historique CA-22: « Show matches only » keeps only the result rows, unchecking restores all", async () => {
+      render(History, props({ repository: noStash }));
+      await search("profiles");
+      await vi.waitFor(() => expect(count()).toHaveTextContent("1 / 2"));
+      expect(commitRows()).toHaveLength(3);
+      const only = screen.getByRole("checkbox", { name: "Show matches only" });
+      await fireEvent.click(only);
+      expect(commitRows()).toHaveLength(2);
+      expect(screen.queryByRole("button", { name: /Main work/ })).toBeNull();
+      await fireEvent.click(only);
+      expect(commitRows()).toHaveLength(3);
+    });
+
+    it("explorer-l-historique CA-22: with no result the filter leaves every row", async () => {
+      render(History, props({ repository: noStash }));
+      await fireEvent.click(screen.getByRole("checkbox", { name: "Show matches only" }));
+      await search("zzz");
+      await vi.waitFor(() => expect(count()).toHaveTextContent("No results"));
+      expect(commitRows()).toHaveLength(3);
+    });
+
+    it("clearing the search removes the highlight and the counter", async () => {
+      render(History, props({ repository: noStash }));
+      await search("profiles");
+      await vi.waitFor(() => expect(count()).toHaveTextContent("1 / 2"));
+      await search("");
+      await vi.waitFor(() => expect(count().textContent).toBe(""));
+      expect(matched()).toEqual([]);
+    });
   });
 });

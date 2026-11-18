@@ -327,6 +327,27 @@ pub fn read_commits(path: &Path, limit: usize) -> Result<Vec<CommitInfo>, GitErr
     Ok(commits)
 }
 
+/// Identifiants, dans l'ordre du graphe (`read_commits`, même `limit`), des commits dont le message
+/// complet (résumé et description) contient `query`, sans tenir compte de la casse. Vide si `query` l'est.
+pub fn search_messages(path: &Path, query: &str, limit: usize) -> Result<Vec<String>, GitError> {
+    let commits = read_commits(path, limit)?;
+    let needle = query.to_lowercase();
+    if needle.is_empty() {
+        return Ok(Vec::new());
+    }
+    let repo = gix::open(path).map_err(|_| GitError::NotARepository)?;
+    let mut found = Vec::new();
+    for info in commits {
+        let oid = gix::ObjectId::from_hex(info.id.as_bytes()).map_err(|e| read_error(&e))?;
+        let commit = repo.find_commit(oid).map_err(|e| read_error(&e))?;
+        let message = commit.message_raw().map_err(|e| read_error(&e))?;
+        if message.to_string().to_lowercase().contains(&needle) {
+            found.push(info.id);
+        }
+    }
+    Ok(found)
+}
+
 /// Détail d'un commit : message, auteur, date, signature présente ou non, fichiers modifiés.
 pub fn read_commit_detail(path: &Path, id: &str) -> Result<CommitDetailInfo, GitError> {
     let repo = gix::open(path).map_err(|_| GitError::NotARepository)?;
@@ -519,6 +540,44 @@ mod tests {
             ]
         );
         assert_eq!(commits[0].id.len(), 40);
+    }
+
+    #[test]
+    fn explorer_l_historique_ca_18_message_search_reads_the_description_ignoring_case() {
+        let fixture = Fixture::new("search.sh");
+        let commits = read_commits(&fixture.0, 1000).unwrap();
+        let id_of = |summary: &str| commits[by_summary(&commits, summary)].id.clone();
+        // « NOTIFY » n'est que dans le corps du commit « Refactor watcher » ; les autres l'ont dans le résumé.
+        assert_eq!(
+            search_messages(&fixture.0, "notify", 1000).unwrap(),
+            vec![
+                id_of("Drop notify"),
+                id_of("Tune notify debounce"),
+                id_of("Refactor watcher"),
+                id_of("Add notify watcher"),
+            ]
+        );
+        assert_eq!(
+            search_messages(&fixture.0, "the notify CRATE", 1000).unwrap(),
+            vec![id_of("Refactor watcher")]
+        );
+        assert_eq!(
+            search_messages(&fixture.0, "", 1000).unwrap(),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            search_messages(&fixture.0, "no such words", 1000).unwrap(),
+            Vec::<String>::new()
+        );
+        // Même plage que le graphe : seuls les `limit` commits les plus récents sont lus.
+        assert_eq!(
+            search_messages(&fixture.0, "notify", 20).unwrap(),
+            vec![id_of("Drop notify")]
+        );
+        assert!(matches!(
+            search_messages(Path::new("/nonexistent"), "notify", 10),
+            Err(GitError::NotARepository)
+        ));
     }
 
     fn by_summary(commits: &[CommitInfo], summary: &str) -> usize {

@@ -379,6 +379,15 @@ pub fn get_commit_detail(path: String, id: String) -> Result<CommitDetailView, S
     detail::commit_detail(Path::new(&path), &id)
 }
 
+/// Identifiants, dans l'ordre du graphe, des commits du dépôt `path` dont le message complet (résumé et
+/// description) contient `query`, sans tenir compte de la casse (`SearchBox`) ; même plage que le graphe.
+#[tauri::command]
+#[specta::specta]
+pub fn search_commit_messages(path: String, query: String) -> Result<Vec<String>, String> {
+    octogit_git::search_messages(Path::new(&path), &query, crate::launch::COMMIT_LIMIT)
+        .map_err(|e| e.to_string())
+}
+
 /// Diff du fichier `file` dans le commit `commit` du dépôt `path` (`DiffView`, mode commit), en lecture seule.
 #[tauri::command]
 #[specta::specta]

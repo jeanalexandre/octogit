@@ -49,6 +49,7 @@ export class Workspace {
       | "identity"
       | "wide"
       | "large"
+      | "search"
       | "wip",
     name = "my-repo",
   ): string {

@@ -116,6 +116,12 @@ struct DetailArgs {
 }
 
 #[derive(Deserialize)]
+struct SearchArgs {
+    path: String,
+    query: String,
+}
+
+#[derive(Deserialize)]
 struct FileDiffArgs {
     path: String,
     commit: String,
@@ -443,6 +449,13 @@ fn main() {
             let args: DetailArgs = serde_json::from_str(&input).expect("arguments { path, id }");
             match octogit_app::commands::get_commit_detail(args.path, args.id) {
                 Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "search_commit_messages" => {
+            let args: SearchArgs = serde_json::from_str(&input).expect("arguments { path, query }");
+            match octogit_app::commands::search_commit_messages(args.path, args.query) {
+                Ok(ids) => (serde_json::to_string(&ids), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }
         }

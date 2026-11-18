@@ -20,6 +20,8 @@
   import ProfileBadge from "../components/ProfileBadge.svelte";
   import PushButton from "../components/PushButton.svelte";
   import RepoPicker from "../components/RepoPicker.svelte";
+  import SearchBox from "../components/SearchBox.svelte";
+  import { searchResults, shaTarget, stepPosition } from "../search";
   import SyncButton from "../components/SyncButton.svelte";
   import Toolbar from "../components/Toolbar.svelte";
   import WorkingChanges from "../components/WorkingChanges.svelte";
@@ -55,6 +57,7 @@
     checkoutNotice = null,
     checkoutStarts = 0,
     loadDetail,
+    searchMessages = async () => [],
     workingTree = null,
     onstageall,
     onunstageall,
@@ -82,6 +85,8 @@
     onforcepush,
     onopendiff,
   }: {
+    /** Identifiants des commits du dépôt affiché dont le message complet (description comprise) contient la saisie, sans casse ; rejette si la lecture échoue. */
+    searchMessages?: (query: string) => Promise<string[]>;
     /** Clic sur un fichier de `CommitDetail` : ouvre `DiffView` (mode commit) sur ce fichier, par-dessus `History`. */
     onopendiff?: (open: {
       commit: string;
@@ -210,7 +215,10 @@
       if (open !== lastOpen) {
         selectWip();
         // Un autre dépôt s'ouvre : une saisie en cours ne le suit pas (celle posée avant le premier rendu reste).
-        if (lastOpen !== undefined) branchInput = null;
+        if (lastOpen !== undefined) {
+          branchInput = null;
+          resetSearch();
+        }
       }
       lastOpen = open;
     });
@@ -243,6 +251,97 @@
   }
 
   const current = $derived(repository.refs.find((r) => r.kind === "branch" && r.current));
+
+  /** Délai entre la dernière frappe et la lecture des descriptions par le cœur (une lecture par pause, pas par touche). */
+  const SEARCH_DELAY = 150;
+  let searchBox: ReturnType<typeof SearchBox> | undefined = $state();
+  /** Saisie affichée. */
+  let query = $state("");
+  let matchesOnly = $state(false);
+  /** Saisie lue (sans espaces autour) avec les commits dont la description correspond : ce que les résultats reflètent. */
+  let settled = $state({ query: "", described: new Set<string>() });
+  /** Rang (depuis 0) du résultat sélectionné par la recherche. */
+  let position = $state(0);
+  /** Change à chaque résultat choisi : le graphe défile alors jusqu'à lui. */
+  let reveal: { id: string } | null = $state(null);
+  let searchSeq = 0;
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => () => clearTimeout(searchTimer));
+
+  /** Les lignes de stash ne sont pas des résultats de recherche de message. */
+  const stashTargets = $derived(
+    new Set(repository.refs.filter((r) => r.kind === "stash").map((r) => r.target)),
+  );
+  const results = $derived(
+    searchResults(repository.commits, settled.query, settled.described, stashTargets),
+  );
+  const resultSet = $derived(new Set(results));
+  const active = $derived(results.length === 0 ? 0 : Math.min(position, results.length - 1));
+
+  /** Sélectionne le résultat de rang `rank` et y fait défiler le graphe. */
+  function pick(list: string[], rank: number) {
+    position = rank;
+    void select(list[rank]);
+    reveal = { id: list[rank] };
+  }
+
+  /** La saisie est lue : ses résultats s'affichent, le premier (ou le commit d'un SHA collé) est sélectionné. */
+  function settle(text: string, described: Set<string>) {
+    settled = { query: text, described };
+    const list = searchResults(repository.commits, text, described, stashTargets);
+    if (list.length === 0) {
+      position = 0;
+      return;
+    }
+    const target = shaTarget(repository.commits, text);
+    const at = target === null ? -1 : list.indexOf(target);
+    pick(list, Math.max(0, at));
+  }
+
+  function typeSearch(value: string) {
+    query = value;
+    const text = value.trim();
+    const seq = ++searchSeq;
+    clearTimeout(searchTimer);
+    if (text === "") {
+      settle("", new Set());
+      return;
+    }
+    searchTimer = setTimeout(async () => {
+      let ids: string[] = [];
+      try {
+        ids = await searchMessages(text);
+      } catch {
+        // Sans la lecture des descriptions, le résumé, l'auteur et le SHA restent cherchés.
+      }
+      if (seq === searchSeq) settle(text, new Set(ids));
+    }, SEARCH_DELAY);
+  }
+
+  function stepSearch(delta: 1 | -1) {
+    if (results.length === 0) return;
+    // Le commit sélectionné, s'il est un résultat, est le point de départ ; sinon la position de la recherche.
+    const at = selected === null ? -1 : results.indexOf(selected);
+    pick(results, stepPosition(at >= 0 ? at : active, results.length, delta));
+  }
+
+  function resetSearch() {
+    query = "";
+    matchesOnly = false;
+    searchSeq += 1;
+    clearTimeout(searchTimer);
+    settled = { query: "", described: new Set() };
+    position = 0;
+    reveal = null;
+  }
+
+  /** Cmd+F : le focus va à `SearchBox`, sa saisie est sélectionnée. */
+  function onkeydown(event: KeyboardEvent) {
+    if (event.metaKey && !event.ctrlKey && !event.altKey && event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      searchBox?.focus();
+    }
+  }
 
   /** Message sous le champ de la saisie en ligne ; la réponse d'une vérification périmée est ignorée. */
   let inputMessage: string | null = $state(null);
@@ -365,6 +464,8 @@
   );
 </script>
 
+<svelte:window {onkeydown} />
+
 <main class="history">
   <header>
     <h1 class="visually-hidden">{repository.name}</h1>
@@ -425,6 +526,21 @@
     </div>
   </header>
 
+  <!-- Seconde ligne de l'en-tête : la première est pleine à 1 280 px, la recherche ne doit pas lui prendre de place. -->
+  <div class="searchbar">
+    <SearchBox
+      bind:this={searchBox}
+      value={query}
+      total={settled.query === "" || settled.query !== query.trim() ? null : results.length}
+      position={results.length === 0 ? 0 : active + 1}
+      {matchesOnly}
+      oninput={typeSearch}
+      onnext={() => stepSearch(1)}
+      onprevious={() => stepSearch(-1)}
+      onmatchesonly={(checked) => (matchesOnly = checked)}
+    />
+  </div>
+
   {#if error}
     <p class="error" role="alert">{error}</p>
   {/if}
@@ -465,6 +581,9 @@
       {oncommitcontextmenu}
       {inline}
       {faults}
+      highlighted={resultSet}
+      matchesOnly={matchesOnly && results.length > 0}
+      {reveal}
       wip={{ count: changedFiles }}
       {wipSelected}
       onselectwip={selectWip}
@@ -527,6 +646,13 @@
     align-items: baseline;
     gap: 12px;
     padding: 12px 16px;
+    background: var(--surface-raised);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .searchbar {
+    display: flex;
+    padding: 6px 16px;
     background: var(--surface-raised);
     border-bottom: 1px solid var(--border);
   }

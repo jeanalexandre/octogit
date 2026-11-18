@@ -62,6 +62,11 @@ export const commands = {
 	getCommitDetail: (path: string, id: string) => typedError<CommitDetailView, string>(__TAURI_INVOKE("get_commit_detail", { path, id })),
 	/**  Diff du fichier `file` dans le commit `commit` du dépôt `path` (`DiffView`, mode commit), en lecture seule. */
 	commitFileDiff: (path: string, commit: string, file: string) => typedError<FileDiffView_Serialize, string>(__TAURI_INVOKE("commit_file_diff", { path, commit, file })),
+	/**
+	 *  Identifiants, dans l'ordre du graphe, des commits du dépôt `path` dont le message complet (résumé et
+	 *  description) contient `query`, sans tenir compte de la casse (`SearchBox`) ; même plage que le graphe.
+	 */
+	searchCommitMessages: (path: string, query: string) => typedError<string[], string>(__TAURI_INVOKE("search_commit_messages", { path, query })),
 	/**  Fichiers non indexés et indexés du dépôt `path` (`WorkingChanges`, compteur de la ligne WIP). */
 	getWorkingTree: (path: string) => typedError<WorkingTreeView, string>(__TAURI_INVOKE("get_working_tree", { path })),
 	/**  Stage all : tout l'arbre de travail passe dans l'index ; rend le nouvel état. */

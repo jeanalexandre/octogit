@@ -2,7 +2,7 @@
 
 > Aucun profil de type : hérite du seul `profil-stack.md` (commun). Ce fichier documente tous les choix du projet.
 > `/story` refuse de démarrer tant qu'un champ reste à renseigner.
-> Version du profil de stack utilisée : `0.28.0`
+> Version du profil de stack utilisée : `0.33.0`
 > Validé par l'humain le 08/11/2026.
 > Révisions : 08/11/2026 — reports des specs : J-17 (`specs/demarrer-un-depot.md` : `xcode-select --install`, revérification, reprise en 5 s) ; icônes Lucide ; détection des changements par `notify` ; graphe en liste virtualisée HTML et lanes SVG ; intégrations macOS par plugins Tauri et `keyring` (`platform` dépend désormais de Tauri).
 > Révisions : 08/11/2026 — amendement de S-1 (décisions de l'humain) : Node 26.13.0 et pnpm 12.18.0 fixés ; dépendances d'outillage acceptées (voir Commandes de qualité) ; exception d'audit GHSA-gcqx-w48m-w2h4.
@@ -10,6 +10,7 @@
 > Révisions : 12/11/2026 — méthode 0.25.0 : variables du créneau d'un worktree passées par `.env.local` (lu par Node natif) au lieu d'un préfixe de commande ; commandes qui ont besoin du créneau lancées seulement par un script pnpm ; `pnpm tauri dev` non isolé (port 1420).
 > Révisions : 13/11/2026 — méthode 0.28.0 : ligne « Tests ciblés » ajoutée (`pnpm test:js`, `pnpm test:rs -p <crate>`, `pnpm e2e <fichier>`), scripts déjà présents.
 > Révisions : 16/11/2026 — décision de l'humain en S-16 : `repo-config-changed` émis aussi sur les écritures d'Octogit dans `.git/config` (relecture de l'écart seulement), exception au principe « écritures d'Octogit ignorées » de la détection par `notify`.
+> Révisions : 18/11/2026 — méthode 0.33.0 : ligne « Sortie des tests » ajoutée (héritée : échecs et résumé seulement) ; drapeaux dans les scripts (choix de l'humain) : `cargo test -q`, `vitest run --reporter=dot`, `playwright test --reporter=dot` pour `pnpm test`, `pnpm e2e`, `pnpm test:js`, `pnpm test:rs`. Reports du 17/11/2026 de `specs/proteger-l-identite.md` et `specs/configurer-les-profils.md` (présence ou absence de chaque clé locale, évaluation des règles de tous les profils, comparaison des quatre valeurs avant réécriture) intégrés sans changement technique.
 
 ## Type
 - Type de projet : application de bureau, macOS seulement pour la première version (d'autres systèmes ne sont pas exclus ensuite)
@@ -56,12 +57,13 @@
 - Dépendances d'outillage acceptées (choix de l'humain, 08/11/2026, S-1) : Rust `serde`, `serde_json`, `specta`, `specta-typescript` ; JavaScript `@sveltejs/vite-plugin-svelte`, `vite`, `typescript`, `svelte-check`, `@tauri-apps/api`, `@tauri-apps/cli`, `jsdom`, `@testing-library/jest-dom`, `@eslint/js`, `globals`, `@types/node` ; surcharge `minimatch >= 11.0.1`.
 - Lint (choix de l'humain) : `cargo clippy` avec les avertissements en erreur ; ESLint avec `eslint-plugin-svelte` (dont règles d'accessibilité) et `typescript-eslint`. `pnpm lint` (= `cargo clippy --workspace --all-targets -- -D warnings` puis `eslint .`).
 - Formatage (choix de l'humain) : `rustfmt` ; Prettier avec `prettier-plugin-svelte`. `pnpm format` (écrit) ; `pnpm format:check` (= `cargo fmt --all --check` puis `prettier --check .`).
-- Tests unitaires (choix de l'humain) : `cargo test` (workspace, crates sans Tauri) ; Vitest avec Testing Library pour Svelte. `pnpm test` (= `cargo test --workspace` puis `vitest run`).
-- Tests de bout en bout (choix de l'humain) : Playwright sur l'interface Svelte servie dans Chromium ; en mode test, ses appels Tauri passent par un pont local qui exécute les vraies commandes du crate `app` sur des dépôts temporaires, avec le faux `ssh` (`tauri-driver` ne fonctionne pas sur macOS). Non couverts : fenêtre Tauri, menu natif, trousseau (tests manuels). `pnpm e2e` (= `playwright test --trace off`).
-- Tests ciblés (choix de l'humain, 13/11/2026 ; seule forme permise à `dev` et au reviewer pour un test isolé) : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`, voir Isolement d'un worktree).
+- Tests unitaires (choix de l'humain) : `cargo test` (workspace, crates sans Tauri) ; Vitest avec Testing Library pour Svelte. `pnpm test` (= `cargo test --workspace -q` puis `vitest run --reporter=dot`).
+- Tests de bout en bout (choix de l'humain) : Playwright sur l'interface Svelte servie dans Chromium ; en mode test, ses appels Tauri passent par un pont local qui exécute les vraies commandes du crate `app` sur des dépôts temporaires, avec le faux `ssh` (`tauri-driver` ne fonctionne pas sur macOS). Non couverts : fenêtre Tauri, menu natif, trousseau (tests manuels). `pnpm e2e` (= `playwright test --trace off --reporter=dot`).
+- Tests ciblés (choix de l'humain, 13/11/2026 ; seule forme permise à `dev` et au reviewer pour un test isolé) : Vitest `pnpm test:js <fichier> [-t <nom>]` (= `vitest run --reporter=dot`) ; Rust `pnpm test:rs -p <crate> [<filtre>]` (= `cargo test -q`) ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`, voir Isolement d'un worktree).
 - Audit des dépendances (choix de l'humain) : `cargo audit` (base RustSec) et `pnpm audit`. `pnpm audit:deps`. Exception acceptée (choix de l'humain, 08/11/2026) : GHSA-gcqx-w48m-w2h4 (`deepmerge`, faible, outil de build, sans correctif) dans `auditConfig.ignoreGhsas` de `pnpm-workspace.yaml` (pnpm 12 ne lit plus le champ `pnpm` de `package.json` ; la surcharge `minimatch` y est aussi), à retirer dès qu'un correctif existe.
 - Build : `pnpm tauri build` (vérifie aussi `pnpm check`, contrôle de types Svelte et TypeScript).
 - Fichiers générés (produits par une commande, exclus du formatage et du lint, jamais édités à la main) : `src/lib/bindings.ts`, par `pnpm gen:bindings` (aussi régénéré par `pnpm tauri dev`).
+- Sortie des tests : échecs et résumé seulement, jamais une ligne par test vert (hérité) ; drapeaux portés par les scripts de `package.json` (`-q` pour cargo, `--reporter=dot` pour Vitest et Playwright), pas par les fichiers de configuration (choix de l'humain, 18/11/2026).
 - Mise à jour des dépendances (choix de l'humain) : Dependabot (Cargo et pnpm, hebdomadaire, groupée), fichier `.github/dependabot.yml` créé par une story.
 - Exigences avant de clore une story (choix de l'humain) : pas de seuil de couverture chiffré ; chaque critère d'acceptation traité par la story couvert par au moins un test (unitaire ou e2e) ; parcours e2e touchés par la story obligatoires et verts ; lint, formatage, audit et build verts.
 - Variables des tests : fixées dans les commandes ci-dessus ou dans un fichier versionné, jamais héritées du shell (hérité)

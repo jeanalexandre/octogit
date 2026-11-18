@@ -76,7 +76,17 @@
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `43bbecd`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : 8 fichiers, tests et e2e verts, rouge non constaté | — |
+| 2 | reviewer | revue 1 : 1 bloquant (aucun test ne distingue la branche courante de `commits[0]`) ; e2e instables hors story (badge-menu CA-11, refs-column CA-18) | à corriger |
+| 3 | dev | passage 2 : 2 tests discriminants (branche courante vs `commits[0]`), rouge constaté ; tests, lint, build, e2e 272/272 verts | — |
+| 4 | reviewer | revue 2 : aucun problème, interface conforme aux deux tailles | validé |
+
+## Décisions de l'humain
+
+### Après la revue 2
+- Libellé de la ligne WIP tronqué au 1 280×720 (« 3 change… ») : pris en compte (pour information), non introduit par la story, peut-être résolu par S-69.
+- e2e instables `badge-menu` CA-11 et `refs-column` CA-18 dans un `pnpm e2e` complet : pris en compte (pour information), à surveiller.

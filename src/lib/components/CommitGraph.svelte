@@ -288,11 +288,7 @@
   const wipLane = $derived(headCommit?.lane ?? 0);
   const wipColor = $derived(headCommit?.color ?? 0);
   const wipLabel = $derived(
-    wip?.count == null
-      ? ""
-      : wip.count === 0
-        ? "No changes"
-        : `${wip.count} changed ${wip.count === 1 ? "file" : "files"}`,
+    wip?.count ? `${wip.count} changed ${wip.count === 1 ? "file" : "files"}` : "",
   );
 
   /** Tronçon à angles droits et coude arrondi ; la ligne fait `ROW` de haut, le nœud est à mi-hauteur. */

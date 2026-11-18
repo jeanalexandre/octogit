@@ -108,6 +108,7 @@ const clean: WorkingTreeView = { unstaged: [], staged: [] };
 
 /** Ligne WIP, en tête du graphe. */
 const wipRow = () => screen.getByRole("button", { name: /WIP/ });
+const wipRow_ = () => screen.queryByRole("button", { name: /WIP/ });
 
 /** Profil rattaché et conforme : Push et Commit ne sont pas bloqués par l'identité. */
 const attached = { id: "p1", name: "Work", color: 0, conform: true };
@@ -212,18 +213,19 @@ describe("History", () => {
     expect(screen.getByText("Unstaged · 3")).toBeInTheDocument();
   });
 
-  it("preparer-un-commit CA-11: a clean tree shows No changes on the WIP row and a disabled Commit and Stash", () => {
-    render(History, props({ workingTree: clean }));
-    expect(wipRow()).toHaveTextContent("No changes");
-    expect(screen.getByText("Working tree clean.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Commit to develop" })).toBeDisabled();
-    const header = screen.getByRole("banner");
-    expect(within(header).getByRole("button", { name: "Stash" })).toBeDisabled();
+  it("preparer-un-commit CA-11: a clean tree disables Stash in the header, and WorkingChanges only says clean without any commit", () => {
+    const { unmount } = render(History, props({ workingTree: clean }));
+    expect(screen.queryByText("Working tree clean.")).toBeNull();
     expect(
-      within(screen.getByRole("region", { name: "Working changes" })).queryByRole("button", {
-        name: "Stash",
-      }),
-    ).toBeNull();
+      within(screen.getByRole("banner")).getByRole("button", { name: "Stash" }),
+    ).toBeDisabled();
+    unmount();
+    render(
+      History,
+      props({ repository: { ...repository, commits: [], refs: [] }, workingTree: clean }),
+    );
+    expect(screen.getByText("Working tree clean.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Commit/ })).toBeDisabled();
   });
 
   it("preparer-un-commit CA-2: clicking the WIP row replaces CommitDetail by WorkingChanges, and the reverse", async () => {
@@ -274,11 +276,145 @@ describe("History", () => {
     expect(onunstageall).toHaveBeenCalledTimes(1);
   });
 
-  it("without a working tree yet, the WIP row is there without a count and the panel waits", () => {
+  it("without a working tree yet, there is no WIP row and no panel, and nothing is selected", () => {
     render(History, props());
-    expect(wipRow()).toHaveTextContent("WIP");
-    expect(wipRow()).not.toHaveTextContent("changed");
+    expect(wipRow_()).toBeNull();
     expect(screen.queryByText("Working tree clean.")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Working changes" })).toBeNull();
+  });
+
+  it("explorer-l-historique CA-31: a clean tree has no WIP row and selects the last commit of the current branch with its CommitDetail", async () => {
+    const loadDetail = vi.fn(async () => detail({ id: "a".repeat(40) }));
+    render(History, props({ workingTree: clean, loadDetail }));
+    expect(wipRow_()).toBeNull();
+    expect(screen.queryByText("No changes")).toBeNull();
+    expect(screen.getByRole("button", { name: /Merge feature\/profiles/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    expect(loadDetail).toHaveBeenCalledWith("a".repeat(40));
+    expect(await screen.findByRole("region", { name: "Commit detail" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Working changes" })).toBeNull();
+  });
+
+  it("explorer-l-historique CA-31: a commit chosen before the tree is read stays selected when the clean tree arrives", async () => {
+    const view = render(History, props());
+    await fireEvent.click(screen.getByRole("button", { name: /Main work/ }));
+    await view.rerender({ workingTree: clean });
+    expect(screen.getByRole("button", { name: /Main work/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
+  it("explorer-l-historique CA-32: a change appearing keeps the selection and the panel, and clicking WIP shows WorkingChanges", async () => {
+    const view = render(History, props({ workingTree: clean }));
+    await screen.findByRole("region", { name: "Commit detail" });
+    await view.rerender({ workingTree: { unstaged: [extra], staged: [] } });
+    expect(wipRow()).toHaveTextContent("1 changed file");
+    expect(wipRow()).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("button", { name: /Merge feature\/profiles/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    expect(screen.getByRole("region", { name: "Commit detail" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Working changes" })).toBeNull();
+    await fireEvent.click(wipRow());
+    expect(screen.getByRole("region", { name: "Working changes" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Commit detail" })).toBeNull();
+  });
+
+  it("explorer-l-historique CA-33: Escape keeps the WIP row selected and WorkingChanges shown; a click on a commit shows its CommitDetail", async () => {
+    render(History, props({ workingTree }));
+    await fireEvent.keyDown(wipRow(), { key: "Escape" });
+    await fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(wipRow()).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("region", { name: "Working changes" })).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole("button", { name: /Main work/ }));
+    expect(await screen.findByRole("region", { name: "Commit detail" })).toBeInTheDocument();
+  });
+
+  it("explorer-l-historique CA-34: a repository without commit has only the WIP row in its graph", () => {
+    render(
+      History,
+      props({ repository: { ...repository, commits: [], refs: [] }, workingTree: clean }),
+    );
+    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+    expect(wipRow()).toHaveAttribute("aria-current", "true");
+    expect(wipRow()).not.toHaveTextContent("No changes");
+  });
+
+  it("explorer-l-historique CA-35: when the tree becomes clean with WIP selected, the WIP row goes and the last commit is selected", async () => {
+    const view = render(History, props({ workingTree }));
+    expect(wipRow()).toHaveAttribute("aria-current", "true");
+    await view.rerender({ workingTree: clean });
+    expect(wipRow_()).toBeNull();
+    expect(screen.getByRole("button", { name: /Merge feature\/profiles/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    expect(await screen.findByRole("region", { name: "Commit detail" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Working changes" })).toBeNull();
+  });
+
+  it("explorer-l-historique CA-35: after a Commit, the commit just created is the one selected", async () => {
+    const view = render(History, props({ workingTree }));
+    const created = {
+      ...repository.commits[0],
+      id: "d".repeat(40),
+      summary: "New commit",
+    };
+    await view.rerender({
+      repository: {
+        ...repository,
+        commits: [created, ...repository.commits],
+        refs: refs.map((r) => (r.current ? { ...r, target: created.id } : r)),
+      },
+      workingTree: clean,
+    });
+    expect(wipRow_()).toBeNull();
+    expect(screen.getByRole("button", { name: /New commit/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
+  // La branche courante pointe « Main work », pas le commit le plus récent du graphe (commits[0], sur une autre ref).
+  const currentOnB = {
+    ...repository,
+    refs: refs.map((r) =>
+      r.current
+        ? { ...r, target: "b".repeat(40) }
+        : r.name === "feature/profiles"
+          ? { ...r, target: "a".repeat(40) }
+          : r,
+    ),
+  };
+
+  it("explorer-l-historique CA-31: the selected commit is the one the current branch points to, not the first of the graph", async () => {
+    const loadDetail = vi.fn(async () => detail({ id: "b".repeat(40) }));
+    render(History, props({ repository: currentOnB, workingTree: clean, loadDetail }));
+    expect(screen.getByRole("button", { name: /Main work/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /Merge feature\/profiles/ })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(loadDetail).toHaveBeenCalledWith("b".repeat(40));
+  });
+
+  it("explorer-l-historique CA-35: when the tree becomes clean, the commit of the current branch is selected, not the first of the graph", async () => {
+    const view = render(History, props({ repository: currentOnB, workingTree }));
+    await view.rerender({ workingTree: clean });
+    expect(wipRow_()).toBeNull();
+    expect(screen.getByRole("button", { name: /Main work/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /Merge feature\/profiles/ })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 
   it("switches repository through the RepoPicker", async () => {

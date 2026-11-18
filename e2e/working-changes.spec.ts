@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { Workspace } from "./helpers";
@@ -136,21 +136,73 @@ test("preparer-un-commit CA-5 : Stage all indexe tout, Unstage all fait l'invers
   await expect(wip(page)).toContainText("3 changed files");
 });
 
-test("preparer-un-commit CA-11 : arbre propre, « Working tree clean. », Commit et Stash désactivés", async ({
+const lastCommit = (page: Page) => page.getByRole("button", { name: /Fix parser bug/ });
+const detail = (page: Page) => page.getByRole("region", { name: "Commit detail" });
+
+/** Ouvre un dépôt propre : attend le dernier commit sélectionné (la ligne WIP n'existe pas). */
+async function openClean(page: Page) {
+  const repo = ws.repo("simple");
+  ws.rememberRecent([repo]);
+  await page.goto(ws.url);
+  await expect(lastCommit(page)).toHaveAttribute("aria-current", "true");
+  return repo;
+}
+
+test("explorer-l-historique CA-31 et preparer-un-commit CA-1 : arbre propre, pas de ligne WIP, dernier commit sélectionné avec son CommitDetail", async ({
   page,
 }) => {
-  await open(page, "simple");
-  await expect(wip(page)).toContainText("No changes");
-  await expect(panel(page).getByText("Working tree clean.")).toBeVisible();
-  await expect(panel(page).getByRole("button", { name: "Commit to main" })).toBeDisabled();
+  await openClean(page);
+  await expect(detail(page)).toBeVisible();
+  await expect(wip(page)).toHaveCount(0);
+  await expect(page.getByText("No changes")).toHaveCount(0);
+  await expect(panel(page)).toHaveCount(0);
   await expect(page.locator("header").getByRole("button", { name: "Stash" })).toBeDisabled();
-  await expect(panel(page).getByRole("button", { name: "Stash" })).toHaveCount(0);
-  await expect(
-    panel(page).getByRole("heading", { name: "Working changes", exact: true }),
-  ).toBeVisible();
 });
 
-test("preparer-un-commit CA-11 : un dépôt sans commit n'a que la ligne WIP, sans « No commits yet. »", async ({
+test("explorer-l-historique CA-32 et preparer-un-commit CA-2 : un fichier modifié hors d'Octogit fait apparaître la ligne WIP en moins de 1 s, sans changer la sélection", async ({
+  page,
+}) => {
+  const repo = await openClean(page);
+  await expect(detail(page)).toBeVisible();
+  writeFileSync(join(repo, "from-an-editor.txt"), "typed in an editor\n");
+  await expect(wip(page)).toContainText("1 changed file", { timeout: 1000 });
+  await expect(wip(page)).not.toHaveAttribute("aria-current", "true");
+  await expect(lastCommit(page)).toHaveAttribute("aria-current", "true");
+  await expect(detail(page)).toBeVisible();
+  await expect(panel(page)).toHaveCount(0);
+
+  await wip(page).click();
+  await expect(panel(page)).toBeVisible();
+  await expect(detail(page)).toHaveCount(0);
+});
+
+test("explorer-l-historique CA-33 : Échap garde la ligne WIP sélectionnée et WorkingChanges ; un clic sur un commit affiche son CommitDetail", async ({
+  page,
+}) => {
+  await open(page, "wip");
+  await page.keyboard.press("Escape");
+  await expect(wip(page)).toHaveAttribute("aria-current", "true");
+  await expect(panel(page)).toBeVisible();
+  await page.getByRole("button", { name: /Add parser/ }).click();
+  await expect(detail(page)).toBeVisible();
+});
+
+test("explorer-l-historique CA-35 : un changement externe qui annule les modifications retire la ligne WIP en moins de 1 s et sélectionne le dernier commit", async ({
+  page,
+}) => {
+  const repo = await openClean(page);
+  const file = join(repo, "from-an-editor.txt");
+  writeFileSync(file, "typed in an editor\n");
+  await wip(page).click({ timeout: 2000 });
+  await expect(panel(page)).toBeVisible();
+  rmSync(file);
+  await expect(wip(page)).toHaveCount(0, { timeout: 1000 });
+  await expect(lastCommit(page)).toHaveAttribute("aria-current", "true");
+  await expect(detail(page)).toBeVisible();
+  await expect(panel(page)).toHaveCount(0);
+});
+
+test("explorer-l-historique CA-34 et preparer-un-commit CA-11 : un dépôt sans commit n'a que la ligne WIP, « Working tree clean. » et Commit désactivé", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1500, height: 900 });
@@ -158,7 +210,9 @@ test("preparer-un-commit CA-11 : un dépôt sans commit n'a que la ligne WIP, sa
   await expect(wip(page)).toHaveAttribute("aria-current", "true");
   await expect(page.getByRole("listitem")).toHaveCount(0);
   await expect(page.getByText("No commits yet.")).toHaveCount(0);
+  await expect(wip(page)).not.toContainText("No changes");
   await expect(panel(page).getByText("Working tree clean.")).toBeVisible();
+  await expect(panel(page).getByRole("button", { name: /^Commit/ })).toBeDisabled();
   // Un premier fichier créé hors d'Octogit apparaît tout seul.
   const repo = join(ws.root, "my-repo");
   writeFileSync(join(repo, "first.txt"), "hello\n");

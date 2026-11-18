@@ -139,7 +139,8 @@ test("explorer-l-historique CA-2 : RepoPicker change de dépôt dans la même pa
   await page.getByRole("menuitem", { name: /repo-b/ }).click();
 
   await expect(page.getByRole("heading", { name: "repo-b" })).toBeVisible();
-  const rows = page.getByRole("listitem");
+  // Les lignes du graphe seulement : le CommitDetail du dernier commit (arbre propre) a sa liste de fichiers.
+  const rows = page.getByRole("listitem").filter({ has: page.locator("[data-commit]") });
   // Le graphe montre toutes les branches : « Other side » (branche `other`) y est aussi.
   await expect(rows).toHaveCount(3);
   await expect(rows.nth(0)).toContainText("Main side");
@@ -165,5 +166,7 @@ test("explorer-l-historique CA-2 : un dossier non Git choisi depuis History est 
 
   await expect(page.getByRole("alert")).toHaveText("notes is not a Git repository.");
   await expect(page.getByRole("heading", { name: "repo-a" })).toBeVisible();
-  await expect(page.getByRole("listitem")).toHaveCount(3);
+  await expect(
+    page.getByRole("listitem").filter({ has: page.locator("[data-commit]") }),
+  ).toHaveCount(3);
 });

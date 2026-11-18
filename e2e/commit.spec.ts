@@ -75,6 +75,20 @@ for (const size of sizes) {
   });
 }
 
+test("explorer-l-historique CA-35 : un Commit qui rend l'arbre propre retire la ligne WIP et sélectionne le commit créé", async ({
+  page,
+}) => {
+  await open(page);
+  await panel(page).getByRole("button", { name: "Stage all", exact: true }).click();
+  await expect(panel(page).getByRole("heading", { name: "Staged · 3" })).toBeVisible();
+  await summary(page).fill("feat: last change");
+  await commitButton(page).click();
+  await expect(commitRow(page, "feat: last change")).toHaveAttribute("aria-current", "true");
+  await expect(page.getByRole("button", { name: /^WIP/ })).toHaveCount(0);
+  await expect(panel(page)).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Commit detail" })).toBeVisible();
+});
+
 test("preparer-un-commit CA-13 : Cmd+Entrée depuis le résumé, puis depuis la description, commite", async ({
   page,
 }) => {

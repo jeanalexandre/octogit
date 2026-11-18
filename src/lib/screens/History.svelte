@@ -208,11 +208,14 @@
   let detail: CommitDetailView | null = $state(null);
   let detailError: string | null = $state(null);
 
+  /** Vrai de l'ouverture d'un dépôt jusqu'à la première lecture de l'arbre : la sélection initiale en dépend. */
+  let initialPending = true;
   let lastOpen: unknown = undefined;
   $effect.pre(() => {
     const open = openId;
     untrack(() => {
       if (open !== lastOpen) {
+        initialPending = true;
         selectWip();
         // Un autre dépôt s'ouvre : une saisie en cours ne le suit pas (celle posée avant le premier rendu reste).
         if (lastOpen !== undefined) {
@@ -237,7 +240,34 @@
       : new Set([...workingTree.unstaged, ...workingTree.staged].map((f) => f.path)).size,
   );
 
+  const current = $derived(repository.refs.find((r) => r.kind === "branch" && r.current));
+
+  /** Dernier commit de la branche courante (à défaut, le premier du graphe). */
+  const lastCommitId = $derived(
+    repository.commits.find((c) => c.id === current?.target)?.id ??
+      repository.commits[0]?.id ??
+      null,
+  );
+
+  /** La ligne WIP n'existe que s'il y a des changements, ou seule dans un dépôt sans commit. */
+  const showWip = $derived(repository.commits.length === 0 || (changedFiles ?? 0) > 0);
+
+  // Arbre propre : le dernier commit est sélectionné à l'ouverture, et quand l'arbre le devient avec la ligne WIP sélectionnée.
+  $effect.pre(() => {
+    void openId;
+    const files = changedFiles;
+    const last = lastCommitId;
+    untrack(() => {
+      if (files === null) return;
+      const first = initialPending;
+      initialPending = false;
+      if (files === 0 && last !== null && (first || wipSelected)) void select(last);
+    });
+  });
+
   async function select(id: string) {
+    // Un choix fait avant la lecture de l'arbre n'est pas écrasé par la sélection initiale.
+    initialPending = false;
     wipSelected = false;
     selected = id;
     detail = null;
@@ -249,8 +279,6 @@
       if (selected === id) detailError = typeof e === "string" ? e : "Could not read this commit.";
     }
   }
-
-  const current = $derived(repository.refs.find((r) => r.kind === "branch" && r.current));
 
   /** Délai entre la dernière frappe et la lecture des descriptions par le cœur (une lecture par pause, pas par touche). */
   const SEARCH_DELAY = 150;
@@ -584,7 +612,7 @@
       highlighted={resultSet}
       matchesOnly={matchesOnly && results.length > 0}
       {reveal}
-      wip={{ count: changedFiles }}
+      wip={showWip ? { count: changedFiles } : null}
       {wipSelected}
       onselectwip={selectWip}
     />

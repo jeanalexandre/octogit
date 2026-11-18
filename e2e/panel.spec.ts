@@ -146,6 +146,8 @@ for (const size of sizes) {
   }) => {
     await page.setViewportSize(size);
     await openRepo(page, [ws.repo("layout")]);
+    // Arbre propre : le CommitDetail du dernier commit s'affiche, la mesure attend sa place.
+    await expect(page.getByRole("region", { name: "Commit detail" })).toBeVisible();
     await sidebar(page).getByRole("button", { name: "Collapse branches panel" }).click();
     await expect(icon(page, "Local")).toBeVisible();
     const before = await graphGeometry(page);

@@ -142,6 +142,85 @@ for (const size of sizes) {
   });
 }
 
+/** Dépôt rattaché à Pro par règle, dont le `.git/config` n'a que `user.email` (celui de Pro). */
+function emailOnlyRepo(): string {
+  const repo = ws.repo("branches", "Dev/work/app");
+  ws.clearLocalIdentity(repo);
+  ws.setLocalConfig(repo, "user.email", "pro@example.org");
+  ws.rememberProfiles([
+    { name: "Pro", rules: [{ kind: "path", pattern: `${ws.root}/Dev/**` }] },
+    "Perso",
+  ]);
+  return repo;
+}
+
+test("proteger-l-identite CA-29 : une identité locale partielle ouvre IdentityMismatch à chaque ouverture, rien n'est complété, Overwrite écrit ensuite", async ({
+  page,
+}) => {
+  const repo = emailOnlyRepo();
+  ws.rememberLastRepository(repo);
+  const before = ws.gitConfigBytes(repo);
+  const badge = page.getByRole("group", { name: "Profile", exact: true });
+  const dialog = page.getByRole("dialog");
+
+  await page.goto(ws.url);
+
+  await expect(dialog.getByRole("heading", { name: title })).toBeVisible();
+  await expect(dialog.getByRole("row").filter({ hasText: "differs" }).first()).toBeVisible();
+  expect(ws.gitConfigBytes(repo).equals(before)).toBe(true);
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(badge).toHaveText("⚠ Pro · identity mismatch");
+
+  // Relance : même écart, toujours rien d'écrit.
+  await page.goto(ws.url);
+  await expect(dialog.getByRole("heading", { name: title })).toBeVisible();
+  expect(ws.gitConfigBytes(repo).equals(before)).toBe(true);
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+
+  // Choisir Perso (menu) puis Reset to rules : écart chaque fois, rien d'écrit.
+  await badge.getByRole("button").click();
+  await page.getByRole("menuitemradio", { name: "Perso" }).click();
+  await expect(
+    dialog.getByRole("heading", { name: "Local Git config differs from profile Perso" }),
+  ).toBeVisible();
+  expect(ws.gitConfigBytes(repo).equals(before)).toBe(true);
+  // Relance : le choix manuel de Perso est gardé, l'écart revient ; le menu s'ouvre sur une page au repos.
+  await page.goto(ws.url);
+  await expect(
+    dialog.getByRole("heading", { name: "Local Git config differs from profile Perso" }),
+  ).toBeVisible();
+  expect(ws.gitConfigBytes(repo).equals(before)).toBe(true);
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(badge).toHaveText("⚠ Perso · identity mismatch");
+  await badge.getByRole("button").click();
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.getByRole("menuitem", { name: "Reset to rules" }).click();
+  await expect(dialog.getByRole("heading", { name: title })).toBeVisible();
+  expect(ws.gitConfigBytes(repo).equals(before)).toBe(true);
+
+  await dialog.getByRole("button", { name: "Overwrite with profile Pro" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(badge).toHaveText("Pro");
+  expect(ws.localConfig(repo, "user.name")).toBe("Pro User");
+});
+
+test("proteger-l-identite CA-29 : Recent affiche le badge non conforme d'un dépôt à identité locale partielle, sans rien écrire", async ({
+  page,
+}) => {
+  const repo = emailOnlyRepo();
+  ws.rememberRecent([ws.plainFolder("gone"), repo]);
+  const before = ws.gitConfigBytes(repo);
+
+  await page.goto(ws.url);
+
+  await expect(page.getByRole("heading", { name: "Welcome to Octogit" })).toBeVisible();
+  await expect(
+    page.getByRole("listitem").nth(1).getByRole("group", { name: "Profile", exact: true }),
+  ).toHaveText("⚠ Pro · identity mismatch");
+  expect(ws.gitConfigBytes(repo).equals(before)).toBe(true);
+});
+
 test("proteger-l-identite CA-5 : plusieurs écarts sont tous marqués, Échap ferme sans rien écrire", async ({
   page,
 }) => {

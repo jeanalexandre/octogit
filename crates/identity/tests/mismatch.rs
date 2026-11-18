@@ -127,6 +127,29 @@ fn proteger_l_identite_ca_5_each_of_the_four_values_can_be_the_only_difference()
 }
 
 #[test]
+fn proteger_l_identite_ca_29_a_missing_value_is_the_row_marked_when_nothing_else_differs() {
+    let sb = Sandbox::new("absent-row");
+    let repo = sb.repo();
+    git(&repo, &["config", "--local", "user.name", "Work User"]);
+    git(
+        &repo,
+        &["config", "--local", "user.email", "work@example.org"],
+    );
+    git(&repo, &["config", "--local", "commit.gpgsign", "false"]);
+    let expected = expected_values(&work(false), &sb.home).unwrap();
+
+    let rows = setting_rows(&expected, &read_local(&repo, &sb.home).unwrap());
+
+    let differing: Vec<&str> = rows
+        .iter()
+        .filter(|r| r.differs)
+        .map(|r| r.setting)
+        .collect();
+    assert_eq!(differing, ["core.sshCommand"]);
+    assert_eq!(rows[2].local, None);
+}
+
+#[test]
 fn proteger_l_identite_ca_6_overwrite_writes_every_profile_value_and_drops_signing_keys() {
     let sb = Sandbox::new("overwrite");
     let repo = sb.repo();

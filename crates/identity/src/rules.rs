@@ -38,29 +38,33 @@ impl MatchingRule {
     }
 }
 
-/// Premier profil de la liste dont une règle correspond au dépôt (l'ordre de la liste départage).
-pub fn first_matching_profile<'a>(
+/// Profil dont une règle correspond au dépôt, seulement si les règles d'un seul profil correspondent ;
+/// celles de plusieurs profils : aucun (« No profile »). L'ordre de la liste ne départage rien.
+pub fn unique_matching_profile<'a>(
     profiles: &'a [Profile],
     repo: &Path,
     origin_url: Option<&str>,
     home: &Path,
 ) -> Option<&'a Profile> {
-    first_matching_rule(profiles, repo, origin_url, home).map(|(profile, _)| profile)
+    unique_matching_rule(profiles, repo, origin_url, home).map(|(profile, _)| profile)
 }
 
-/// Comme `first_matching_profile`, avec la première règle de ce profil qui correspond (l'origine du rattachement).
-pub fn first_matching_rule<'a>(
+/// Comme `unique_matching_profile`, avec la première règle de ce profil qui correspond (l'origine du
+/// rattachement). Plusieurs règles du même profil qui correspondent comptent pour une seule correspondance.
+pub fn unique_matching_rule<'a>(
     profiles: &'a [Profile],
     repo: &Path,
     origin_url: Option<&str>,
     home: &Path,
 ) -> Option<(&'a Profile, &'a MatchingRule)> {
-    profiles.iter().find_map(|p| {
+    let mut matches = profiles.iter().filter_map(|p| {
         p.rules
             .iter()
             .find(|r| r.matches(repo, origin_url, home))
             .map(|r| (p, r))
-    })
+    });
+    let first = matches.next()?;
+    matches.next().is_none().then_some(first)
 }
 
 fn chars(text: &str) -> Vec<char> {

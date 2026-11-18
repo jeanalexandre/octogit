@@ -151,6 +151,23 @@ pub fn compare(expected: &Expected, local: &LocalValues) -> ApplyOutcome {
     }
 }
 
+/// Les trois clés dont la présence interdit toute écriture sans dialogue.
+const IDENTITY_KEYS: [&str; 3] = ["user.name", "user.email", "core.sshCommand"];
+
+fn has_local_identity(local: &LocalValues) -> bool {
+    IDENTITY_KEYS.iter().any(|k| local.contains_key(k))
+}
+
+/// Comparaison du rattachement (ouverture, choix dans le menu, Reset to rules) : comme `compare`, mais dès que
+/// `user.name`, `user.email` ou `core.sshCommand` existe localement, des valeurs absentes sont aussi un écart
+/// (`Differs`) : rien n'est complété. `Written` : aucune de ces trois clés, les valeurs peuvent être écrites.
+pub fn compare_for_attach(expected: &Expected, local: &LocalValues) -> ApplyOutcome {
+    match compare(expected, local) {
+        ApplyOutcome::Written if has_local_identity(local) => ApplyOutcome::Differs,
+        outcome => outcome,
+    }
+}
+
 /// Une ligne du tableau de `IdentityMismatch` : un des quatre réglages, côté profil et côté local.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SettingRow {
@@ -171,13 +188,23 @@ pub fn setting_rows(expected: &Expected, local: &LocalValues) -> Vec<SettingRow>
             .iter()
             .any(|k| local.get(k).is_some_and(|v| Some(v.clone()) != wanted(k)))
     };
+    // Un écart dû seulement à des valeurs absentes (une des trois clés existe) : les lignes dont une valeur
+    // manque portent l'écart, sinon le tableau n'a aucune ligne en évidence.
+    let absent_only = has_local_identity(local) && !GROUPS.iter().any(|g| differs(g));
+    let flagged = |group: &[&str]| {
+        differs(group)
+            || (absent_only
+                && group
+                    .iter()
+                    .any(|k| wanted(k).is_some() && !local.contains_key(k)))
+    };
     let single = |index: usize, setting: &'static str| {
         let key = GROUPS[index][0];
         SettingRow {
             setting,
             profile: wanted(key).unwrap_or_default(),
             local: local.get(key).cloned(),
-            differs: differs(GROUPS[index]),
+            differs: flagged(GROUPS[index]),
         }
     };
     let signing_profile = if wanted("commit.gpgsign").as_deref() == Some("true") {
@@ -212,7 +239,7 @@ pub fn setting_rows(expected: &Expected, local: &LocalValues) -> Vec<SettingRow>
             setting: "signing",
             profile: signing_profile.to_string(),
             local: signing_local,
-            differs: differs(GROUPS[3]),
+            differs: flagged(GROUPS[3]),
         },
     ]
 }
@@ -337,13 +364,15 @@ pub fn propagate_profile(
     Ok(true)
 }
 
-/// Écrit l'identité de `profile` dans le `.git/config` local de `repo` : seules les clés absentes, une à
-/// une par `git config --local`, rien d'autre. Conforme : aucune écriture. Une valeur locale qui diffère
-/// du profil : aucune écriture non plus.
+/// Écrit l'identité de `profile` dans le `.git/config` local de `repo`, sans dialogue, seulement si aucune de
+/// `user.name`, `user.email`, `core.sshCommand` n'existe : les clés absentes, une à une par
+/// `git config --local`, rien d'autre. Conforme : aucune écriture. Une valeur locale qui diffère du profil, ou
+/// une de ces trois clés présente sans que les quatre valeurs soient celles du profil (valeur absente
+/// comprise) : `Differs`, aucune écriture non plus.
 pub fn apply_profile(repo: &Path, profile: &Profile, home: &Path) -> Result<ApplyOutcome, String> {
     let expected = expected_values(profile, home)?;
     let local = read_local(repo, home)?;
-    let outcome = compare(&expected, &local);
+    let outcome = compare_for_attach(&expected, &local);
     if outcome != ApplyOutcome::Written {
         return Ok(outcome);
     }

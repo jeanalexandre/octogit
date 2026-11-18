@@ -56,8 +56,16 @@
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `3095e3d`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : tests, lint, build, e2e 227/227, audit, tauri build ✅ ; écarts internes (`unique_matching_*`, `compare_for_attach`, `IdentityMismatch.svelte` « not set » + « ≠ differs » exigé par CA-29) | — |
+| 1 | reviewer | tous critères couverts, aucun problème ; 1 point « à décider » (libellé « premier profil » dans `ux.md` J-12, maquette `profile-settings.html`, `MatchingRuleList`) | validé |
+
+## Décisions de l'humain
+
+### Après la revue 1
+- Libellé « premier profil » (`ux.md` J-12, `ux/maquettes/profile-settings.html` section 3, `MatchingRuleList.svelte`) devenu faux : correction de `ux.md` et de la maquette par `/ksm:ux`, puis du libellé du composant ; renvoi vers `/ksm:ux`, la story est finie sans ce point (d'office).
+- Course préexistante de `App.svelte` (menu du badge refermé si rouvert avant la fin de `applyAttachment`), signalée par `dev`, hors périmètre : pour information.

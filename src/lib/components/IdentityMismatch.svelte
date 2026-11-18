@@ -91,6 +91,9 @@
             <td>
               {#if row.local === null}
                 <span class="muted">not set</span>
+                {#if row.differs}
+                  <span class="mark"><span aria-hidden="true">≠</span> differs</span>
+                {/if}
               {:else if row.differs}
                 <strong class="mono">{row.local}</strong>
                 <span class="mark"><span aria-hidden="true">≠</span> differs</span>

@@ -68,12 +68,46 @@ for (const size of sizes) {
     ]);
   });
 
-  test(`proteger-l-identite CA-1 : le premier profil à règle correspondante est rattaché et affiché (${size.width}x${size.height})`, async ({
+  test(`proteger-l-identite CA-1 : les règles de deux profils correspondent, « No profile », aucune écriture, quel que soit l'ordre (${size.width}x${size.height})`, async ({
     page,
   }) => {
     await page.setViewportSize(size);
     const repo = ws.repo("branches", "Dev/client-x/app");
     ws.setOrigin(repo, "git@github.com:client-x/app.git");
+    ws.clearLocalIdentity(repo);
+    const pro = {
+      name: "Pro",
+      rules: [{ kind: "path" as const, pattern: `${ws.root}/Dev/**` }],
+    };
+    const clientX = {
+      name: "Client X",
+      rules: [{ kind: "remote_owner" as const, pattern: "github.com/client-x/*" }],
+    };
+    ws.rememberLastRepository(repo);
+    const before = ws.gitConfigBytes(repo);
+
+    for (const profiles of [
+      [pro, clientX],
+      [clientX, pro],
+    ]) {
+      ws.rememberProfiles(profiles);
+      await page.goto(ws.url);
+
+      await expect(page.getByRole("heading", { name: "app" })).toBeVisible();
+      await expect(page.getByRole("group", { name: "Profile", exact: true })).toHaveText(
+        "No profile",
+      );
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(ws.gitConfigBytes(repo).equals(before)).toBe(true);
+    }
+  });
+
+  test(`proteger-l-identite CA-1 : une seule règle de profil correspond, le dépôt est rattaché à Pro (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const repo = ws.repo("branches", "Dev/app");
+    ws.setOrigin(repo, "git@github.com:someone/app.git");
     ws.clearLocalIdentity(repo);
     ws.rememberProfiles([
       { name: "Pro", rules: [{ kind: "path", pattern: `${ws.root}/Dev/**` }] },

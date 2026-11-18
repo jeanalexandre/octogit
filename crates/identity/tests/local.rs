@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use octogit_identity::local::overwrite_profile;
 use octogit_identity::{apply_profile, ApplyOutcome, Profile};
 
 struct Sandbox {
@@ -174,6 +175,41 @@ fn a_config_already_conform_is_left_byte_for_byte_identical() {
 
     assert_eq!(outcome, ApplyOutcome::Conform);
     assert_eq!(fs::read(repo.join(".git/config")).unwrap(), before);
+}
+
+#[test]
+fn proteger_l_identite_ca_29_a_lone_local_email_is_a_mismatch_and_nothing_is_completed() {
+    let sb = Sandbox::new("ca29-email");
+    let repo = sb.repo();
+    git(
+        &repo,
+        &["config", "--local", "user.email", "work@example.org"],
+    );
+    let before = fs::read(repo.join(".git/config")).unwrap();
+
+    let outcome = apply_profile(&repo, &work(false), &sb.home).unwrap();
+
+    assert_eq!(outcome, ApplyOutcome::Differs);
+    assert_eq!(fs::read(repo.join(".git/config")).unwrap(), before);
+}
+
+#[test]
+fn proteger_l_identite_ca_29_a_missing_ssh_command_alone_is_a_mismatch_and_nothing_is_completed() {
+    let sb = Sandbox::new("ca29-ssh");
+    let repo = sb.repo();
+    git(&repo, &["config", "--local", "user.name", "Work User"]);
+    git(
+        &repo,
+        &["config", "--local", "user.email", "work@example.org"],
+    );
+    let before = fs::read(repo.join(".git/config")).unwrap();
+
+    let outcome = apply_profile(&repo, &work(false), &sb.home).unwrap();
+
+    assert_eq!(outcome, ApplyOutcome::Differs);
+    assert_eq!(fs::read(repo.join(".git/config")).unwrap(), before);
+    overwrite_profile(&repo, &work(false), &sb.home).unwrap();
+    assert!(local(&repo, "core.sshCommand").contains("id_work"));
 }
 
 #[test]

@@ -1,13 +1,16 @@
-//! Rattachement d'un dépôt ouvert à un profil : le choix manuel mémorisé, sinon le premier profil dont une
-//! règle correspond ; puis écriture de son identité dans le `.git/config` local, ou `IdentityMismatch` si
-//! une valeur locale diffère. Aucune dépendance au runtime Tauri ; `~/.gitconfig` jamais touché.
+//! Rattachement d'un dépôt ouvert à un profil : le choix manuel mémorisé, sinon le profil dont les règles
+//! correspondent, s'il est le seul ; puis écriture de son identité dans le `.git/config` local si aucune de
+//! `user.name`, `user.email`, `core.sshCommand` n'existe, ou `IdentityMismatch` sinon (valeur absente comprise). Aucune dépendance au runtime Tauri ; `~/.gitconfig` jamais touché.
 
 use std::path::Path;
 
 use octogit_identity::local::{
-    compare, expected_values, imported_config, overwrite_profile, read_local, setting_rows,
+    compare_for_attach, expected_values, imported_config, overwrite_profile, read_local,
+    setting_rows,
 };
-use octogit_identity::{first_matching_rule, read_origin_url, ApplyOutcome, MatchingRule, Profile};
+use octogit_identity::{
+    read_origin_url, unique_matching_rule, ApplyOutcome, MatchingRule, Profile,
+};
 use octogit_store::Store;
 use serde::Serialize;
 use specta::Type;
@@ -72,7 +75,8 @@ fn badge(profile: &Profile, conform: bool) -> ProfileBadgeView {
 }
 
 /// Profil du dépôt et origine du rattachement : le choix manuel mémorisé (prioritaire sur les règles ; s'il
-/// désigne un profil supprimé : aucun profil, « No profile »), sinon le premier profil à règle correspondante.
+/// désigne un profil supprimé : aucun profil, « No profile »), sinon le profil dont les règles correspondent,
+/// seulement si ce sont celles d'un seul profil (plusieurs : « No profile », l'ordre ne départage rien).
 pub(crate) fn resolve(
     store: &Store,
     profiles: &[Profile],
@@ -87,7 +91,7 @@ pub(crate) fn resolve(
     }
     let origin = read_origin_url(repo, home);
     let (profile, rule): (&Profile, &MatchingRule) =
-        first_matching_rule(profiles, repo, origin.as_deref(), home)?;
+        unique_matching_rule(profiles, repo, origin.as_deref(), home)?;
     Some((
         profile.clone(),
         OriginView::Rule {
@@ -96,8 +100,10 @@ pub(crate) fn resolve(
     ))
 }
 
-/// L'écart entre le `.git/config` local de `repo` et `profile`, ou `None` si une valeur locale ne diffère
-/// pas (ou si les valeurs ne peuvent pas être lues). Ne lit ni n'écrit rien d'autre.
+/// L'écart entre le `.git/config` local de `repo` et `profile`, ou `None` si le dépôt est conforme ou si aucune
+/// de `user.name`, `user.email`, `core.sshCommand` n'existe et qu'aucune valeur locale ne diffère (l'ouverture
+/// écrit alors les valeurs) ; une de ces clés présente sans les quatre valeurs du profil (valeur absente
+/// comprise) est un écart. `None` aussi si les valeurs ne peuvent pas être lues. Ne lit ni n'écrit rien d'autre.
 fn mismatch_of(
     profile: &Profile,
     origin: OriginView,
@@ -107,7 +113,7 @@ fn mismatch_of(
     let (Ok(expected), Ok(local)) = (expected_values(profile, home), read_local(repo, home)) else {
         return None;
     };
-    (compare(&expected, &local) == ApplyOutcome::Differs).then(|| MismatchView {
+    (compare_for_attach(&expected, &local) == ApplyOutcome::Differs).then(|| MismatchView {
         profile_name: profile.name.clone(),
         path: repo.to_string_lossy().into_owned(),
         origin,
@@ -337,9 +343,10 @@ pub(crate) fn rewrite_targets(
     Some((profile, targets))
 }
 
-/// Profil rattaché à `repo` (`None` : ni choix manuel ni règle, rien n'est écrit). Son identité est écrite
-/// dans le `.git/config` local quand elle manque ; conforme, rien n'est écrit ; une valeur locale qui
-/// diffère n'est jamais écrasée ici : l'écart est rendu pour `IdentityMismatch` (S-11).
+/// Profil rattaché à `repo` (`None` : ni choix manuel ni règle unique, rien n'est écrit). Son identité est
+/// écrite dans le `.git/config` local seulement si aucune de `user.name`, `user.email`, `core.sshCommand`
+/// n'existe ; conforme, rien n'est écrit ; sinon (valeur différente ou absente) rien n'est écrit ni complété :
+/// l'écart est rendu pour `IdentityMismatch`.
 /// Un échec d'écriture n'empêche pas d'ouvrir le dépôt.
 pub fn attach_profile(store: &Store, repo: &Path, home: &Path) -> Option<Attachment> {
     let profiles = store.profiles();
@@ -365,14 +372,15 @@ pub fn attach_profile(store: &Store, repo: &Path, home: &Path) -> Option<Attachm
 
 /// Profil rattaché à `repo` et conformité de son `.git/config` local, lus sans rien écrire (Recent).
 /// Même état que celui qu'aura `History` à l'ouverture : conforme si le `.git/config` local a les valeurs
-/// du profil ou s'il n'en manque que (l'ouverture les écrit) ; non conforme si une valeur locale diffère,
-/// ou si les valeurs du profil ne peuvent pas être calculées ou lues (clé publique manquante d'un profil à
-/// signature : l'ouverture n'écrit rien).
+/// du profil ou si aucune de `user.name`, `user.email`, `core.sshCommand` n'existe (l'ouverture écrit les
+/// valeurs) ; non conforme si une valeur locale diffère, si une de ces clés existe sans que les quatre valeurs
+/// soient celles du profil (valeur absente comprise), ou si les valeurs du profil ne peuvent pas être
+/// calculées ou lues (clé publique manquante d'un profil à signature : l'ouverture n'écrit rien).
 pub fn badge_of(store: &Store, repo: &Path, home: &Path) -> Option<ProfileBadgeView> {
     let profiles = store.profiles();
     let (profile, _) = resolve(store, &profiles, repo, home)?;
     let conform = match (expected_values(&profile, home), read_local(repo, home)) {
-        (Ok(expected), Ok(local)) => compare(&expected, &local) != ApplyOutcome::Differs,
+        (Ok(expected), Ok(local)) => compare_for_attach(&expected, &local) != ApplyOutcome::Differs,
         _ => false,
     };
     Some(badge(&profile, conform))

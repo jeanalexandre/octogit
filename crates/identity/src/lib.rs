@@ -11,7 +11,7 @@ pub mod ssh;
 pub use commit_check::{author_replacement, classify_commit, CommitFault, Signature};
 
 pub use local::{apply_profile, read_origin_url, ApplyOutcome};
-pub use rules::{first_matching_profile, first_matching_rule, MatchingRule, RuleKind};
+pub use rules::{unique_matching_profile, unique_matching_rule, MatchingRule, RuleKind};
 
 /// Profil d'identité : qui commite (`user.name`, `user.email`), avec quelle clé SSH, signé ou non.
 /// L'ordre de la liste des profils est porté par la liste, pas par le profil.

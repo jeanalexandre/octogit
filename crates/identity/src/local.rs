@@ -345,23 +345,38 @@ pub fn overwrite_profile(repo: &Path, profile: &Profile, home: &Path) -> Result<
     Ok(())
 }
 
-/// Modification d'un profil : si le `.git/config` local de `repo` correspond encore à `old` (aucune valeur
-/// locale ne diffère de `old`), écrit les valeurs de `new` et rend `true`. Sinon (réglage changé à la
-/// main, ou valeurs de `old` impossibles à calculer) ne touche à rien et rend `false`.
+/// Résultat de la propagation d'un profil modifié vers un dépôt (contrat interne).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Propagation {
+    /// Les quatre valeurs locales étaient celles de l'ancien profil : celles du nouveau sont écrites.
+    Rewritten,
+    /// Une valeur locale diffère ou manque (alors qu'une autre est présente), ou les valeurs de l'ancien
+    /// profil sont impossibles à calculer : rien n'est écrit, le dépôt est à lister.
+    ChangedByHand,
+    /// Aucune de `user.name`, `user.email`, `core.sshCommand` : dépôt non visé, rien n'est écrit ni listé.
+    NotTargeted,
+}
+
+/// Modification d'un profil : écrit les valeurs de `new` seulement si les quatre valeurs locales de `repo`
+/// sont toutes celles de `old` (une valeur absente est un écart). Sans aucune des trois clés d'identité, le
+/// dépôt n'est pas visé. Dans tous les autres cas, ne touche à rien.
 pub fn propagate_profile(
     repo: &Path,
     old: &Profile,
     new: &Profile,
     home: &Path,
-) -> Result<bool, String> {
+) -> Result<Propagation, String> {
     let (Ok(expected_old), local) = (expected_values(old, home), read_local(repo, home)?) else {
-        return Ok(false);
+        return Ok(Propagation::ChangedByHand);
     };
-    if compare(&expected_old, &local) == ApplyOutcome::Differs {
-        return Ok(false);
+    match compare_for_attach(&expected_old, &local) {
+        ApplyOutcome::Written => Ok(Propagation::NotTargeted),
+        ApplyOutcome::Differs => Ok(Propagation::ChangedByHand),
+        ApplyOutcome::Conform => {
+            overwrite_profile(repo, new, home)?;
+            Ok(Propagation::Rewritten)
+        }
     }
-    overwrite_profile(repo, new, home)?;
-    Ok(true)
 }
 
 /// Écrit l'identité de `profile` dans le `.git/config` local de `repo`, sans dialogue, seulement si aucune de

@@ -69,13 +69,28 @@ for (const size of sizes) {
     expect(ws.readProfilesFile().profiles).toEqual([]);
   });
 
-  test(`configurer-les-profils CA-18 et CA-20 : Save réécrit le dépôt conforme et laisse celui changé à la main, listé puis IdentityMismatch (${size.width}x${size.height})`, async ({
+  test(`configurer-les-profils CA-18 et CA-20 : Save réécrit le dépôt conforme, laisse tels quels celui changé à la main et celui sans core.sshCommand (listés puis IdentityMismatch), ignore celui sans aucune clé (${size.width}x${size.height})`, async ({
     page,
   }) => {
     await page.setViewportSize(size);
     const { api, web } = twoWorkRepos();
+    const cli = ws.repo("simple", "Dev/work/cli");
+    const bare = ws.repo("simple", "Dev/work/bare");
+    ws.clearLocalIdentity(cli);
+    ws.clearLocalIdentity(bare);
+    ws.rememberRecent([ws.plainFolder("gone"), api, web, cli, bare]);
+    const sshCommand = `ssh -F none -i ${process.env.HOME}/.ssh/id_ed25519_1 -o IdentitiesOnly=yes -o IdentityAgent=none`;
+    // Les trois premiers ont les quatre valeurs de Work ; `web` a un e-mail changé à la main, `cli` n'a plus
+    // de core.sshCommand ; `bare` n'a aucune des trois clés.
+    for (const repo of [api, web, cli]) {
+      ws.setLocalConfig(repo, "user.name", "Work User");
+      ws.setLocalConfig(repo, "user.email", "work@example.org");
+      ws.setLocalConfig(repo, "commit.gpgsign", "false");
+      if (repo !== cli) ws.setLocalConfig(repo, "core.sshCommand", sshCommand);
+    }
     ws.setLocalConfig(web, "user.email", "hand@example.org");
-    const webBefore = ws.gitConfigBytes(web);
+    ws.setLocalConfig(bare, "commit.gpgsign", "false");
+    const [webBefore, cliBefore, bareBefore] = [web, cli, bare].map((r) => ws.gitConfigBytes(r));
 
     await page.goto(ws.url);
     await expect(page.getByRole("heading", { name: "Welcome to Octogit" })).toBeVisible();
@@ -84,21 +99,36 @@ for (const size of sizes) {
     await page.getByRole("button", { name: "Save" }).click();
 
     const notice = page.getByRole("status", { name: "Repositories not updated" });
-    await expect(notice).toContainText("1 repository not updated: local settings changed by hand.");
+    await expect(notice).toContainText(
+      "2 repositories not updated: local settings changed by hand.",
+    );
     await expect(notice).toContainText(web);
+    await expect(notice).toContainText(cli);
     await expect(notice).not.toContainText(api);
+    await expect(notice).not.toContainText(bare);
     expect(ws.localConfig(api, "user.email")).toBe("new@example.org");
     expect(ws.localConfig(api, "user.name")).toBe("Work User");
     expect(ws.localConfig(api, "core.sshCommand")).toContain("id_ed25519_1");
     expect(ws.gitConfigBytes(web).equals(webBefore)).toBe(true);
+    expect(ws.gitConfigBytes(cli).equals(cliBefore)).toBe(true);
+    expect(ws.gitConfigBytes(bare).equals(bareBefore)).toBe(true);
 
-    await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: web }).click();
-    await expect(
-      page.getByRole("dialog").getByRole("heading", {
-        name: "Local Git config differs from profile Work",
-      }),
-    ).toBeVisible();
-    expect(ws.gitConfigBytes(web).equals(webBefore)).toBe(true);
+    for (const [repo, before] of [
+      [web, webBefore],
+      [cli, cliBefore],
+    ] as const) {
+      await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: repo }).click();
+      await expect(
+        page.getByRole("dialog").getByRole("heading", {
+          name: "Local Git config differs from profile Work",
+        }),
+      ).toBeVisible();
+      expect(ws.gitConfigBytes(repo).equals(before)).toBe(true);
+      // L'ouverture a placé ce dépôt en tête de Recent : on remet Welcome en premier pour ouvrir le suivant.
+      ws.rememberRecent([ws.plainFolder("gone"), api, web, cli, bare]);
+      await page.goto(ws.url);
+      await expect(page.getByRole("heading", { name: "Welcome to Octogit" })).toBeVisible();
+    }
   });
 }

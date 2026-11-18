@@ -1,10 +1,10 @@
 //! Modifier un profil réécrit le `.git/config` local des dépôts connus (Recent) qui lui sont rattachés et
-//! qui correspondent encore à son ancienne version ; supprimer un profil ne touche aucun `.git/config`.
+//! dont les quatre valeurs sont celles de son ancienne version ; supprimer un profil ne touche aucun `.git/config`.
 //! Aucune dépendance au runtime Tauri ; `~/.gitconfig` jamais touché.
 
 use std::path::{Path, PathBuf};
 
-use octogit_identity::local::{expected_values, propagate_profile};
+use octogit_identity::local::{expected_values, propagate_profile, Propagation};
 use octogit_identity::Profile;
 use octogit_store::Store;
 use serde::Serialize;
@@ -71,8 +71,8 @@ pub fn save_and_propagate(
             for repo in targets {
                 let path = repo.to_string_lossy().into_owned();
                 match propagate_profile(&repo, &old, &new, home) {
-                    Ok(true) => {}
-                    Ok(false) => not_updated.push(path),
+                    Ok(Propagation::Rewritten | Propagation::NotTargeted) => {}
+                    Ok(Propagation::ChangedByHand) => not_updated.push(path),
                     Err(_) => failed.push(path),
                 }
             }
@@ -322,6 +322,87 @@ mod tests {
         assert_eq!(config(&repos[0], "user.email"), "new@example.org");
         let attachment = attach_profile(&store, &repos[1], &ws.home).unwrap();
         assert!(attachment.mismatch.is_some());
+    }
+
+    fn unset(repo: &Path, key: &str) {
+        git(repo, &["config", "--local", "--unset", key]);
+    }
+
+    fn edited(work: &ProfileView) -> ProfileView {
+        ProfileView {
+            user_email: "new@example.org".into(),
+            ..work.clone()
+        }
+    }
+
+    #[test]
+    fn configurer_les_profils_ca_18_a_repository_without_any_identity_key_is_not_targeted() {
+        let ws = Workspace::new("no-keys");
+        let (work, repos) = ws.work_with(&["a", "b"]);
+        for key in ["user.name", "user.email", "core.sshCommand"] {
+            unset(&repos[1], key);
+        }
+        let store = ws.store();
+        let before = bytes(&repos[1]);
+
+        let saved = save_and_propagate(&store, edited(&work), &ws.home).unwrap();
+
+        assert!(saved.not_updated.is_empty());
+        assert!(saved.failed.is_empty());
+        assert_eq!(bytes(&repos[1]), before);
+        assert_eq!(config(&repos[0], "user.email"), "new@example.org");
+    }
+
+    #[test]
+    fn configurer_les_profils_ca_18_a_repository_missing_only_a_value_is_left_byte_for_byte() {
+        let ws = Workspace::new("missing-value");
+        let (work, repos) = ws.work_with(&["a", "b"]);
+        unset(&repos[1], "core.sshCommand");
+        let store = ws.store();
+        let before = bytes(&repos[1]);
+
+        let saved = save_and_propagate(&store, edited(&work), &ws.home).unwrap();
+
+        assert_eq!(saved.not_updated, [repos[1].to_string_lossy().into_owned()]);
+        assert!(saved.failed.is_empty());
+        assert_eq!(bytes(&repos[1]), before);
+    }
+
+    #[test]
+    fn configurer_les_profils_ca_20_two_of_three_repositories_are_left_byte_for_byte_and_listed() {
+        let ws = Workspace::new("three");
+        let (work, repos) = ws.work_with(&["a", "b", "c"]);
+        git(
+            &repos[1],
+            &["config", "--local", "user.email", "hand@x.org"],
+        );
+        unset(&repos[2], "core.sshCommand");
+        let store = ws.store();
+        let before = [bytes(&repos[1]), bytes(&repos[2])];
+
+        let saved = save_and_propagate(&store, edited(&work), &ws.home).unwrap();
+
+        let mut listed = saved.not_updated.clone();
+        listed.sort();
+        assert_eq!(
+            listed,
+            [
+                repos[1].to_string_lossy().into_owned(),
+                repos[2].to_string_lossy().into_owned()
+            ]
+        );
+        assert_eq!(bytes(&repos[1]), before[0]);
+        assert_eq!(bytes(&repos[2]), before[1]);
+        assert_eq!(config(&repos[0], "user.email"), "new@example.org");
+        for repo in &repos[1..] {
+            assert!(attach_profile(&store, repo, &ws.home)
+                .unwrap()
+                .mismatch
+                .is_some());
+            assert!(!config(repo, "user.name").is_empty());
+        }
+        assert_eq!(bytes(&repos[1]), before[0]);
+        assert_eq!(bytes(&repos[2]), before[1]);
     }
 
     #[test]

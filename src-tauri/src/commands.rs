@@ -389,6 +389,35 @@ pub async fn checkout_repository(
     .map_err(|_| "Checkout was interrupted.".to_string())?
 }
 
+/// Verdict sur un nom de branche en cours de saisie (Branch, « Create branch here ») : valide, déjà pris par une
+/// branche locale, ou refusé par Git. Lecture seule.
+#[tauri::command]
+#[specta::specta]
+pub async fn check_branch_name(
+    path: String,
+    name: String,
+) -> Result<fetch::BranchNameCheckView, String> {
+    tauri::async_runtime::spawn_blocking(move || fetch::check_branch_name(Path::new(&path), &name))
+        .await
+        .map_err(|_| "Branch check was interrupted.".to_string())?
+}
+
+/// Crée la branche locale `name` sur le commit `commit` et la rend courante (sans HEAD détachée ni suivi) en
+/// tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne.
+#[tauri::command]
+#[specta::specta]
+pub async fn create_branch_repository(
+    path: String,
+    name: String,
+    commit: String,
+) -> Result<RepositoryView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fetch::create_branch_repository(Path::new(&path), &name, &commit)
+    })
+    .await
+    .map_err(|_| "Branch creation was interrupted.".to_string())?
+}
+
 /// Push de `PushButton` en tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne
 /// (distante en avance, pas d'`origin`…).
 #[tauri::command]

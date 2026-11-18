@@ -790,6 +790,123 @@ describe("History", () => {
     });
   });
 
+  describe("branch creation (J-16)", () => {
+    const tip = "a".repeat(40);
+    const field = () => screen.getByRole("textbox", { name: "Branch name" });
+    const type = (value: string) => fireEvent.input(field(), { target: { value } });
+    const rows = () => screen.getAllByRole("listitem");
+
+    it("gerer-les-branches CA-8: Branch puts an input in place of the label of the tip of the current branch, then Enter creates the branch there", async () => {
+      const oncreatebranch = vi.fn();
+      const checkBranchName = vi.fn(async () => "valid" as const);
+      render(History, props({ oncreatebranch, checkBranchName }));
+      expect(within(rows()[0]).getByText("develop")).toBeInTheDocument();
+      await fireEvent.click(screen.getByRole("button", { name: "Branch" }));
+      expect(within(rows()[0]).getByRole("textbox", { name: "Branch name" })).toHaveFocus();
+      expect(within(rows()[0]).queryByText("develop")).toBeNull();
+      await type("feature/graph");
+      await fireEvent.keyDown(field(), { key: "Enter" });
+      await vi.waitFor(() => expect(oncreatebranch).toHaveBeenCalledTimes(1));
+      expect(oncreatebranch).toHaveBeenCalledWith("feature/graph", tip);
+      expect(checkBranchName).toHaveBeenCalledWith("feature/graph");
+      expect(screen.queryByRole("textbox", { name: "Branch name" })).toBeNull();
+    });
+
+    it("gerer-les-branches CA-9: the right-click and Maj+F10 on a commit ask for its menu, the right-click of a label does not", async () => {
+      const oncommitcontextmenu = vi.fn();
+      const onrefcontextmenu = vi.fn();
+      render(History, props({ oncommitcontextmenu, onrefcontextmenu }));
+      await fireEvent.contextMenu(rows()[1]);
+      expect(oncommitcontextmenu).toHaveBeenCalledTimes(1);
+      expect(oncommitcontextmenu.mock.calls[0][0]).toBe("b".repeat(40));
+      await fireEvent.keyDown(within(rows()[1]).getByRole("button", { name: /Main work/ }), {
+        key: "F10",
+        shiftKey: true,
+      });
+      expect(oncommitcontextmenu).toHaveBeenCalledTimes(2);
+      expect(oncommitcontextmenu.mock.calls[1][0]).toBe("b".repeat(40));
+      await fireEvent.contextMenu(within(rows()[0]).getByText("develop"));
+      expect(onrefcontextmenu).toHaveBeenCalledTimes(1);
+      expect(oncommitcontextmenu).toHaveBeenCalledTimes(2);
+    });
+
+    it("gerer-les-branches CA-9: Create branch here of CommitDetail opens the input on that commit and Enter creates the branch on it", async () => {
+      const oncreatebranch = vi.fn();
+      render(History, props({ oncreatebranch }));
+      await fireEvent.click(screen.getByRole("button", { name: /Main work/ }));
+      await fireEvent.click(await screen.findByRole("button", { name: "Create branch here" }));
+      expect(within(rows()[1]).getByRole("textbox", { name: "Branch name" })).toBeInTheDocument();
+      await type("fix/graph");
+      await fireEvent.keyDown(field(), { key: "Enter" });
+      await vi.waitFor(() =>
+        expect(oncreatebranch).toHaveBeenCalledWith("fix/graph", "b".repeat(40)),
+      );
+    });
+
+    it("gerer-les-branches CA-9: an input requested from outside (menu of a commit) opens on that commit", () => {
+      render(History, props({ branchInput: { commit: "c".repeat(40), source: "row" } }));
+      expect(within(rows()[2]).getByRole("textbox", { name: "Branch name" })).toBeInTheDocument();
+    });
+
+    it("gerer-les-branches CA-10: a name of a local branch shows « Branch develop already exists. » at once and Enter creates nothing", async () => {
+      const oncreatebranch = vi.fn();
+      const checkBranchName = vi.fn(async () => "valid" as const);
+      render(History, props({ oncreatebranch, checkBranchName }));
+      await fireEvent.click(screen.getByRole("button", { name: "Branch" }));
+      await type("develop");
+      expect(screen.getByRole("alert")).toHaveTextContent("Branch develop already exists.");
+      await fireEvent.keyDown(field(), { key: "Enter" });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(oncreatebranch).not.toHaveBeenCalled();
+      expect(field()).toBeInTheDocument();
+    });
+
+    it("gerer-les-branches CA-10: a name refused by Git shows « Invalid branch name. », Enter creates nothing, a valid name clears it", async () => {
+      const oncreatebranch = vi.fn();
+      const checkBranchName = vi.fn(async (name: string) =>
+        name.includes(" ") || name.includes("..") ? ("invalid" as const) : ("valid" as const),
+      );
+      render(History, props({ oncreatebranch, checkBranchName }));
+      await fireEvent.click(screen.getByRole("button", { name: "Branch" }));
+      for (const name of ["feature graph", "feature..x"]) {
+        await type(name);
+        expect(await screen.findByRole("alert")).toHaveTextContent("Invalid branch name.");
+        await fireEvent.keyDown(field(), { key: "Enter" });
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(oncreatebranch).not.toHaveBeenCalled();
+        expect(field()).toBeInTheDocument();
+      }
+      await type("feature/graph");
+      await vi.waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    });
+
+    it("gerer-les-branches CA-10: Enter checks the name again, so a name still being checked never slips through", async () => {
+      const oncreatebranch = vi.fn();
+      const checkBranchName = vi.fn(async () => "invalid" as const);
+      render(History, props({ oncreatebranch, checkBranchName }));
+      await fireEvent.click(screen.getByRole("button", { name: "Branch" }));
+      await type("x y");
+      await fireEvent.keyDown(field(), { key: "Enter" });
+      await vi.waitFor(() =>
+        expect(screen.getByRole("alert")).toHaveTextContent("Invalid branch name."),
+      );
+      expect(oncreatebranch).not.toHaveBeenCalled();
+    });
+
+    it("gerer-les-branches CA-11: Escape closes the input, creates nothing and gives the focus back to Branch", async () => {
+      const oncreatebranch = vi.fn();
+      render(History, props({ oncreatebranch }));
+      const button = screen.getByRole("button", { name: "Branch" });
+      await fireEvent.click(button);
+      await type("feature/graph");
+      await fireEvent.keyDown(field(), { key: "Escape" });
+      expect(screen.queryByRole("textbox", { name: "Branch name" })).toBeNull();
+      expect(oncreatebranch).not.toHaveBeenCalled();
+      expect(button).toHaveFocus();
+      expect(within(rows()[0]).getByText("develop")).toBeInTheDocument();
+    });
+  });
+
   it("explorer-l-historique CA-25: a merge commit opens the merge variant", async () => {
     const loadDetail = vi.fn(async () => detail({ parents: ["b".repeat(40), "c".repeat(40)] }));
     render(History, props({ loadDetail }));

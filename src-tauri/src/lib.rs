@@ -101,6 +101,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::fetch_all_repository,
             commands::pull_repository,
             commands::checkout_repository,
+            commands::check_branch_name,
+            commands::create_branch_repository,
             commands::push_repository,
             commands::get_force_push_check,
             commands::force_push_repository,

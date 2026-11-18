@@ -70,6 +70,19 @@ struct CheckoutArgs {
 }
 
 #[derive(Deserialize)]
+struct CheckBranchNameArgs {
+    path: String,
+    name: String,
+}
+
+#[derive(Deserialize)]
+struct CreateBranchArgs {
+    path: String,
+    name: String,
+    commit: String,
+}
+
+#[derive(Deserialize)]
 struct ForcePushArgs {
     path: String,
     expected: String,
@@ -450,6 +463,29 @@ fn main() {
                 std::path::Path::new(&args.path),
                 &args.name,
                 args.choice,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "check_branch_name" => {
+            let args: CheckBranchNameArgs =
+                serde_json::from_str(&input).expect("arguments { path, name }");
+            match octogit_app::fetch::check_branch_name(
+                std::path::Path::new(&args.path),
+                &args.name,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "create_branch_repository" => {
+            let args: CreateBranchArgs =
+                serde_json::from_str(&input).expect("arguments { path, name, commit }");
+            match octogit_app::fetch::create_branch_repository(
+                std::path::Path::new(&args.path),
+                &args.name,
+                &args.commit,
             ) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),

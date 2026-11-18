@@ -2,7 +2,10 @@
   import type { LocalCommitView } from "../bindings";
 
   /** Branche (locale ou `origin/…`) dont le menu est ouvert, avec l'endroit du clic droit (ou de la touche menu). */
-  export type RefMenuTarget = { name: string; kind: "branch" | "remote"; x: number; y: number };
+  export type RefMenuTarget =
+    | { name: string; kind: "branch" | "remote"; x: number; y: number }
+    /** Clic droit sur un commit du graphe : `name` est son SHA abrégé, `commit` l'identifiant complet. */
+    | { name: string; kind: "commit"; commit: string; x: number; y: number };
   /** Une locale de même nom que l'`origin/…` choisie est sur un autre commit : le choix est à faire. */
   export type CheckoutConfirm = { branch: string; remote: string; commits: LocalCommitView[] };
 </script>
@@ -17,6 +20,7 @@
     menu = null,
     confirm = null,
     oncheckout,
+    oncreatebranch,
     onclose,
     onreset,
     onasis,
@@ -26,6 +30,8 @@
     confirm?: CheckoutConfirm | null;
     /** Entrée Checkout : agit comme le double-clic sur la même ref. */
     oncheckout: (name: string) => void;
+    /** Entrée « Create branch here » d'un commit : l'identifiant complet du commit. */
+    oncreatebranch?: (commit: string) => void;
     /** Le menu se ferme (entrée choisie, Échap, clic ailleurs). */
     onclose: () => void;
     /** « Reset and checkout ». */
@@ -41,6 +47,12 @@
   /** Le nom de la ref est figé avec l'entrée : le menu se ferme (`menu` repasse à `null`) avant qu'elle ne s'exécute. */
   const entries: Entry[] = $derived.by(() => {
     if (menu === null) return [];
+    if (menu.kind === "commit") {
+      const { commit } = menu;
+      return [
+        { id: "create-branch", label: "Create branch here", run: () => oncreatebranch?.(commit) },
+      ];
+    }
     const { name } = menu;
     return [{ id: "checkout", label: "Checkout", run: () => oncheckout(name) }];
   });

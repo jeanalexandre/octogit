@@ -1,6 +1,7 @@
 <script lang="ts">
   import ChevronDown from "@lucide/svelte/icons/chevron-down";
   import GitBranch from "@lucide/svelte/icons/git-branch";
+  import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
   import type { RefView } from "../bindings";
 
   /**
@@ -10,10 +11,13 @@
   let {
     refs,
     onselect,
+    onbranch,
   }: {
     refs: RefView[];
     /** Un choix dans la liste : le nom de la branche (le checkout est fait par l'appelant). */
     onselect: (name: string) => void;
+    /** Clic sur Branch : demande la saisie du nom d'une branche à créer sur le sommet de la courante. */
+    onbranch?: () => void;
   } = $props();
 
   let open = $state(false);
@@ -94,6 +98,19 @@
     <span class="current">{current ?? "No branch"}</span>
     <ChevronDown size={14} strokeWidth={1.8} />
   </button>
+  <button
+    type="button"
+    class="trigger branch"
+    data-branch-button
+    disabled={current === null}
+    onclick={() => {
+      close(false);
+      onbranch?.();
+    }}
+  >
+    <GitBranchPlus size={14} strokeWidth={1.8} />
+    <span>Branch</span>
+  </button>
   {#if open}
     <div class="popover">
       <input
@@ -139,7 +156,15 @@
 <style>
   .toolbar {
     position: relative;
+    display: inline-flex;
     flex: none;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .trigger:disabled {
+    color: var(--muted);
+    cursor: default;
   }
 
   .trigger {

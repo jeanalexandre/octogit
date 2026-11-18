@@ -124,6 +124,50 @@ fn checkout_message(error: octogit_git::CheckoutError) -> String {
     }
 }
 
+/// Verdict sur le nom tapé dans la saisie en ligne d'une branche (messages sous le champ, avant toute validation).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum BranchNameCheckView {
+    Valid,
+    /// « Branch <nom> already exists. »
+    Exists,
+    /// « Invalid branch name. »
+    Invalid,
+}
+
+/// Valide `name` comme nom de branche locale : règles de Git, puis unicité parmi les branches locales. N'écrit rien.
+pub fn check_branch_name(path: &Path, name: &str) -> Result<BranchNameCheckView, String> {
+    octogit_git::check_branch_name(path, name)
+        .map(|check| match check {
+            octogit_git::BranchNameCheck::Valid => BranchNameCheckView::Valid,
+            octogit_git::BranchNameCheck::Exists => BranchNameCheckView::Exists,
+            octogit_git::BranchNameCheck::Invalid => BranchNameCheckView::Invalid,
+        })
+        .map_err(branch_message)
+}
+
+/// Crée la branche locale `name` sur `commit`, la rend courante (sans HEAD détachée ni suivi) puis relit le dépôt.
+/// L'erreur est un message d'une ligne (refus de Git : S-51 en fixera le texte, S-53 « Details »).
+pub fn create_branch_repository(
+    path: &Path,
+    name: &str,
+    commit: &str,
+) -> Result<RepositoryView, String> {
+    octogit_git::create_branch(path, name, commit, octogit_git::FETCH_TIMEOUT)
+        .map_err(branch_message)?;
+    repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
+}
+
+fn branch_message(error: octogit_git::BranchError) -> String {
+    match error {
+        octogit_git::BranchError::TimedOut { .. } => "Branch creation timed out.".to_string(),
+        octogit_git::BranchError::Failed { .. } => "Branch creation failed.".to_string(),
+        octogit_git::BranchError::Spawn(_) => "Git could not run.".to_string(),
+        octogit_git::BranchError::Read(_) => "Could not read the repository.".to_string(),
+        other => other.to_string(),
+    }
+}
+
 /// Push de `PushButton` (branche courante vers sa branche suivie, ou publication sur `origin`) puis relecture du
 /// dépôt, toujours rendu : `ahead` et les refs ont bougé. L'erreur est le message d'une ligne affiché près du
 /// bouton (distante en avance, pas d'`origin`…) ; la sortie brute de Git reste dans le crate `git`.

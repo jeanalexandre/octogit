@@ -111,6 +111,20 @@ describe("Toolbar branch selector", () => {
     expect(onselect).toHaveBeenCalledTimes(2);
   });
 
+  it("gerer-les-branches CA-8: Branch asks to create a branch and closes the list of branches", async () => {
+    const onbranch = vi.fn();
+    render(Toolbar, { refs, onselect: vi.fn(), onbranch });
+    await open();
+    await fireEvent.click(screen.getByRole("button", { name: "Branch" }));
+    expect(onbranch).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("gerer-les-branches CA-8: Branch is unavailable without a current branch", () => {
+    render(Toolbar, { refs: refs.filter((r) => !r.current), onselect: vi.fn(), onbranch: vi.fn() });
+    expect(screen.getByRole("button", { name: "Branch" })).toBeDisabled();
+  });
+
   it("gerer-les-branches CA-2: a click outside closes the list", async () => {
     const onselect = vi.fn();
     render(Toolbar, { refs, onselect });

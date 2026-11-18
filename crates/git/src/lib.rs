@@ -1,5 +1,6 @@
 //! Lecture de dépôts Git avec `gix` (graphe, refs). Aucune dépendance à Tauri.
 
+mod branch;
 mod checkout;
 mod fetch;
 mod force_push;
@@ -13,6 +14,7 @@ mod working_tree;
 use std::fmt;
 use std::path::Path;
 
+pub use branch::{check_branch_name, create_branch, BranchError, BranchNameCheck};
 pub use checkout::{
     checkout, plan_checkout, CheckoutChoice, CheckoutError, CheckoutPlan, LocalCommit,
 };

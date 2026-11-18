@@ -93,6 +93,16 @@ export const commands = {
 	 */
 	checkoutRepository: (path: string, name: string, choice: CheckoutChoiceView | null) => typedError<CheckoutOutcomeView_Serialize, string>(__TAURI_INVOKE("checkout_repository", { path, name, choice })),
 	/**
+	 *  Verdict sur un nom de branche en cours de saisie (Branch, « Create branch here ») : valide, déjà pris par une
+	 *  branche locale, ou refusé par Git. Lecture seule.
+	 */
+	checkBranchName: (path: string, name: string) => typedError<BranchNameCheckView, string>(__TAURI_INVOKE("check_branch_name", { path, name })),
+	/**
+	 *  Crée la branche locale `name` sur le commit `commit` et la rend courante (sans HEAD détachée ni suivi) en
+	 *  tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne.
+	 */
+	createBranchRepository: (path: string, name: string, commit: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("create_branch_repository", { path, name, commit })),
+	/**
 	 *  Push de `PushButton` en tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne
 	 *  (distante en avance, pas d'`origin`…).
 	 */
@@ -176,6 +186,13 @@ export type AttachmentView_Serialize = {
 	/**  Le rattachement vient d'un choix manuel (« Reset to rules » est alors actif). */
 	manual: boolean,
 };
+
+/**  Verdict sur le nom tapé dans la saisie en ligne d'une branche (messages sous le champ, avant toute validation). */
+export type BranchNameCheckView = "valid" | 
+/**  « Branch <nom> already exists. » */
+"exists" | 
+/**  « Invalid branch name. » */
+"invalid";
 
 export type ChangeStatusView = "modified" | "added" | "deleted";
 

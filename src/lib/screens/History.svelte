@@ -11,6 +11,7 @@
     SyncAction,
     WorkingTreeView,
   } from "../bindings";
+  import { branchNameMessage, type BranchInput, type BranchNameVerdict } from "../branchInput";
   import BranchSidebar from "../components/BranchSidebar.svelte";
   import CommitDetail from "../components/CommitDetail.svelte";
   import CommitGraph from "../components/CommitGraph.svelte";
@@ -44,6 +45,10 @@
     onsectiontoggle,
     onrefdblclick,
     onrefcontextmenu,
+    oncommitcontextmenu,
+    branchInput = $bindable(null),
+    checkBranchName = async () => "valid",
+    oncreatebranch,
     oncheckout,
     checkoutNotice = null,
     checkoutStarts = 0,
@@ -74,6 +79,14 @@
     rewrite = false,
     onforcepush,
   }: {
+    /** Clic droit, touche menu ou Maj+F10 sur une ligne de commit du graphe : son menu (« Create branch here »). */
+    oncommitcontextmenu?: (id: string, event: MouseEvent) => void;
+    /** Saisie en ligne du nom d'une branche à créer (Branch, « Create branch here »), ou `null` : liable par le parent. */
+    branchInput?: BranchInput | null;
+    /** Verdict de Git sur le nom tapé (`check_branch_name`), pendant la saisie. */
+    checkBranchName?: (name: string) => Promise<BranchNameVerdict>;
+    /** Entrée sur un nom accepté : crée la branche sur ce commit et la rend courante. */
+    oncreatebranch?: (name: string, commit: string) => void;
     /** Des commits déjà poussés ont été réécrits en local (`get_force_push_check`) : `PushButton` dit « Force push ». */
     rewrite?: boolean;
     /** Clic sur « Force push » de `PushButton` : ouvre `ForcePushDialog` (ne pousse rien). */
@@ -181,7 +194,11 @@
   $effect.pre(() => {
     const open = openId;
     untrack(() => {
-      if (open !== lastOpen) selectWip();
+      if (open !== lastOpen) {
+        selectWip();
+        // Un autre dépôt s'ouvre : une saisie en cours ne le suit pas (celle posée avant le premier rendu reste).
+        if (lastOpen !== undefined) branchInput = null;
+      }
       lastOpen = open;
     });
   });
@@ -213,6 +230,100 @@
   }
 
   const current = $derived(repository.refs.find((r) => r.kind === "branch" && r.current));
+
+  /** Message sous le champ de la saisie en ligne ; la réponse d'une vérification périmée est ignorée. */
+  let inputMessage: string | null = $state(null);
+  let checkSeq = 0;
+
+  // Une saisie qui s'ouvre, se ferme ou change de commit repart sans message ni vérification en vol.
+  let lastInput: unknown = undefined;
+  $effect.pre(() => {
+    const input = branchInput;
+    untrack(() => {
+      if (input !== lastInput) {
+        inputMessage = null;
+        checkSeq += 1;
+      }
+      lastInput = input;
+    });
+  });
+
+  /** Message du nom `name`, ou `null` s'il est accepté (ou vide : rien à dire encore). */
+  async function messageFor(name: string): Promise<string | null> {
+    if (name === "") return null;
+    if (repository.refs.some((r) => r.kind === "branch" && r.name === name))
+      return branchNameMessage(name, "exists");
+    try {
+      return branchNameMessage(name, await checkBranchName(name));
+    } catch {
+      return null;
+    }
+  }
+
+  function startBranch(commit: string, source: BranchInput["source"]) {
+    branchInput = { commit, source };
+  }
+
+  /** Rend le focus au geste qui a ouvert la saisie. */
+  function refocus(input: BranchInput) {
+    const selector =
+      input.source === "toolbar"
+        ? "[data-branch-button]"
+        : input.source === "detail"
+          ? "[data-create-branch]"
+          : `[data-commit="${input.commit}"]`;
+    document.querySelector<HTMLElement>(selector)?.focus();
+  }
+
+  function closeInput() {
+    const input = branchInput;
+    branchInput = null;
+    if (input) refocus(input);
+  }
+
+  async function typeBranchName(name: string) {
+    const seq = ++checkSeq;
+    if (name === "") {
+      inputMessage = null;
+      return;
+    }
+    const message = await messageFor(name);
+    if (seq === checkSeq) inputMessage = message;
+  }
+
+  /** Entrée : le nom est revérifié avant tout, puis la branche se crée si rien ne l'empêche. */
+  async function submitBranchName(name: string) {
+    const input = branchInput;
+    if (name === "" || input === null) return;
+    const seq = ++checkSeq;
+    const message = await messageFor(name);
+    if (seq !== checkSeq || branchInput !== input) return;
+    if (message !== null) {
+      inputMessage = message;
+      return;
+    }
+    branchInput = null;
+    refocus(input);
+    oncreatebranch?.(name, input.commit);
+  }
+
+  const inline = $derived(
+    branchInput === null
+      ? null
+      : {
+          commit: branchInput.commit,
+          label: "Branch name",
+          message: inputMessage,
+          oninput: typeBranchName,
+          onsubmit: submitBranchName,
+          oncancel: closeInput,
+        },
+  );
+
+  /** Refs que désigne le commit du panneau de droite (Checkout de `CommitDetail`). */
+  const detailRefs = $derived(
+    detail === null ? [] : repository.refs.filter((r) => r.target === detail?.id),
+  );
   /** Dernier commit de la branche courante : son message remplit les champs d'Amend. */
   async function lastMessage() {
     if (!current) throw "No commit to amend.";
@@ -245,7 +356,11 @@
   <header>
     <h1 class="visually-hidden">{repository.name}</h1>
     <RepoPicker {recent} current={repository.path} {onopen} {onchoose} />
-    <Toolbar refs={repository.refs} onselect={(name) => oncheckout?.(name)} />
+    <Toolbar
+      refs={repository.refs}
+      onselect={(name) => oncheckout?.(name)}
+      onbranch={() => current && startBranch(current.target, "toolbar")}
+    />
     <span class="path">{repository.path}</span>
     <div class="end">
       <!-- Stash complet (StashButtons) : S-32. Ici, seulement l'état désactivé. -->
@@ -334,6 +449,8 @@
       {onhidecolumns}
       {onrefdblclick}
       {onrefcontextmenu}
+      {oncommitcontextmenu}
+      {inline}
       {faults}
       wip={{ count: changedFiles }}
       {wipSelected}
@@ -360,7 +477,14 @@
         {/if}
       </aside>
     {:else if detail}
-      <aside class="panel"><CommitDetail {detail} /></aside>
+      <aside class="panel">
+        <CommitDetail
+          {detail}
+          refs={detailRefs}
+          oncheckout={(name) => oncheckout?.(name)}
+          oncreatebranch={(commit) => startBranch(commit, "detail")}
+        />
+      </aside>
     {:else if detailError}
       <aside class="panel"><p class="error" role="alert">{detailError}</p></aside>
     {/if}

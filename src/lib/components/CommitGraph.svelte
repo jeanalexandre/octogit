@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import type { Column, CommitView, EdgeView, RefView } from "../bindings";
+  import type { InlineInput } from "../branchInput";
   import {
     LANE_WIDTH,
     MIN_GRAPH_WIDTH,
@@ -26,11 +27,17 @@
     onwidth,
     onrefdblclick,
     onrefcontextmenu,
+    oncommitcontextmenu,
+    inline = null,
     wip = null,
     wipSelected = false,
     onselectwip,
     faults = {},
   }: {
+    /** Clic droit (ou touche menu, Maj+F10 sur le résumé) sur une ligne de commit : l'identifiant du commit. */
+    oncommitcontextmenu?: (id: string, event: MouseEvent) => void;
+    /** Saisie en ligne d'un nom, à la place des étiquettes de la ligne de ce commit. */
+    inline?: ({ commit: string } & InlineInput) | null;
     /** Commits à pousser fautifs (J-13) : identifiant du commit → champ en cause, calculé côté Rust. */
     faults?: Record<string, "author" | "committer">;
     /** Ligne WIP en tête du graphe : `count` fichiers modifiés, `null` tant que l'état n'est pas lu. */
@@ -100,6 +107,32 @@
     observer.observe(element);
     return () => observer.disconnect();
   });
+
+  // La saisie en ligne s'ouvre sur une ligne que la liste virtualisée peut ne pas montrer : on la fait défiler en vue.
+  $effect(() => {
+    const id = inline?.commit;
+    if (id === undefined) return;
+    untrack(() => {
+      const index = commits.findIndex((c) => c.id === id);
+      const element = rowsElement;
+      if (index < 0 || !element) return;
+      const top = index * ROW;
+      const height = element.clientHeight || FALLBACK_HEIGHT;
+      if (top < element.scrollTop || top + ROW > element.scrollTop + height)
+        element.scrollTop = Math.max(0, top - Math.floor(height / 2));
+    });
+  });
+
+  /** Clic droit sur une ligne de commit (hors étiquette de ref, qui a son propre menu). */
+  function oncommitmenu(id: string, event: MouseEvent) {
+    if (
+      !oncommitcontextmenu ||
+      (event.target as Element).closest("[data-ref], [data-inline-input]")
+    )
+      return;
+    event.preventDefault();
+    oncommitcontextmenu(id, event);
+  }
 
   const x = (lane: number) => 16 + lane * LANE;
   const shown = (column: Column) => !hiddenColumns.includes(column);
@@ -354,13 +387,18 @@
       <div class="spacer" role="list" style="height: {commits.length * ROW}px">
         {#each visible as commit, i (commit.id)}
           {@const labels = labelMap[commit.id] ?? []}
+          <!-- Le clic droit d'une ligne de commit ouvre son menu ; le clavier passe par le résumé (Maj+F10). -->
+          <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
           <div
             class="row"
             role="listitem"
             style="--lane: var(--lane-{commit.color + 1}); top: {(first + i) * ROW}px"
+            oncontextmenu={(event) => oncommitmenu(commit.id, event)}
           >
             <div class="refs" data-refs>
-              {#if labels.length > 0}
+              {#if inline && inline.commit === commit.id}
+                <RefLabel name="" variant="synced" input={inline} />
+              {:else if labels.length > 0}
                 <!-- Un groupe focusable (nom des refs en étiquette accessible) : au survol ou au focus, ses étiquettes flottent entières. -->
                 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
                 <div
@@ -445,8 +483,14 @@
               <button
                 type="button"
                 class="summary"
+                data-commit={commit.id}
                 aria-current={selected === commit.id ? "true" : undefined}
                 onclick={() => onselect(commit.id)}
+                onkeydown={(e) => {
+                  if (!isMenuKey(e) || !oncommitcontextmenu) return;
+                  e.preventDefault();
+                  oncommitcontextmenu(commit.id, menuEventAt(e.currentTarget));
+                }}
                 >{#if faults[commit.id]}<span class="fault-mark">✕ {faults[commit.id]}</span
                   >{/if}{commit.summary}</button
               >
@@ -765,6 +809,7 @@
   }
 
   .refs {
+    position: relative;
     display: flex;
     gap: 6px;
     align-items: center;

@@ -16,6 +16,7 @@
     type SyncAction,
     type WorkingTreeView,
   } from "./lib/bindings";
+  import type { BranchInput, BranchNameVerdict } from "./lib/branchInput";
   import { runFetchNow, scheduleFetch } from "./lib/fetchScheduler";
   import { sshApi } from "./lib/sshKeys";
   import ForcePushDialog from "./lib/components/ForcePushDialog.svelte";
@@ -629,6 +630,71 @@
     }
   }
 
+  /** Saisie en ligne du nom d'une branche à créer (Branch, « Create branch here »), liée à `History`. */
+  let branchInput: BranchInput | null = $state(null);
+
+  /** Menu d'un commit du graphe (clic droit, touche menu, Maj+F10) : « Create branch here ». */
+  function openCommitMenu(commit: string, event: MouseEvent) {
+    event.preventDefault();
+    if (screen?.screen !== "history") return;
+    refMenu = {
+      name: commit.slice(0, 7),
+      kind: "commit",
+      commit,
+      x: event.clientX,
+      y: event.clientY,
+    };
+  }
+
+  /** Verdict de Git sur le nom tapé ; une lecture impossible n'empêche rien (la création dira son refus). */
+  async function checkBranchName(name: string): Promise<BranchNameVerdict> {
+    const path = openPath;
+    if (path === null) return "valid";
+    try {
+      const result = await commands.checkBranchName(path, name);
+      return result.status === "ok" ? result.data : "valid";
+    } catch {
+      return "valid";
+    }
+  }
+
+  /**
+   * Crée la branche `name` sur `commit` et la rend courante, sous la même garde que le checkout (jamais en même
+   * temps qu'un fetch du même dépôt, un seul geste à la fois). Le dépôt relu remplace l'affichage (profil et écart
+   * gardés), l'arbre de travail est relu. Un refus laisse l'affichage tel quel et montre un message d'une ligne.
+   */
+  async function createBranch(name: string, commit: string) {
+    const path = openPath;
+    if (path === null || checkoutPath !== null || screen?.screen !== "history") return;
+    checkoutNotice = null;
+    checkoutPath = path;
+    checkoutStarts += 1;
+    try {
+      await runFetchNow(path, async () => {
+        const result = await commands.createBranchRepository(path, name, commit);
+        if (screen?.screen !== "history" || screen.repository.path !== path) return;
+        if (result.status !== "ok") {
+          checkoutNotice = { path, text: result.error };
+          return;
+        }
+        screen = {
+          screen: "history",
+          repository: {
+            ...result.data,
+            profile: screen.repository.profile,
+            mismatch: screen.repository.mismatch,
+          } satisfies RepositoryView,
+        };
+        const tree = await commands.getWorkingTree(path);
+        if (tree.status === "ok" && openPath === path) workingTree = tree.data;
+      });
+    } catch {
+      // Échec inattendu : l'affichage garde l'état d'avant.
+    } finally {
+      checkoutPath = null;
+    }
+  }
+
   /** « Reset and checkout » ou « Checkout local as is » : lève la confirmation, puis le checkout a lieu. */
   function resolveCheckout(choice: CheckoutChoiceView) {
     const pending = checkoutConfirm;
@@ -903,6 +969,10 @@
     onforcepush={openForcePush}
     onrefdblclick={(name) => checkout(name)}
     onrefcontextmenu={openRefMenu}
+    oncommitcontextmenu={openCommitMenu}
+    bind:branchInput
+    {checkBranchName}
+    oncreatebranch={createBranch}
     oncheckout={(name) => checkout(name)}
     {checkoutStarts}
     checkoutNotice={checkoutNotice !== null && checkoutNotice.path === openPath
@@ -935,6 +1005,7 @@
     menu={refMenu}
     confirm={checkoutConfirm !== null && checkoutConfirm.path === openPath ? checkoutConfirm : null}
     oncheckout={(name) => checkout(name)}
+    oncreatebranch={(commit) => (branchInput = { commit, source: "row" })}
     onclose={() => (refMenu = null)}
     onreset={() => resolveCheckout("reset")}
     onasis={() => resolveCheckout("asIs")}

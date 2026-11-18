@@ -24,6 +24,10 @@ Créer une branche locale et en faire la branche courante depuis le bouton Branc
 ### Fiche (17/11/2026)
 1. Nom saisi égal à celui d'une `origin/…` sans branche locale de ce nom : 1a, accepter et créer une branche locale sans suivi (décision de l'humain du 17/11/2026)
 
+### Après la revue 1
+1. Mineur 1 (message d'erreur qui recouvre le nœud de la ligne suivante) : traiter (d'office), passage 2.
+2. Mineur 2 (trois fautes de frappe du README) : traiter (d'office), passage 2.
+
 ## Contexte technique
 - Dépend de S-25 (fiche `stories/S-25-changer-de-branche.md`, pas encore implémentée au moment de cette fiche : `Toolbar.svelte`, `RefContextMenu.svelte`, `crates/git/src/checkout.rs`, `checkout(path, ref)` de `src/App.svelte` n'existent pas dans le code actuel ; à relire une fois S-25 faite) et de S-61 (`stories/S-61-colonne-des-refs.md` : colonne des refs à 180 px, `RefLabel` tronquée, étiquettes flottantes). Ce que S-25 crée est réutilisé, pas dupliqué : le sélecteur de branche de `Toolbar` (Branch s'y ajoute, à côté), l'entrée Checkout de `RefContextMenu` (liste d'entrées extensible : ajouter l'entrée « Create branch here » sur un commit), le plan de checkout typé (direct, ou confirmation CA-21) et sa confirmation, le checkout lancé par `App.svelte`.
 - Crate `git` : étendre `crates/git/src/checkout.rs` (ou nouveau `crates/git/src/branch.rs` déclaré dans `lib.rs`, sur le modèle des modules `pull`, `fetch`), tests dans `crates/git/tests/` . Écriture par le binaire `git` en sous-processus (sortie brute gardée, `.git/config` local, jamais `~/.gitconfig`) : création sur un commit donné puis checkout de la nouvelle branche, sans HEAD détachée ni commit créé ni suivi de branche distante (par ex. `git checkout -b <nom> <commit>` avec `--no-track`) ; validation du nom selon les règles de Git (par ex. `git check-ref-format --branch`), appelée pendant la saisie ; liste des branches locales pour le message « already exists » (`read_refs`). Pour Branch : le commit est le sommet de la branche courante.
@@ -68,8 +72,12 @@ Créer une branche locale et en faire la branche courante depuis le bouton Branc
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `d2bfb0b`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (tests, lint, build ✅) ; e2e sans rouge constaté, jugés par le reviewer | — |
+| 2 | reviewer | revue 1 : `stories/S-26-revue-1.md`, 2 mineurs | validé |
+| 3 | dev | terminé (mineurs traités, tests, lint, build ✅) | — |
+| 4 | reviewer | revue 2 : `stories/S-26-revue-2.md`, aucun problème | validé |

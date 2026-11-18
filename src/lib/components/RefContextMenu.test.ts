@@ -71,6 +71,21 @@ describe("RefContextMenu menu", () => {
     expect(p.oncheckout).not.toHaveBeenCalled();
   });
 
+  it("gerer-les-branches CA-9: the menu of a commit offers Create branch here only, which asks for the branch on that commit", async () => {
+    const commit = "c41d8e0".padEnd(40, "0");
+    const p = { ...props({ menu: { kind: "commit", name: "c41d8e0", commit, x: 40, y: 60 } }) };
+    const oncreatebranch = vi.fn();
+    render(RefContextMenu, { ...p, oncreatebranch });
+    const items = within(screen.getByRole("menu")).getAllByRole("menuitem");
+    expect(items.map((i) => i.textContent?.trim())).toEqual(["Create branch here"]);
+    expect(items[0]).toHaveFocus();
+    await fireEvent.click(items[0]);
+    expect(oncreatebranch).toHaveBeenCalledTimes(1);
+    expect(oncreatebranch).toHaveBeenCalledWith(commit);
+    expect(p.onclose).toHaveBeenCalledTimes(1);
+    expect(p.oncheckout).not.toHaveBeenCalled();
+  });
+
   it("gerer-les-branches CA-3: no menu, no confirmation: nothing is rendered", () => {
     render(RefContextMenu, props());
     expect(screen.queryByRole("menu")).toBeNull();

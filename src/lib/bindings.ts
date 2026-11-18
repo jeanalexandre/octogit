@@ -60,6 +60,8 @@ export const commands = {
 	setGraphWidth: (path: string, width: number | null) => __TAURI_INVOKE<void>("set_graph_width", { path, width }),
 	/**  Détail d'un commit du dépôt `path` (message, auteur, date, signature, fichiers modifiés). */
 	getCommitDetail: (path: string, id: string) => typedError<CommitDetailView, string>(__TAURI_INVOKE("get_commit_detail", { path, id })),
+	/**  Diff du fichier `file` dans le commit `commit` du dépôt `path` (`DiffView`, mode commit), en lecture seule. */
+	commitFileDiff: (path: string, commit: string, file: string) => typedError<FileDiffView_Serialize, string>(__TAURI_INVOKE("commit_file_diff", { path, commit, file })),
 	/**  Fichiers non indexés et indexés du dépôt `path` (`WorkingChanges`, compteur de la ligne WIP). */
 	getWorkingTree: (path: string) => typedError<WorkingTreeView, string>(__TAURI_INVOKE("get_working_tree", { path })),
 	/**  Stage all : tout l'arbre de travail passe dans l'index ; rend le nouvel état. */
@@ -327,6 +329,28 @@ export type ConnectionTestView = {
 	message: string,
 };
 
+export type DiffLineKindView = "context" | "added" | "removed";
+
+export type DiffLineView = DiffLineView_Serialize | DiffLineView_Deserialize;
+
+export type DiffLineView_Deserialize = {
+	kind: DiffLineKindView,
+	/**  Numéro (depuis 1) côté « avant » ; absent pour une ligne ajoutée. */
+	oldNumber?: number | null,
+	/**  Numéro (depuis 1) côté « après » ; absent pour une ligne supprimée. */
+	newNumber?: number | null,
+	text: string,
+};
+
+export type DiffLineView_Serialize = {
+	kind: DiffLineKindView,
+	/**  Numéro (depuis 1) côté « avant » ; absent pour une ligne ajoutée. */
+	oldNumber: number | null,
+	/**  Numéro (depuis 1) côté « après » ; absent pour une ligne supprimée. */
+	newNumber: number | null,
+	text: string,
+};
+
 export type EdgeKindView = 
 /**  La lane `from` traverse la ligne de haut en bas. */
 "through" | 
@@ -345,6 +369,37 @@ export type EdgeView = {
 export type FileChangeView = {
 	path: string,
 	status: ChangeStatusView,
+};
+
+/**  Diff d'un fichier dans un commit (`DiffView`, mode commit). */
+export type FileDiffView = FileDiffView_Serialize | FileDiffView_Deserialize;
+
+/**  Diff d'un fichier dans un commit (`DiffView`, mode commit). */
+export type FileDiffView_Deserialize = {
+	path: string,
+	status: ChangeStatusView,
+	/**  Fichier binaire : `lines` est vide, seules les tailles sont connues. */
+	binary: boolean,
+	/**  Taille en octets avant, absente pour un fichier ajouté (binaire seulement). */
+	oldSize?: number | null,
+	/**  Taille en octets après, absente pour un fichier supprimé (binaire seulement). */
+	newSize?: number | null,
+	/**  Toutes les lignes dans l'ordre unifié. */
+	lines: DiffLineView_Deserialize[],
+};
+
+/**  Diff d'un fichier dans un commit (`DiffView`, mode commit). */
+export type FileDiffView_Serialize = {
+	path: string,
+	status: ChangeStatusView,
+	/**  Fichier binaire : `lines` est vide, seules les tailles sont connues. */
+	binary: boolean,
+	/**  Taille en octets avant, absente pour un fichier ajouté (binaire seulement). */
+	oldSize: number | null,
+	/**  Taille en octets après, absente pour un fichier supprimé (binaire seulement). */
+	newSize: number | null,
+	/**  Toutes les lignes dans l'ordre unifié. */
+	lines: DiffLineView_Serialize[],
 };
 
 /**

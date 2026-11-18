@@ -379,6 +379,17 @@ pub fn get_commit_detail(path: String, id: String) -> Result<CommitDetailView, S
     detail::commit_detail(Path::new(&path), &id)
 }
 
+/// Diff du fichier `file` dans le commit `commit` du dépôt `path` (`DiffView`, mode commit), en lecture seule.
+#[tauri::command]
+#[specta::specta]
+pub fn commit_file_diff(
+    path: String,
+    commit: String,
+    file: String,
+) -> Result<detail::FileDiffView, String> {
+    detail::commit_file_diff(Path::new(&path), &commit, &file)
+}
+
 /// Surveillance en cours de l'arbre de travail du dépôt ouvert (un seul à la fois).
 #[derive(Default)]
 pub struct WatchState(std::sync::Mutex<Option<octogit_git::WorkingTreeWatcher>>);

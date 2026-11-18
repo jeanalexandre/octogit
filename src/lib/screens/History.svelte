@@ -3,6 +3,7 @@
   import type {
     Column,
     CommitDetailView,
+    FileChangeView,
     MismatchView,
     ProfileView,
     PushCheckView,
@@ -79,7 +80,16 @@
     onfixcommits,
     rewrite = false,
     onforcepush,
+    onopendiff,
   }: {
+    /** Clic sur un fichier de `CommitDetail` : ouvre `DiffView` (mode commit) sur ce fichier, par-dessus `History`. */
+    onopendiff?: (open: {
+      commit: string;
+      parent: string | null;
+      summary: string;
+      files: FileChangeView[];
+      start: number;
+    }) => void;
     /** Clic droit, touche menu ou Maj+F10 sur une ligne de commit du graphe : son menu (« Create branch here »). */
     oncommitcontextmenu?: (id: string, event: MouseEvent) => void;
     /** Saisie en ligne du nom d'une branche à créer (Branch, « Create branch here »), ou `null` : liable par le parent. */
@@ -480,12 +490,21 @@
         {/if}
       </aside>
     {:else if detail}
+      {@const shown = detail}
       <aside class="panel">
         <CommitDetail
           {detail}
           refs={detailRefs}
           oncheckout={(name) => oncheckout?.(name)}
           oncreatebranch={(commit) => startBranch(commit, "detail")}
+          onopenfile={(start) =>
+            onopendiff?.({
+              commit: shown.id,
+              parent: shown.parents[0] ?? null,
+              summary: shown.message.trim().split("\n")[0] ?? "",
+              files: shown.files,
+              start,
+            })}
         />
       </aside>
     {:else if detailError}

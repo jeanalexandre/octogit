@@ -41,6 +41,7 @@ export class Workspace {
       | "empty"
       | "branches"
       | "refs"
+      | "diff"
       | "refcolumn"
       | "sidebar"
       | "layout"

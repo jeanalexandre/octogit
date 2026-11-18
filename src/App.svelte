@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import {
     commands,
     events,
@@ -7,6 +7,7 @@
     type CloneError,
     type CloneProgress,
     type Column,
+    type FileChangeView,
     type ForcePushView,
     type LaunchState,
     type MismatchView,
@@ -28,6 +29,7 @@
     type CheckoutConfirm,
     type RefMenuTarget,
   } from "./lib/components/RefContextMenu.svelte";
+  import DiffView from "./lib/screens/DiffView.svelte";
   import History from "./lib/screens/History.svelte";
   import ProfileSettings from "./lib/screens/ProfileSettings.svelte";
   import Welcome from "./lib/screens/Welcome.svelte";
@@ -40,6 +42,37 @@
   let profiles: ProfileView[] = $state([]);
   /** `ProfileSettings` ouvert (Cmd+,) par-dessus l'écran d'origine, où Échap ramène. */
   let settingsOpen = $state(false);
+  /**
+   * `DiffView` ouvert (mode commit) par-dessus `History`, qui reste monté sous lui (sélection et défilement du graphe
+   * intacts) : Échap le ferme et rend le même écran. `null` : fermé.
+   */
+  let diff: {
+    commit: string;
+    parent: string | null;
+    summary: string;
+    files: FileChangeView[];
+    start: number;
+  } | null = $state.raw(null);
+
+  // `ProfileSettings` remplace `History` (démonté) : le diff ouvert dessous n'a plus d'écran où revenir.
+  $effect(() => {
+    if (settingsOpen) diff = null;
+  });
+
+  async function closeDiff(index: number) {
+    const file = diff?.files[index]?.path;
+    diff = null;
+    await tick();
+    // Le focus revient au fichier d'où l'on était parti.
+    document.querySelector<HTMLElement>(`[data-file="${CSS.escape(file ?? "")}"]`)?.focus();
+  }
+
+  async function loadFileDiff(file: string) {
+    if (screen?.screen !== "history" || diff === null) throw "No commit is open.";
+    const result = await commands.commitFileDiff(screen.repository.path, diff.commit, file);
+    if (result.status === "ok") return result.data;
+    throw result.error;
+  }
   /** Dernier fetch automatique réussi du dépôt ouvert (secondes depuis l'epoch). */
   let lastFetched: number | null = $state(null);
   /** Incrémenté à chaque ouverture explicite : rouvrir le dépôt déjà ouvert relance son fetch d'ouverture. */
@@ -884,6 +917,7 @@
   async function show(repository: RepositoryView) {
     error = null;
     settingsOpen = false;
+    diff = null;
     importDraft = null;
     mismatchHidden = false;
     openCount++;
@@ -1022,65 +1056,82 @@
     onclose={closeSettings}
   />
 {:else if screen?.screen === "history"}
-  <History
-    repository={screen.repository}
-    {recent}
-    {error}
-    {hiddenColumns}
-    {lastFetched}
-    {collapsedFolders}
-    ontogglefolder={toggleFolder}
-    sectionHeights={sectionLayout.heights}
-    collapsedSections={sectionLayout.collapsed}
-    openId={openCount}
-    {graphWidth}
-    ongraphwidth={setGraphWidth}
-    {panelCollapsed}
-    onpaneltoggle={togglePanel}
-    onsectionheight={setSectionHeight}
-    onsectiontoggle={toggleSection}
-    onopen={open}
-    onchoose={chooseFolder}
-    onclone={openClone}
-    onhidecolumns={hideColumns}
-    {loadDetail}
-    {workingTree}
-    onstageall={() => moveAll(commands.stageAll)}
-    onunstageall={() => moveAll(commands.unstageAll)}
-    oncommit={commit}
-    {commitEmail}
-    {blocked}
-    onfixidentity={fixIdentity}
-    {profiles}
-    {manualProfile}
-    onchooseprofile={chooseProfile}
-    onresetprofile={resetToRules}
-    oneditprofiles={() => (settingsOpen = true)}
-    {syncAction}
-    syncing={syncingPath !== null && syncingPath === openPath}
-    syncNotice={syncNotice !== null && syncNotice.path === openPath ? syncNotice.text : null}
-    onsync={sync}
-    onsyncaction={chooseSyncAction}
-    pushing={pushingPath !== null && pushingPath === openPath}
-    pushNotice={pushNotice !== null && pushNotice.path === openPath ? pushNotice.text : null}
-    onpush={push}
-    fixingCommits={fixingCommitsPath !== null && fixingCommitsPath === openPath}
-    onfixcommits={fixCommitIdentity}
-    {pushCheck}
-    rewrite={rewritten}
-    onforcepush={openForcePush}
-    onrefdblclick={(name) => checkout(name)}
-    onrefcontextmenu={openRefMenu}
-    oncommitcontextmenu={openCommitMenu}
-    bind:branchInput
-    {checkBranchName}
-    oncreatebranch={createBranch}
-    oncheckout={(name) => checkout(name)}
-    {checkoutStarts}
-    checkoutNotice={checkoutNotice !== null && checkoutNotice.path === openPath
-      ? checkoutNotice.text
-      : null}
-  />
+  <!-- `inert` sous DiffView : rien de History ne prend le focus ni les touches, mais son état reste. -->
+  <div class="stage" inert={diff !== null}>
+    <History
+      repository={screen.repository}
+      {recent}
+      {error}
+      {hiddenColumns}
+      {lastFetched}
+      {collapsedFolders}
+      ontogglefolder={toggleFolder}
+      sectionHeights={sectionLayout.heights}
+      collapsedSections={sectionLayout.collapsed}
+      openId={openCount}
+      {graphWidth}
+      ongraphwidth={setGraphWidth}
+      {panelCollapsed}
+      onpaneltoggle={togglePanel}
+      onsectionheight={setSectionHeight}
+      onsectiontoggle={toggleSection}
+      onopen={open}
+      onchoose={chooseFolder}
+      onclone={openClone}
+      onhidecolumns={hideColumns}
+      {loadDetail}
+      {workingTree}
+      onstageall={() => moveAll(commands.stageAll)}
+      onunstageall={() => moveAll(commands.unstageAll)}
+      oncommit={commit}
+      {commitEmail}
+      {blocked}
+      onfixidentity={fixIdentity}
+      {profiles}
+      {manualProfile}
+      onchooseprofile={chooseProfile}
+      onresetprofile={resetToRules}
+      oneditprofiles={() => (settingsOpen = true)}
+      {syncAction}
+      syncing={syncingPath !== null && syncingPath === openPath}
+      syncNotice={syncNotice !== null && syncNotice.path === openPath ? syncNotice.text : null}
+      onsync={sync}
+      onsyncaction={chooseSyncAction}
+      pushing={pushingPath !== null && pushingPath === openPath}
+      pushNotice={pushNotice !== null && pushNotice.path === openPath ? pushNotice.text : null}
+      onpush={push}
+      fixingCommits={fixingCommitsPath !== null && fixingCommitsPath === openPath}
+      onfixcommits={fixCommitIdentity}
+      {pushCheck}
+      rewrite={rewritten}
+      onforcepush={openForcePush}
+      onrefdblclick={(name) => checkout(name)}
+      onrefcontextmenu={openRefMenu}
+      oncommitcontextmenu={openCommitMenu}
+      bind:branchInput
+      {checkBranchName}
+      oncreatebranch={createBranch}
+      oncheckout={(name) => checkout(name)}
+      {checkoutStarts}
+      checkoutNotice={checkoutNotice !== null && checkoutNotice.path === openPath
+        ? checkoutNotice.text
+        : null}
+      onopendiff={(open) => (diff = open)}
+    />
+  </div>
+  {#if diff !== null}
+    <div class="diff-layer">
+      <DiffView
+        commit={diff.commit}
+        parent={diff.parent}
+        summary={diff.summary}
+        files={diff.files}
+        start={diff.start}
+        loadDiff={loadFileDiff}
+        onclose={closeDiff}
+      />
+    </div>
+  {/if}
 {:else if screen?.screen === "welcome"}
   <Welcome
     {recent}
@@ -1141,3 +1192,15 @@
     oncancel={() => (mismatchHidden = true)}
   />
 {/if}
+
+<style>
+  .stage {
+    display: contents;
+  }
+
+  .diff-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+  }
+</style>

@@ -22,6 +22,10 @@ Un clic sur un fichier de `CommitDetail` ouvre `DiffView` en mode commit (côte 
 ### Fiche (18/11/2026)
 1. Bibliothèque du diff de texte : a) activer la fonctionnalité `blob-diff` de `gix` (réponse de l'humain, 18/11/2026)
 
+### Après la revue 1
+1. Mineur : SHA courts absents des en-têtes de colonnes « before » / « after » de `DiffView` : traiter (d'office), au passage 2.
+2. Pour information : test instable connu `detection_writes_nothing_in_a_repository` : pris en compte (pour information).
+
 ## Contexte technique
 - Dépend de S-5 (`CommitDetail`, liste des fichiers M / A / D). Fichiers existants : `crates/git/src/lib.rs` (`read_commit_detail`, `diff_trees`, `FileChange`, `ChangeStatus` ; la liste d'un merge est comparée au premier parent, renommages non détectés : le diff d'un fichier suit la même base), `crates/git/Cargo.toml` (`gix` 0.90, `default-features = false`, features `revision`, `sha1`, `status`), `src-tauri/src/detail.rs` (vues sérialisées, test `explorer_l_historique_ca_24_…`), `src-tauri/src/commands.rs` (commande à ajouter, ex. `commit_file_diff(path, commit, file)`), `src/lib/bindings.ts` (généré par `pnpm gen:bindings`, jamais édité), `src/lib/components/CommitDetail.svelte` (le clic sur un fichier est inerte depuis S-5 : ajouter un rappel `onopenfile`), `src/lib/screens/History.svelte` et `src/App.svelte` (navigation : `screen`, `ProfileSettings` s'ouvre déjà par-dessus l'écran d'origine où Échap ramène : même schéma pour `DiffView`).
 - Nouvel écran `src/lib/screens/DiffView.svelte` (nom exact de `ux.md`, convention de `stack.md`). Rendu en lecture seule : pas de Stage file / hunk / lines (S-31), pas de diff de travail (S-31).
@@ -61,8 +65,12 @@ Un clic sur un fichier de `CommitDetail` ouvre `DiffView` en mode commit (côte 
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `d136dc0`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : tests, lint, build verts ; blob-diff activé ; DiffView par-dessus History (inert), fixture `fixtures/diff.sh` | — |
+| 1 | reviewer | CA-26 à CA-29 couverts ; 1 mineur (SHA absents des en-têtes before / after) | validé |
+| 2 | dev | terminé : SHA courts dans les en-têtes before / after ; tests, lint, build verts | — |
+| 2 | reviewer | mineur levé, aucun problème | validé |

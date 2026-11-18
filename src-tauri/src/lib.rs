@@ -94,6 +94,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::get_graph_width,
             commands::set_graph_width,
             commands::get_commit_detail,
+            commands::commit_file_diff,
             commands::get_working_tree,
             commands::stage_all,
             commands::unstage_all,

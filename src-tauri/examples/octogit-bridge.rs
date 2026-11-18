@@ -116,6 +116,13 @@ struct DetailArgs {
 }
 
 #[derive(Deserialize)]
+struct FileDiffArgs {
+    path: String,
+    commit: String,
+    file: String,
+}
+
+#[derive(Deserialize)]
 struct SaveProfileArgs {
     profile: octogit_app::profiles::ProfileView,
 }
@@ -435,6 +442,14 @@ fn main() {
         "get_commit_detail" => {
             let args: DetailArgs = serde_json::from_str(&input).expect("arguments { path, id }");
             match octogit_app::commands::get_commit_detail(args.path, args.id) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "commit_file_diff" => {
+            let args: FileDiffArgs =
+                serde_json::from_str(&input).expect("arguments { path, commit, file }");
+            match octogit_app::commands::commit_file_diff(args.path, args.commit, args.file) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

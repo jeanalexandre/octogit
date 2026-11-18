@@ -3,6 +3,7 @@
 mod branch;
 mod checkout;
 mod clone;
+mod diff;
 mod fetch;
 mod force_push;
 mod graph;
@@ -22,6 +23,7 @@ pub use checkout::{
 pub use clone::{
     clone, clone_with, github_ssh_url, parse_progress, CloneError, CloneProgress, CLONE_TIMEOUT,
 };
+pub use diff::{read_file_diff, DiffLine, DiffLineKind, FileDiff, FileDiffContent};
 pub use fetch::{fetch, fetch_all, FetchError, FETCH_TIMEOUT};
 pub use force_push::{force_push, read_rewrite, ForcePushError, OverwrittenCommit, Rewrite};
 pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};
@@ -484,7 +486,8 @@ mod tests {
                 N.fetch_add(1, Ordering::SeqCst)
             ));
             let scripts = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures");
-            let status = Command::new(scripts.join(script))
+            let status = Command::new("sh")
+                .arg(scripts.join(script))
                 .arg(dir.join("repo"))
                 .status()
                 .expect("fixture script runs");
@@ -833,6 +836,112 @@ mod tests {
         assert_eq!(detail.parents.len(), 2);
         // Par rapport à « Main work » (premier parent) : ce que la branche apporte.
         assert_eq!(files(&detail), [("file.txt", ChangeStatus::Modified)]);
+    }
+
+    fn rework_diff(fixture: &Fixture, file: &str) -> Result<FileDiff, GitError> {
+        let commits = read_commits(&fixture.0, 100).unwrap();
+        read_file_diff(
+            &fixture.0,
+            &commit_id(&commits, "Rework notes and logo"),
+            file,
+        )
+    }
+
+    fn text_lines(diff: &FileDiff) -> Vec<(DiffLineKind, Option<u32>, Option<u32>, &str)> {
+        match &diff.content {
+            FileDiffContent::Text(lines) => lines
+                .iter()
+                .map(|l| (l.kind, l.old_number, l.new_number, l.text.as_str()))
+                .collect(),
+            other => panic!("expected text, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn explorer_l_historique_ca_26_a_modified_file_diffs_its_lines_before_and_after() {
+        let fixture = Fixture::new("diff.sh");
+        let diff = rework_diff(&fixture, "notes.txt").unwrap();
+        assert_eq!(diff.path, "notes.txt");
+        assert_eq!(diff.status, ChangeStatus::Modified);
+        use DiffLineKind::{Added, Context, Removed};
+        assert_eq!(
+            text_lines(&diff),
+            [
+                (Context, Some(1), Some(1), "one"),
+                (Removed, Some(2), None, "two"),
+                (Added, None, Some(2), "TWO"),
+                (Context, Some(3), Some(3), "three"),
+                (Removed, Some(4), None, "four"),
+                (Context, Some(5), Some(4), "five"),
+                (Added, None, Some(5), "six"),
+            ]
+        );
+    }
+
+    #[test]
+    fn explorer_l_historique_ca_28_an_added_file_has_only_its_after_side() {
+        let fixture = Fixture::new("diff.sh");
+        let diff = rework_diff(&fixture, "added.txt").unwrap();
+        assert_eq!(diff.status, ChangeStatus::Added);
+        use DiffLineKind::Added;
+        assert_eq!(
+            text_lines(&diff),
+            [
+                (Added, None, Some(1), "alpha"),
+                (Added, None, Some(2), "beta")
+            ]
+        );
+    }
+
+    #[test]
+    fn explorer_l_historique_ca_28_a_deleted_file_has_only_its_before_side() {
+        let fixture = Fixture::new("diff.sh");
+        let diff = rework_diff(&fixture, "gone.txt").unwrap();
+        assert_eq!(diff.status, ChangeStatus::Deleted);
+        use DiffLineKind::Removed;
+        assert_eq!(
+            text_lines(&diff),
+            [
+                (Removed, Some(1), None, "old"),
+                (Removed, Some(2), None, "stuff")
+            ]
+        );
+    }
+
+    #[test]
+    fn explorer_l_historique_ca_28_a_binary_file_has_sizes_and_no_content() {
+        let fixture = Fixture::new("diff.sh");
+        let diff = rework_diff(&fixture, "logo.bin").unwrap();
+        assert_eq!(diff.status, ChangeStatus::Modified);
+        assert_eq!(
+            diff.content,
+            FileDiffContent::Binary {
+                old_size: Some(7),
+                new_size: Some(11)
+            }
+        );
+    }
+
+    #[test]
+    fn explorer_l_historique_ca_26_the_root_commit_diffs_against_an_empty_tree_and_unknown_files_fail(
+    ) {
+        let fixture = Fixture::new("diff.sh");
+        let commits = read_commits(&fixture.0, 100).unwrap();
+        let root = commit_id(&commits, "Add notes and logo");
+        let diff = read_file_diff(&fixture.0, &root, "gone.txt").unwrap();
+        assert_eq!(diff.status, ChangeStatus::Added);
+        let binary = read_file_diff(&fixture.0, &root, "logo.bin").unwrap();
+        assert_eq!(
+            binary.content,
+            FileDiffContent::Binary {
+                old_size: None,
+                new_size: Some(7)
+            }
+        );
+        assert!(matches!(
+            rework_diff(&fixture, "missing.txt"),
+            Err(GitError::Read(_))
+        ));
     }
 
     #[test]

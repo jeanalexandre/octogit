@@ -64,6 +64,81 @@ pub fn commit_detail(path: &Path, id: &str) -> Result<CommitDetailView, String> 
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum DiffLineKindView {
+    Context,
+    Added,
+    Removed,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DiffLineView {
+    pub kind: DiffLineKindView,
+    /// Numéro (depuis 1) côté « avant » ; absent pour une ligne ajoutée.
+    pub old_number: Option<u32>,
+    /// Numéro (depuis 1) côté « après » ; absent pour une ligne supprimée.
+    pub new_number: Option<u32>,
+    pub text: String,
+}
+
+/// Diff d'un fichier dans un commit (`DiffView`, mode commit).
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FileDiffView {
+    pub path: String,
+    pub status: ChangeStatusView,
+    /// Fichier binaire : `lines` est vide, seules les tailles sont connues.
+    pub binary: bool,
+    /// Taille en octets avant, absente pour un fichier ajouté (binaire seulement).
+    pub old_size: Option<f64>,
+    /// Taille en octets après, absente pour un fichier supprimé (binaire seulement).
+    pub new_size: Option<f64>,
+    /// Toutes les lignes dans l'ordre unifié.
+    pub lines: Vec<DiffLineView>,
+}
+
+/// Diff du fichier `file` dans le commit `id` du dépôt `path` ; l'erreur est un message lisible.
+pub fn commit_file_diff(path: &Path, id: &str, file: &str) -> Result<FileDiffView, String> {
+    let d = octogit_git::read_file_diff(path, id, file).map_err(|e| e.to_string())?;
+    let status = match d.status {
+        octogit_git::ChangeStatus::Modified => ChangeStatusView::Modified,
+        octogit_git::ChangeStatus::Added => ChangeStatusView::Added,
+        octogit_git::ChangeStatus::Deleted => ChangeStatusView::Deleted,
+    };
+    Ok(match d.content {
+        octogit_git::FileDiffContent::Binary { old_size, new_size } => FileDiffView {
+            path: d.path,
+            status,
+            binary: true,
+            old_size: old_size.map(|s| s as f64),
+            new_size: new_size.map(|s| s as f64),
+            lines: Vec::new(),
+        },
+        octogit_git::FileDiffContent::Text(lines) => FileDiffView {
+            path: d.path,
+            status,
+            binary: false,
+            old_size: None,
+            new_size: None,
+            lines: lines
+                .into_iter()
+                .map(|l| DiffLineView {
+                    kind: match l.kind {
+                        octogit_git::DiffLineKind::Context => DiffLineKindView::Context,
+                        octogit_git::DiffLineKind::Added => DiffLineKindView::Added,
+                        octogit_git::DiffLineKind::Removed => DiffLineKindView::Removed,
+                    },
+                    old_number: l.old_number,
+                    new_number: l.new_number,
+                    text: l.text,
+                })
+                .collect(),
+        },
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

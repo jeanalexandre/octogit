@@ -7,7 +7,10 @@
     refs = [],
     oncheckout,
     oncreatebranch,
+    onopenfile,
   }: {
+    /** Clic sur un fichier de la liste : rang (depuis 0) du fichier, pour ouvrir `DiffView`. */
+    onopenfile?: (index: number) => void;
     detail: CommitDetailView;
     /** Refs que désigne ce commit (lues avec le dépôt) : seules les branches comptent pour Checkout. */
     refs?: RefView[];
@@ -155,10 +158,12 @@
       >{/if}
   </h3>
   <ul class="files">
-    {#each detail.files as file (file.path)}
+    {#each detail.files as file, i (file.path)}
       <li>
-        <span class="status {file.status}" aria-label={file.status}>{LETTERS[file.status]}</span>
-        <span class="path">{file.path}</span>
+        <button type="button" class="file" data-file={file.path} onclick={() => onopenfile?.(i)}>
+          <span class="status {file.status}" aria-label={file.status}>{LETTERS[file.status]}</span>
+          <span class="path">{file.path}</span>
+        </button>
       </li>
     {/each}
   </ul>
@@ -310,11 +315,28 @@
     list-style: none;
   }
 
-  .files li {
+  .file {
     display: flex;
     gap: 8px;
     align-items: center;
+    width: 100%;
     padding: 2px 4px;
+    border: 0;
+    border-radius: 5px;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .file:hover {
+    background: var(--selection);
+  }
+
+  .file:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
   }
 
   .status {

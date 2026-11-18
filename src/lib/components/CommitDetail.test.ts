@@ -38,6 +38,13 @@ describe("CommitDetail", () => {
     ]);
   });
 
+  it("explorer-l-historique CA-26: a click on a file asks to open its diff by its rank in the list", async () => {
+    const onopenfile = vi.fn();
+    render(CommitDetail, { detail, onopenfile });
+    await fireEvent.click(screen.getByRole("button", { name: /new\.txt/ }));
+    expect(onopenfile).toHaveBeenCalledWith(1);
+  });
+
   it("explorer-l-historique CA-24: a commit with a signature reads Signed", () => {
     render(CommitDetail, { detail: { ...detail, signed: true } });
     expect(screen.getByText("Signed")).toBeInTheDocument();

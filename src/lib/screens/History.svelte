@@ -647,7 +647,9 @@
     <p class="error" role="alert">{error}</p>
   {/if}
   {#if checkoutNotice}
-    <p class="error" role="alert">{checkoutNotice}</p>
+    <p class={checkoutNotice === "Already up to date." ? "notice" : "error"} role="alert">
+      {checkoutNotice}
+    </p>
   {/if}
 
   <div class="body">
@@ -789,6 +791,16 @@
     border: 1px solid var(--danger);
     border-radius: 6px;
     color: var(--danger);
+  }
+
+  /* Rien à faire (« Already up to date. ») : message neutre, pas un refus. */
+  .notice {
+    margin: 8px 16px 0;
+    padding: 8px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface-raised);
+    color: var(--ink);
   }
 
   .path {

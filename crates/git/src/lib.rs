@@ -8,6 +8,7 @@ mod diff;
 mod fetch;
 mod force_push;
 mod graph;
+mod integrate;
 mod pull;
 mod push;
 mod reset;
@@ -34,6 +35,7 @@ pub use diff::{
 pub use fetch::{fetch, fetch_all, FetchError, FETCH_TIMEOUT};
 pub use force_push::{force_push, read_rewrite, ForcePushError, OverwrittenCommit, Rewrite};
 pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};
+pub use integrate::{merge, merge_with_home, rebase, rebase_with_home};
 pub use pull::{pull, PullError, PullMode};
 pub use push::{push, PushError};
 pub use reset::{reset_branch, reset_hard, reset_hard_loss, LostCommit, ResetLoss, ResetMode};

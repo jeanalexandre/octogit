@@ -559,6 +559,51 @@ pub async fn revert(path: String, commit: String) -> Result<CommittedView, Strin
     .map_err(|_| "The revert was interrupted.".to_string())?
 }
 
+/// Merge de `source` (branche ou `origin/…`) dans `receiving`, la branche courante, sans dialogue : toujours un
+/// commit de merge au message par défaut de Git, auteur et committer du `.git/config` local. Rend l'arbre de
+/// travail et le dépôt relus. Rien n'est poussé, aucune autre ref ne bouge.
+#[tauri::command]
+#[specta::specta]
+pub async fn merge_branch(
+    path: String,
+    source: String,
+    receiving: String,
+) -> Result<CommittedView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        working_tree::merge_checked(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+            &source,
+            &receiving,
+        )
+    })
+    .await
+    .map_err(|_| "The merge was interrupted.".to_string())?
+}
+
+/// Rebase de `receiving`, la branche courante, sur `onto` (branche, `origin/…` ou SHA de commit), sans dialogue :
+/// les commits sont rejoués et gardent leur auteur. Rend l'arbre de travail et le dépôt relus.
+#[tauri::command]
+#[specta::specta]
+pub async fn rebase_branch(
+    path: String,
+    onto: String,
+    receiving: String,
+) -> Result<CommittedView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        working_tree::rebase_checked(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+            &onto,
+            &receiving,
+        )
+    })
+    .await
+    .map_err(|_| "The rebase was interrupted.".to_string())?
+}
+
 /// Commit des fichiers indexés (ou amend du dernier commit) avec l'identité du `.git/config` local ;
 /// rend l'arbre de travail et le dépôt relus. L'erreur est la sortie de Git.
 #[tauri::command]

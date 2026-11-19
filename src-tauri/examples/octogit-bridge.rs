@@ -129,6 +129,16 @@ struct PickArgs {
 }
 
 #[derive(Deserialize)]
+struct IntegrateArgs {
+    path: String,
+    #[serde(default)]
+    source: Option<String>,
+    #[serde(default)]
+    onto: Option<String>,
+    receiving: String,
+}
+
+#[derive(Deserialize)]
 struct StashArgs {
     path: String,
     #[serde(default)]
@@ -626,6 +636,36 @@ fn main() {
                 octogit_app::working_tree::cherry_pick_checked(&store, &home, path, &args.commit)
             } else {
                 octogit_app::working_tree::revert_checked(&store, &home, path, &args.commit)
+            };
+            match result {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "merge_branch" | "rebase_branch" => {
+            let args: IntegrateArgs =
+                serde_json::from_str(&input).expect("arguments { path, source | onto, receiving }");
+            let store = octogit_store::Store::new(octogit_app::data_dir());
+            let home = octogit_app::home_dir();
+            let path = std::path::Path::new(&args.path);
+            let result = if command == "merge_branch" {
+                let source = args.source.as_deref().expect("argument source");
+                octogit_app::working_tree::merge_checked(
+                    &store,
+                    &home,
+                    path,
+                    source,
+                    &args.receiving,
+                )
+            } else {
+                let onto = args.onto.as_deref().expect("argument onto");
+                octogit_app::working_tree::rebase_checked(
+                    &store,
+                    &home,
+                    path,
+                    onto,
+                    &args.receiving,
+                )
             };
             match result {
                 Ok(view) => (serde_json::to_string(&view), 0),

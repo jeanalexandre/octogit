@@ -727,11 +727,27 @@
       ? (screen.repository.refs.find((r) => r.kind === "branch" && r.current)?.name ?? null)
       : null;
 
-  /** Point d'accroche : S-37 y exécute le merge (`source` dans `receiving`) ou le rebase (`receiving` sur `source`). */
-  function integrate(kind: "merge" | "rebase", source: string, receivingName: string) {
-    void kind;
-    void source;
-    void receivingName;
+  /**
+   * Merge (`source` dans `receiving`, toujours avec un commit de merge) ou rebase (`receiving` sur `source`), sans
+   * dialogue, la branche qui reçoit étant déjà la courante. Même garde que le stash ; le dépôt et l'arbre relus
+   * remplacent l'affichage, sans changer d'écran ; un refus (« Already up to date. », identité, conflit annulé)
+   * s'affiche en une ligne près de l'en-tête.
+   */
+  async function integrate(kind: "merge" | "rebase", source: string, receivingName: string) {
+    const path = openPath;
+    if (path === null || screen?.screen !== "history") return;
+    try {
+      await runStash((p) =>
+        kind === "merge"
+          ? commands.mergeBranch(p, source, receivingName)
+          : commands.rebaseBranch(p, source, receivingName),
+      );
+    } catch (e) {
+      checkoutNotice = {
+        path,
+        text: (typeof e === "string" ? e : "The action failed.").split("\n")[0],
+      };
+    }
   }
 
   /**

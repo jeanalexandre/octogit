@@ -27,6 +27,16 @@ Choisir « Merge <source> into <reçoit> » ou « Rebase <reçoit> onto <source>
 1. Conflit pendant un merge ou un rebase avant S-39 et S-40 : 1a (annulé par `git merge --abort` ou `git rebase --abort`, dépôt inchangé, refus en une ligne avec « Details »)
 2. Contrôle d'identité dès cette story : 2a (oui, `ensure_conform` comme Cherry-pick de S-35, refus en une ligne)
 
+### Après la revue 1
+- Bloquant 1 (e2e CA-11 et décision 1, alerte périmée) : traiter (passage 2).
+- Mineur 2 / à décider « Already up to date. » en rouge : traiter (d'office) : style neutre de la maquette `history.html:519`, `ux/ecrans/history.md` « Messages » fait foi.
+### Après la revue 2
+- Pour information : README relu, texte correct : pris en compte (pour information).
+- E2E instables refs-column CA-18 et graph-width CA-13 : hors périmètre, passent en ciblé (d'office : non traité).
+
+### Après la revue 1 (suite)
+- Pour information : `src/web-bridge.ts` et `e2e/helpers.ts` sans changement nécessaire : pris en compte (pour information).
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test aux vraies commandes du crate `app`, dépôts d'exemple, données dans un dossier temporaire) ; jamais `npx playwright` ni `cargo run`
@@ -84,8 +94,12 @@ Choisir « Merge <source> into <reçoit> » ou « Rebase <reçoit> onto <source>
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `3e2489b`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : crate `git` `integrate.rs`, commandes `merge_branch` / `rebase_branch`, `integrate` dans `App.svelte`, tests Rust et e2e, README ; tests, lint, build ✅ ; rouge e2e non constaté | — |
+| 2 | reviewer | revue 1 : 1 bloquant (e2e CA-11 et décision 1 : alerte périmée du merge satisfait l'assertion du rebase), 1 mineur (« Already up to date. » en rouge, maquette neutre) | à corriger |
+| 3 | dev | terminé : e2e CA-11 et décision 1 séparés merge / rebase, « Already up to date. » en classe `.notice` neutre ; `pnpm e2e` complet : 2 échecs instables hors périmètre (refs-column CA-18, graph-width CA-13), passent en ciblé (relancés par story-runner) | — |
+| 4 | reviewer | revue 2 : bloquant 1 et mineur 2 levés, aucun problème | validé |

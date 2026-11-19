@@ -266,6 +266,34 @@ pub fn revert_checked(
     committed(path, tree)
 }
 
+/// Merge de `source` dans `receiving` (la branche courante), toujours avec un commit de merge, sans dialogue : même
+/// garde d'identité que `cherry_pick_checked`, rien n'est créé en cas de refus. « Already up to date. » et un conflit
+/// (annulé, dépôt inchangé) sont des refus ; l'erreur est la sortie de Git, sa première ligne en est la raison.
+pub fn merge_checked(
+    store: &Store,
+    home: &Path,
+    path: &Path,
+    source: &str,
+    receiving: &str,
+) -> Result<CommittedView, String> {
+    crate::attach::ensure_conform(store, path, home)?;
+    let tree = octogit_git::merge(path, source, receiving).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
+/// Rebase de `receiving` (la branche courante) sur `onto`, sans dialogue : mêmes garde et refus que `merge_checked`.
+pub fn rebase_checked(
+    store: &Store,
+    home: &Path,
+    path: &Path,
+    onto: &str,
+    receiving: &str,
+) -> Result<CommittedView, String> {
+    crate::attach::ensure_conform(store, path, home)?;
+    let tree = octogit_git::rebase(path, onto, receiving).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
 /// Commit ou amend refusé tant que l'identité locale diffère du profil rattaché : le contrôle est refait
 /// ici, au moment du commit, sans se fier à ce que l'interface affiche. Rien n'est créé en cas de refus.
 pub fn commit_checked(

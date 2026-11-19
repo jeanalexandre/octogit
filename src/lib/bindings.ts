@@ -128,6 +128,17 @@ export const commands = {
 	 */
 	cherryPick: (path: string, commit: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("cherry_pick", { path, commit })),
 	/**
+	 *  Merge de `source` (branche ou `origin/…`) dans `receiving`, la branche courante, sans dialogue : toujours un
+	 *  commit de merge au message par défaut de Git, auteur et committer du `.git/config` local. Rend l'arbre de
+	 *  travail et le dépôt relus. Rien n'est poussé, aucune autre ref ne bouge.
+	 */
+	mergeBranch: (path: string, source: string, receiving: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("merge_branch", { path, source, receiving })),
+	/**
+	 *  Rebase de `receiving`, la branche courante, sur `onto` (branche, `origin/…` ou SHA de commit), sans dialogue :
+	 *  les commits sont rejoués et gardent leur auteur. Rend l'arbre de travail et le dépôt relus.
+	 */
+	rebaseBranch: (path: string, onto: string, receiving: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("rebase_branch", { path, onto, receiving })),
+	/**
 	 *  Revert de `commit` sur la branche courante, sans dialogue : message par défaut de Git, auteur et committer
 	 *  du `.git/config` local. Rend l'arbre de travail et le dépôt relus.
 	 */

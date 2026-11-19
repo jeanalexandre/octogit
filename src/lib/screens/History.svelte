@@ -90,7 +90,12 @@
     onfilecontextmenu,
     onstash,
     onpopstash,
+    oncherrypick,
+    onrevert,
   }: {
+    /** Boutons Cherry-pick et Revert de `CommitDetail` : l'identifiant complet du commit, sans dialogue. */
+    oncherrypick?: (commit: string) => void;
+    onrevert?: (commit: string) => void;
     /** Stash de `StashButtons` (message optionnel) ; rejette avec le message de Git si refusé. */
     onstash?: (message: string | null) => Promise<void>;
     /** Pop de `StashButtons` : le stash nommé, `null` pour le dernier ; rejette avec le message de Git si refusé. */
@@ -717,6 +722,8 @@
             refs={detailRefs}
             oncheckout={(name) => oncheckout?.(name)}
             oncreatebranch={(commit) => startBranch(commit, "detail")}
+            {oncherrypick}
+            {onrevert}
             onopenfile={(start) =>
               onopendiff?.({
                 commit: shown.id,

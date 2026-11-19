@@ -111,6 +111,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::reset_branch,
             commands::preview_reset_hard,
             commands::reset_hard,
+            commands::cherry_pick,
+            commands::revert,
             commands::amend_message,
             commands::get_commit_email,
             commands::get_identity_mismatch,

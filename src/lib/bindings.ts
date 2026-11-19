@@ -122,6 +122,17 @@ export const commands = {
 	 */
 	resetHard: (path: string, target: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("reset_hard", { path, target })),
 	/**
+	 *  Cherry-pick de `commit` (SHA, branche ou `origin/…`) sur la branche courante, sans dialogue : le commit créé
+	 *  garde l'auteur d'origine, le committer et la signature sont ceux du `.git/config` local. Rend l'arbre de
+	 *  travail et le dépôt relus. Rien n'est poussé, aucune autre ref ne bouge.
+	 */
+	cherryPick: (path: string, commit: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("cherry_pick", { path, commit })),
+	/**
+	 *  Revert de `commit` sur la branche courante, sans dialogue : message par défaut de Git, auteur et committer
+	 *  du `.git/config` local. Rend l'arbre de travail et le dépôt relus.
+	 */
+	revert: (path: string, commit: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("revert", { path, commit })),
+	/**
 	 *  Amend du seul message du dernier commit (`CommitDetail`) : index et arbre de travail intacts, identité
 	 *  du `.git/config` local contrôlée comme pour `commit` ; rend l'arbre de travail et le dépôt relus.
 	 */

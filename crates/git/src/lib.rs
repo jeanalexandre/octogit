@@ -2,6 +2,7 @@
 
 mod branch;
 mod checkout;
+mod cherry_pick;
 mod clone;
 mod diff;
 mod fetch;
@@ -23,6 +24,7 @@ pub use branch::{check_branch_name, create_branch, BranchError, BranchNameCheck}
 pub use checkout::{
     checkout, plan_checkout, CheckoutChoice, CheckoutError, CheckoutPlan, LocalCommit,
 };
+pub use cherry_pick::{cherry_pick, cherry_pick_with_home, revert, revert_with_home};
 pub use clone::{
     clone, clone_with, github_ssh_url, parse_progress, CloneError, CloneProgress, CLONE_TIMEOUT,
 };

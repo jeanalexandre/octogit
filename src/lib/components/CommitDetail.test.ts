@@ -165,6 +165,32 @@ describe("CommitDetail Checkout and Create branch here", () => {
   });
 });
 
+describe("CommitDetail Cherry-pick and Revert", () => {
+  it("revenir-en-arriere CA-1: the detail offers Cherry-pick and Revert, with or without a branch on the commit", () => {
+    for (const refs of [[], [ref("main", "branch")]]) {
+      const { unmount } = render(CommitDetail, { detail, refs });
+      expect(screen.getByRole("button", { name: "Cherry-pick" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Revert" })).toBeEnabled();
+      unmount();
+    }
+  });
+
+  it("revenir-en-arriere CA-2 and CA-3: each button calls its callback once with the full SHA, at once", async () => {
+    const oncherrypick = vi.fn();
+    const onrevert = vi.fn();
+    render(CommitDetail, { detail, oncherrypick, onrevert });
+    await fireEvent.click(screen.getByRole("button", { name: "Cherry-pick" }));
+    expect(oncherrypick).toHaveBeenCalledTimes(1);
+    expect(oncherrypick).toHaveBeenCalledWith(detail.id);
+    expect(onrevert).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole("button", { name: "Revert" }));
+    expect(onrevert).toHaveBeenCalledTimes(1);
+    expect(onrevert).toHaveBeenCalledWith(detail.id);
+    expect(oncherrypick).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
 describe("CommitDetail amend of the last commit message", () => {
   const form = (props: Record<string, unknown> = {}) =>
     render(CommitDetail, { detail, editable: true, onamend: vi.fn(async () => {}), ...props });

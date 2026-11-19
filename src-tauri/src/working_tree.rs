@@ -240,6 +240,32 @@ pub fn amend_message_checked(
     committed(path, tree)
 }
 
+/// Cherry-pick de `commit` (SHA, branche ou `origin/…`) sur la branche courante, sans dialogue : même garde
+/// d'identité que `commit_checked`, refaite ici, rien n'est créé en cas de refus. Un conflit ou un cherry-pick
+/// sans changement est annulé (dépôt inchangé) ; l'erreur est la sortie de Git, sa première ligne en est la raison.
+pub fn cherry_pick_checked(
+    store: &Store,
+    home: &Path,
+    path: &Path,
+    commit: &str,
+) -> Result<CommittedView, String> {
+    crate::attach::ensure_conform(store, path, home)?;
+    let tree = octogit_git::cherry_pick(path, commit).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
+/// Revert de `commit` sur la branche courante, sans dialogue : mêmes garde et refus que `cherry_pick_checked`.
+pub fn revert_checked(
+    store: &Store,
+    home: &Path,
+    path: &Path,
+    commit: &str,
+) -> Result<CommittedView, String> {
+    crate::attach::ensure_conform(store, path, home)?;
+    let tree = octogit_git::revert(path, commit).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
 /// Commit ou amend refusé tant que l'identité locale diffère du profil rattaché : le contrôle est refait
 /// ici, au moment du commit, sans se fier à ce que l'interface affiche. Rien n'est créé en cas de refus.
 pub fn commit_checked(

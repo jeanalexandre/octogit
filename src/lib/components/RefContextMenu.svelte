@@ -35,8 +35,13 @@
     oncancel,
     currentBranch = null,
     onresetbranch,
+    oncherrypick,
+    onrevert,
   }: {
     menu?: RefMenuTarget | null;
+    /** Entrées Cherry-pick et Revert d'un commit ou d'une `origin/…` : la cible du menu (le parent trouve son commit). */
+    oncherrypick?: (target: RefMenuTarget) => void;
+    onrevert?: (target: RefMenuTarget) => void;
     confirm?: CheckoutConfirm | null;
     /** Branche courante : titre du sous-menu « Reset <branche> to here › » ; sans elle, pas d'entrée Reset. */
     currentBranch?: string | null;
@@ -67,10 +72,16 @@
   /** Le nom de la ref est figé avec l'entrée : le menu se ferme (`menu` repasse à `null`) avant qu'elle ne s'exécute. */
   const entries: Entry[] = $derived.by(() => {
     if (menu === null) return [];
+    const target = menu;
+    const pick: Entry[] = [
+      { id: "cherry-pick", label: "Cherry-pick", run: () => oncherrypick?.(target) },
+      { id: "revert", label: "Revert", run: () => onrevert?.(target) },
+    ];
     if (menu.kind === "commit") {
       const { commit } = menu;
       return [
         { id: "create-branch", label: "Create branch here", run: () => oncreatebranch?.(commit) },
+        ...pick,
       ];
     }
     const { name } = menu;
@@ -85,7 +96,8 @@
       const { untracked } = menu;
       return [{ id: "discard", label: "Discard changes", run: () => ondiscard?.(name, untracked) }];
     }
-    return [{ id: "checkout", label: "Checkout", run: () => oncheckout(name) }];
+    const checkout: Entry = { id: "checkout", label: "Checkout", run: () => oncheckout(name) };
+    return menu.kind === "remote" ? [checkout, ...pick] : [checkout];
   });
 
   let menuEl: HTMLElement | undefined = $state();

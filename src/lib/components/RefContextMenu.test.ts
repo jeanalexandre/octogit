@@ -98,7 +98,7 @@ describe("RefContextMenu reset", () => {
     }
   });
 
-  it("revenir-en-arriere CA-15: the menu of an origin/… ref and of a local branch offer Reset after Checkout", async () => {
+  it("revenir-en-arriere CA-15: the menu of an origin/… ref and of a local branch offer Reset after their other entries", async () => {
     for (const target of [local, remote]) {
       const onresetbranch = vi.fn();
       const { unmount } = render(RefContextMenu, {
@@ -109,7 +109,11 @@ describe("RefContextMenu reset", () => {
         within(screen.getByRole("menu"))
           .getAllByRole("menuitem")
           .map((i) => i.textContent?.trim()),
-      ).toEqual(["Checkout", "Reset feature/profiles to here ›"]);
+      ).toEqual(
+        target === remote
+          ? ["Checkout", "Cherry-pick", "Revert", "Reset feature/profiles to here ›"]
+          : ["Checkout", "Reset feature/profiles to here ›"],
+      );
       await fireEvent.click(trigger());
       await fireEvent.click(screen.getByRole("menuitem", { name: /^Mixed/ }));
       expect(onresetbranch).toHaveBeenCalledWith(target, "mixed");
@@ -137,7 +141,77 @@ describe("RefContextMenu reset", () => {
       within(screen.getByRole("menu"))
         .getAllByRole("menuitem")
         .map((i) => i.textContent?.trim()),
-    ).toEqual(["Create branch here"]);
+    ).toEqual(["Create branch here", "Cherry-pick", "Revert"]);
+  });
+});
+
+describe("RefContextMenu cherry-pick and revert", () => {
+  const commit = "c41d8e0".padEnd(40, "0");
+  const commitMenu = { kind: "commit" as const, name: "c41d8e0", commit, x: 40, y: 60 };
+  const labels = () =>
+    within(screen.getByRole("menu"))
+      .getAllByRole("menuitem")
+      .map((i) => i.textContent?.trim());
+
+  it("revenir-en-arriere CA-1: the menu of a commit offers Cherry-pick, Revert, then Reset <current> to here", () => {
+    render(RefContextMenu, props({ menu: commitMenu, currentBranch: "feature/profiles" }));
+    expect(labels()).toEqual([
+      "Create branch here",
+      "Cherry-pick",
+      "Revert",
+      "Reset feature/profiles to here ›",
+    ]);
+  });
+
+  it("revenir-en-arriere CA-1: the menu of an origin/… ref offers Checkout, Cherry-pick, Revert, then Reset", () => {
+    render(RefContextMenu, props({ menu: remote, currentBranch: "feature/profiles" }));
+    expect(labels()).toEqual([
+      "Checkout",
+      "Cherry-pick",
+      "Revert",
+      "Reset feature/profiles to here ›",
+    ]);
+  });
+
+  it("revenir-en-arriere CA-1: the menu of a local branch has neither Cherry-pick nor Revert", () => {
+    render(RefContextMenu, props({ menu: local, currentBranch: "feature/profiles" }));
+    expect(labels()).toEqual(["Checkout", "Reset feature/profiles to here ›"]);
+  });
+
+  it("revenir-en-arriere CA-2 and CA-3: Cherry-pick and Revert run at once, without a dialog, on the clicked commit or origin/… ref", async () => {
+    for (const [menu, name] of [
+      [commitMenu, "Cherry-pick"],
+      [commitMenu, "Revert"],
+      [remote, "Cherry-pick"],
+      [remote, "Revert"],
+    ] as const) {
+      const oncherrypick = vi.fn();
+      const onrevert = vi.fn();
+      const p = props({ menu, currentBranch: "feature/profiles" });
+      const { unmount } = render(RefContextMenu, { ...p, oncherrypick, onrevert });
+      await fireEvent.click(screen.getByRole("menuitem", { name }));
+      const [called, other] =
+        name === "Cherry-pick" ? [oncherrypick, onrevert] : [onrevert, oncherrypick];
+      expect(called).toHaveBeenCalledTimes(1);
+      expect(called).toHaveBeenCalledWith(menu);
+      expect(other).not.toHaveBeenCalled();
+      expect(p.onclose).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("dialog")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("revenir-en-arriere CA-1: the new entries keep the arrow keys and Escape", async () => {
+    const p = props({ menu: commitMenu, currentBranch: "feature/profiles" });
+    render(RefContextMenu, p);
+    const first = screen.getByRole("menuitem", { name: "Create branch here" });
+    expect(first).toHaveFocus();
+    await fireEvent.keyDown(first, { key: "ArrowDown" });
+    expect(screen.getByRole("menuitem", { name: "Cherry-pick" })).toHaveFocus();
+    await fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowDown" });
+    expect(screen.getByRole("menuitem", { name: "Revert" })).toHaveFocus();
+    await fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Escape" });
+    expect(p.onclose).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -149,7 +223,9 @@ describe("RefContextMenu menu", () => {
       const menu = screen.getByRole("menu");
       expect(menu).toBeVisible();
       const items = within(menu).getAllByRole("menuitem");
-      expect(items.map((i) => i.textContent?.trim())).toEqual(["Checkout"]);
+      expect(items.map((i) => i.textContent?.trim())).toEqual(
+        target === remote ? ["Checkout", "Cherry-pick", "Revert"] : ["Checkout"],
+      );
       await fireEvent.click(items[0]);
       expect(p.oncheckout).toHaveBeenCalledTimes(1);
       expect(p.oncheckout).toHaveBeenCalledWith(target.name);
@@ -188,13 +264,17 @@ describe("RefContextMenu menu", () => {
     expect(p.oncheckout).not.toHaveBeenCalled();
   });
 
-  it("gerer-les-branches CA-9: the menu of a commit offers Create branch here only, which asks for the branch on that commit", async () => {
+  it("gerer-les-branches CA-9: the menu of a commit offers Create branch here first, which asks for the branch on that commit", async () => {
     const commit = "c41d8e0".padEnd(40, "0");
     const p = { ...props({ menu: { kind: "commit", name: "c41d8e0", commit, x: 40, y: 60 } }) };
     const oncreatebranch = vi.fn();
     render(RefContextMenu, { ...p, oncreatebranch });
     const items = within(screen.getByRole("menu")).getAllByRole("menuitem");
-    expect(items.map((i) => i.textContent?.trim())).toEqual(["Create branch here"]);
+    expect(items.map((i) => i.textContent?.trim())).toEqual([
+      "Create branch here",
+      "Cherry-pick",
+      "Revert",
+    ]);
     expect(items[0]).toHaveFocus();
     await fireEvent.click(items[0]);
     expect(oncreatebranch).toHaveBeenCalledTimes(1);

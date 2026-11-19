@@ -786,6 +786,34 @@
     }
   }
 
+  /**
+   * Cherry-pick ou Revert du commit désigné (SHA complet, ou ref `origin/…` : le commit vers lequel elle pointe),
+   * sans dialogue. Même garde que le stash ; le dépôt et l'arbre relus remplacent l'affichage, sans changer
+   * d'écran ; un refus (identité, conflit, rien à appliquer) s'affiche en une ligne près de l'en-tête.
+   */
+  async function pickFromTarget(commit: string, revert: boolean) {
+    const path = openPath;
+    if (path === null || screen?.screen !== "history") return;
+    try {
+      await runStash((p) => (revert ? commands.revert(p, commit) : commands.cherryPick(p, commit)));
+    } catch (e) {
+      checkoutNotice = {
+        path,
+        text: (typeof e === "string" ? e : "The action failed.").split("\n")[0],
+      };
+    }
+  }
+
+  function pickFromMenu(menu: RefMenuTarget, revert: boolean) {
+    const commit =
+      menu.kind === "commit"
+        ? menu.commit
+        : screen?.screen === "history"
+          ? screen.repository.refs.find((r) => r.name === menu.name)?.target
+          : undefined;
+    if (commit !== undefined) void pickFromTarget(commit, revert);
+  }
+
   /** Confirmation d'un Hard reset (pertes listées), avec le dépôt concerné. */
   let resetHardDialog: {
     path: string;
@@ -1363,6 +1391,8 @@
       onfilecontextmenu={openFileMenu}
       onstash={stashStart}
       onpopstash={popStash}
+      oncherrypick={(commit) => pickFromTarget(commit, false)}
+      onrevert={(commit) => pickFromTarget(commit, true)}
     />
   </div>
   {#if diff !== null}
@@ -1460,6 +1490,8 @@
     currentBranch={screen.repository.refs.find((r) => r.kind === "branch" && r.current)?.name ??
       null}
     onresetbranch={resetFromMenu}
+    oncherrypick={(target) => pickFromMenu(target, false)}
+    onrevert={(target) => pickFromMenu(target, true)}
     onapplystash={(name) => stashFromMenu((path) => commands.applyStash(path, name))}
     onpopstash={(name) => stashFromMenu((path) => commands.popStash(path, name))}
     ondropstash={askDropStash}

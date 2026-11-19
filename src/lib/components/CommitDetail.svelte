@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Cherry from "@lucide/svelte/icons/cherry";
+  import Undo2 from "@lucide/svelte/icons/undo-2";
   import type { ChangeStatusView, CommitDetailView, MismatchView, RefView } from "../bindings";
   import { formatAbsolute, formatRelative } from "../relativeTime";
 
@@ -7,6 +9,8 @@
     refs = [],
     oncheckout,
     oncreatebranch,
+    oncherrypick,
+    onrevert,
     onopenfile,
     editable = false,
     onamend,
@@ -36,6 +40,9 @@
     oncheckout?: (name: string) => void;
     /** « Create branch here » : l'identifiant complet de ce commit. */
     oncreatebranch?: (commit: string) => void;
+    /** Cherry-pick et Revert de ce commit sur la branche courante, sans dialogue : son identifiant complet. */
+    oncherrypick?: (commit: string) => void;
+    onrevert?: (commit: string) => void;
   } = $props();
 
   /** Branches locales du commit ; à défaut, ses `origin/…` : Checkout agit alors comme celui de l'`origin/…`. */
@@ -213,6 +220,12 @@
       data-create-branch
       onclick={() => oncreatebranch?.(detail.id)}>Create branch here</button
     >
+    <button type="button" class="action" onclick={() => oncherrypick?.(detail.id)}
+      ><Cherry size={16} strokeWidth={1.8} aria-hidden="true" />Cherry-pick</button
+    >
+    <button type="button" class="action" onclick={() => onrevert?.(detail.id)}
+      ><Undo2 size={16} strokeWidth={1.8} aria-hidden="true" />Revert</button
+    >
   </div>
   {#if editable}
     <div class="form">
@@ -324,6 +337,9 @@
   }
 
   .action {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
     padding: 2px 10px;
     border: 1px solid var(--border-strong);
     border-radius: 5px;

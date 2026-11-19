@@ -23,6 +23,13 @@ Ajouter Cherry-pick et Revert au menu clic droit d'un commit (y compris désign�
 ### Fiche (19/11/2026)
 1. Contrôle d'identité dès cette story : a) oui, avec `ensure_conform`, refus en une ligne (décision de l'humain, 19/11/2026)
 2. Conflit ou cherry-pick vide avant S-40 et S-52 : a) annuler par `--abort`, dépôt inchangé, refus en une ligne ; S-40 remplace ce comportement (décision de l'humain, 19/11/2026)
+3. Ordre des entrées du menu d'un commit : a) garder « Create branch here » en premier, puis Cherry-pick, Revert, « Reset … to here › » ; `ux/ecrans/history.md` à amender par `/ksm:ux` (décision de l'humain, 19/11/2026)
+
+### Après la revue 1
+- Mineur : e2e `origin/…` annonce le menu mais n'utilise que `CommitDetail` : traité au passage 2 (d'office), levé en revue 2
+- Pour information : la sélection reste sur le commit d'origine après Cherry-pick ou Revert : pris en compte (pour information)
+- Pour information : `--abort` avec modifications non commitées, refus en amont par S-51 : pris en compte (pour information)
+- Plan : renvoi vers `/ksm:ux` pour amender `ux/ecrans/history.md` (ordre du menu Commit, décision 3)
 
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
@@ -67,8 +74,12 @@ Ajouter Cherry-pick et Revert au menu clic droit d'un commit (y compris désign�
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `fe6c54d`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (tests, lint, build vérifiés ; e2e S-35 11/11) ; écart à ux/ecrans/history.md : « Create branch here » gardé en premier dans le menu d'un commit (ux : en dernier) ; question posée à l'humain avant revue | — |
+| 1 | reviewer | 1 mineur (titre e2e `origin/…` : le menu n'est pas exercé) ; 11 tests e2e jugés probants pour CA-1 à CA-4 et CA-17 | validé (`stories/S-35-revue-1.md`) |
+| 2 | dev | terminé : test e2e `origin/…` exerce le menu (refus, tip en conflit) ; e2e ciblé vert | — |
+| 2 | reviewer | mineur levé, aucun problème ; 11/11 e2e | validé (`stories/S-35-revue-2.md`) |

@@ -524,6 +524,41 @@ pub fn reset_hard(path: String, target: String) -> Result<CommittedView, String>
     working_tree::reset_hard(Path::new(&path), &target)
 }
 
+/// Cherry-pick de `commit` (SHA, branche ou `origin/…`) sur la branche courante, sans dialogue : le commit créé
+/// garde l'auteur d'origine, le committer et la signature sont ceux du `.git/config` local. Rend l'arbre de
+/// travail et le dépôt relus. Rien n'est poussé, aucune autre ref ne bouge.
+#[tauri::command]
+#[specta::specta]
+pub async fn cherry_pick(path: String, commit: String) -> Result<CommittedView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        working_tree::cherry_pick_checked(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+            &commit,
+        )
+    })
+    .await
+    .map_err(|_| "The cherry-pick was interrupted.".to_string())?
+}
+
+/// Revert de `commit` sur la branche courante, sans dialogue : message par défaut de Git, auteur et committer
+/// du `.git/config` local. Rend l'arbre de travail et le dépôt relus.
+#[tauri::command]
+#[specta::specta]
+pub async fn revert(path: String, commit: String) -> Result<CommittedView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        working_tree::revert_checked(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+            &commit,
+        )
+    })
+    .await
+    .map_err(|_| "The revert was interrupted.".to_string())?
+}
+
 /// Commit des fichiers indexés (ou amend du dernier commit) avec l'identité du `.git/config` local ;
 /// rend l'arbre de travail et le dépôt relus. L'erreur est la sortie de Git.
 #[tauri::command]

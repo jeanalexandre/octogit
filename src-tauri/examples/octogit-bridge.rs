@@ -123,6 +123,12 @@ struct ResetHardArgs {
 }
 
 #[derive(Deserialize)]
+struct PickArgs {
+    path: String,
+    commit: String,
+}
+
+#[derive(Deserialize)]
 struct StashArgs {
     path: String,
     #[serde(default)]
@@ -606,6 +612,22 @@ fn main() {
             let args: ResetHardArgs =
                 serde_json::from_str(&input).expect("arguments { path, target }");
             match octogit_app::commands::reset_hard(args.path, args.target) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "cherry_pick" | "revert" => {
+            let args: PickArgs = serde_json::from_str(&input).expect("arguments { path, commit }");
+            // Les commandes Tauri sont asynchrones : le pont appelle directement ce qu'elles délèguent.
+            let store = octogit_store::Store::new(octogit_app::data_dir());
+            let home = octogit_app::home_dir();
+            let path = std::path::Path::new(&args.path);
+            let result = if command == "cherry_pick" {
+                octogit_app::working_tree::cherry_pick_checked(&store, &home, path, &args.commit)
+            } else {
+                octogit_app::working_tree::revert_checked(&store, &home, path, &args.commit)
+            };
+            match result {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

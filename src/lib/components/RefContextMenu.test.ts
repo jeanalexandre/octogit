@@ -47,6 +47,100 @@ describe("RefContextMenu stash", () => {
   });
 });
 
+describe("RefContextMenu reset", () => {
+  const commit = "c41d8e0".padEnd(40, "0");
+  const commitMenu = { kind: "commit" as const, name: "c41d8e0", commit, x: 40, y: 60 };
+  const trigger = () => screen.getByRole("menuitem", { name: /^Reset feature\/profiles to here/ });
+
+  it("revenir-en-arriere CA-10: the Reset submenu of a commit offers Soft, Mixed and Hard, each with its line", async () => {
+    render(RefContextMenu, props({ menu: commitMenu, currentBranch: "feature/profiles" }));
+    expect(trigger()).toHaveAttribute("aria-haspopup", "menu");
+    expect(trigger()).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("menuitem", { name: /^Soft/ })).toBeNull();
+    await fireEvent.click(trigger());
+    expect(trigger()).toHaveAttribute("aria-expanded", "true");
+    const sub = screen.getByRole("menu", { name: "Reset feature/profiles to here" });
+    expect(
+      within(sub)
+        .getAllByRole("menuitem")
+        .map((i) => i.textContent?.replace(/\s+/g, " ").trim()),
+    ).toEqual([
+      "Soft — keep changes staged",
+      "Mixed — keep changes unstaged",
+      "Hard — discard everything…",
+    ]);
+  });
+
+  it("revenir-en-arriere CA-10: ArrowRight opens the submenu on its first mode", async () => {
+    render(RefContextMenu, props({ menu: commitMenu, currentBranch: "feature/profiles" }));
+    trigger().focus();
+    await fireEvent.keyDown(trigger(), { key: "ArrowRight" });
+    expect(screen.getByRole("menuitem", { name: /^Soft/ })).toHaveFocus();
+    await fireEvent.keyDown(screen.getByRole("menuitem", { name: /^Soft/ }), { key: "ArrowLeft" });
+    expect(screen.queryByRole("menuitem", { name: /^Soft/ })).toBeNull();
+    expect(trigger()).toHaveFocus();
+  });
+
+  it("revenir-en-arriere CA-11 and CA-12: Soft and Mixed call the reset at once with their mode, on the right target", async () => {
+    for (const [mode, name] of [
+      ["soft", /^Soft/],
+      ["mixed", /^Mixed/],
+    ] as const) {
+      const p = props({ menu: commitMenu, currentBranch: "feature/profiles" });
+      const onresetbranch = vi.fn();
+      const { unmount } = render(RefContextMenu, { ...p, onresetbranch });
+      await fireEvent.click(trigger());
+      await fireEvent.click(screen.getByRole("menuitem", { name }));
+      expect(onresetbranch).toHaveBeenCalledTimes(1);
+      expect(onresetbranch).toHaveBeenCalledWith(commitMenu, mode);
+      expect(p.onclose).toHaveBeenCalledTimes(1);
+      unmount();
+    }
+  });
+
+  it("revenir-en-arriere CA-15: the menu of an origin/… ref and of a local branch offer Reset after Checkout", async () => {
+    for (const target of [local, remote]) {
+      const onresetbranch = vi.fn();
+      const { unmount } = render(RefContextMenu, {
+        ...props({ menu: target, currentBranch: "feature/profiles" }),
+        onresetbranch,
+      });
+      expect(
+        within(screen.getByRole("menu"))
+          .getAllByRole("menuitem")
+          .map((i) => i.textContent?.trim()),
+      ).toEqual(["Checkout", "Reset feature/profiles to here ›"]);
+      await fireEvent.click(trigger());
+      await fireEvent.click(screen.getByRole("menuitem", { name: /^Mixed/ }));
+      expect(onresetbranch).toHaveBeenCalledWith(target, "mixed");
+      unmount();
+    }
+  });
+
+  it("revenir-en-arriere CA-18: Soft and Mixed are enabled with no identity condition, Hard waits for its dialog", async () => {
+    const p = props({ menu: commitMenu, currentBranch: "feature/profiles" });
+    const onresetbranch = vi.fn();
+    render(RefContextMenu, { ...p, onresetbranch });
+    await fireEvent.click(trigger());
+    expect(screen.getByRole("menuitem", { name: /^Soft/ })).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByRole("menuitem", { name: /^Mixed/ })).not.toHaveAttribute("aria-disabled");
+    const hard = screen.getByRole("menuitem", { name: /^Hard/ });
+    expect(hard).toHaveAttribute("aria-disabled", "true");
+    await fireEvent.click(hard);
+    expect(onresetbranch).not.toHaveBeenCalled();
+    expect(p.onclose).not.toHaveBeenCalled();
+  });
+
+  it("revenir-en-arriere CA-10: no current branch, no Reset entry", () => {
+    render(RefContextMenu, props({ menu: commitMenu, currentBranch: null }));
+    expect(
+      within(screen.getByRole("menu"))
+        .getAllByRole("menuitem")
+        .map((i) => i.textContent?.trim()),
+    ).toEqual(["Create branch here"]);
+  });
+});
+
 describe("RefContextMenu menu", () => {
   it("gerer-les-branches CA-3: the menu of a local branch and of an origin/… branch offers Checkout, which acts like the double-click", async () => {
     for (const target of [local, remote]) {

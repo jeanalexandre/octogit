@@ -110,6 +110,13 @@ struct CommitArgs {
 }
 
 #[derive(Deserialize)]
+struct ResetArgs {
+    path: String,
+    target: String,
+    mode: octogit_app::working_tree::ResetModeView,
+}
+
+#[derive(Deserialize)]
 struct StashArgs {
     path: String,
     #[serde(default)]
@@ -569,6 +576,14 @@ fn main() {
                 _ => octogit_app::commands::drop_stash(args.path.clone(), stash()),
             };
             match result {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "reset_branch" => {
+            let args: ResetArgs =
+                serde_json::from_str(&input).expect("arguments { path, target, mode }");
+            match octogit_app::commands::reset_branch(args.path, args.target, args.mode) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

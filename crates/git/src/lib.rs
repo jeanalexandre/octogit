@@ -9,6 +9,7 @@ mod force_push;
 mod graph;
 mod pull;
 mod push;
+mod reset;
 mod rewrite;
 mod stage;
 mod stash;
@@ -33,6 +34,7 @@ pub use force_push::{force_push, read_rewrite, ForcePushError, OverwrittenCommit
 pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};
 pub use pull::{pull, PullError, PullMode};
 pub use push::{push, PushError};
+pub use reset::{reset_branch, ResetMode};
 pub use rewrite::{rewrite_identity, RewriteError, RewriteTarget};
 pub use stage::{discard_file, stage_file, stage_lines, unstage_file, unstage_lines};
 pub use stash::{stash_apply, stash_drop, stash_pop, stash_push};

@@ -110,6 +110,11 @@ export const commands = {
 	/**  Drop du stash `stash` (`stash@{n}`). */
 	dropStash: (path: string, stash: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("drop_stash", { path, stash })),
 	/**
+	 *  Reset Soft ou Mixed de la branche courante sur `target` (SHA, branche ou `origin/…`) : l'arbre de travail
+	 *  est inchangé, aucun commit n'est créé.
+	 */
+	resetBranch: (path: string, target: string, mode: ResetModeView) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("reset_branch", { path, target, mode })),
+	/**
 	 *  Amend du seul message du dernier commit (`CommitDetail`) : index et arbre de travail intacts, identité
 	 *  du `.git/config` local contrôlée comme pour `commit` ; rend l'arbre de travail et le dépôt relus.
 	 */
@@ -711,6 +716,13 @@ export type RepositoryView_Serialize = {
 	 */
 	mismatch: MismatchView_Serialize | null,
 };
+
+/**  Mode d'un reset qui garde l'arbre de travail (Hard : autre geste, avec confirmation). */
+export type ResetModeView = 
+/**  Les changements des commits retirés restent indexés. */
+"soft" | 
+/**  Les changements des commits retirés restent non indexés. */
+"mixed";
 
 export type RuleKindView = "path" | "remoteOwner";
 

@@ -494,6 +494,18 @@ pub fn drop_stash(path: String, stash: String) -> Result<CommittedView, String> 
     working_tree::drop_stash(Path::new(&path), &stash)
 }
 
+/// Reset Soft ou Mixed de la branche courante sur `target` (SHA, branche ou `origin/…`) : l'arbre de travail
+/// est inchangé, aucun commit n'est créé.
+#[tauri::command]
+#[specta::specta]
+pub fn reset_branch(
+    path: String,
+    target: String,
+    mode: working_tree::ResetModeView,
+) -> Result<CommittedView, String> {
+    working_tree::reset_branch(Path::new(&path), &target, mode)
+}
+
 /// Commit des fichiers indexés (ou amend du dernier commit) avec l'identité du `.git/config` local ;
 /// rend l'arbre de travail et le dépôt relus. L'erreur est la sortie de Git.
 #[tauri::command]

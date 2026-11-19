@@ -23,6 +23,10 @@ Ajouter au `RefContextMenu` le sous-menu « Reset <branche courante> to here ›
 ### Fiche (19/11/2026)
 1. Entrée Hard avant `ResetHardDialog` (S-34) : a) listée mais désactivée jusqu'à S-34 (décision de l'humain, 19/11/2026)
 
+### Après la revue 1
+- Mineur 1 (README : « to » manquant) : traiter (d'office)
+- Mineur 2 (README : « à » manquant) : traiter (d'office)
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test aux vraies commandes du crate `app`, dépôts d'exemple, données dans un dossier temporaire) ; jamais `npx playwright` ni `cargo run`
@@ -66,8 +70,11 @@ Ajouter au `RefContextMenu` le sous-menu « Reset <branche courante> to here ›
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `e9ee443`
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; tests, lint, build verts ; 2 e2e instables hors périmètre (`graph-width`, `refs-column`) | — |
+| 1 | reviewer | `stories/S-33-revue-1.md` : 2 mineurs README | validé |
+| 2 | dev | aucun fichier modifié : les 2 corrections README déjà en place (vérifié ligne 62) ; `pnpm format:check` vert. Pas de nouvelle revue : aucun changement | — |

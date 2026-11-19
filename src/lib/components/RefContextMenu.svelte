@@ -33,9 +33,15 @@
     onreset,
     onasis,
     oncancel,
+    currentBranch = null,
+    onresetbranch,
   }: {
     menu?: RefMenuTarget | null;
     confirm?: CheckoutConfirm | null;
+    /** Branche courante : titre du sous-menu « Reset <branche> to here › » ; sans elle, pas d'entrée Reset. */
+    currentBranch?: string | null;
+    /** Soft ou Mixed choisi dans le sous-menu Reset : la cible du menu (commit ou ref) et le mode. */
+    onresetbranch?: (target: RefMenuTarget, mode: "soft" | "mixed") => void;
     /** Entrée Checkout : agit comme le double-clic sur la même ref. */
     oncheckout: (name: string) => void;
     /** Entrée « Create branch here » d'un commit : l'identifiant complet du commit. */
@@ -85,6 +91,39 @@
   let menuEl: HTMLElement | undefined = $state();
   let dialog: HTMLElement | undefined = $state();
 
+  /** Commit, branche locale et `origin/…` ont « Reset <courante> to here › » (si une branche est courante). */
+  const hasReset = $derived(
+    menu !== null &&
+      currentBranch !== null &&
+      (menu.kind === "commit" || menu.kind === "branch" || menu.kind === "remote"),
+  );
+  let resetOpen = $state(false);
+  let resetTrigger: HTMLElement | undefined = $state();
+  /** Un autre menu (autre ref, autre endroit) repart sous-menu fermé. */
+  $effect(() => {
+    void menu;
+    resetOpen = false;
+  });
+
+  const resetModes = [
+    { mode: "soft", label: "Soft", line: "keep changes staged", enabled: true },
+    { mode: "mixed", label: "Mixed", line: "keep changes unstaged", enabled: true },
+    // Hard attend `ResetHardDialog` (S-34) : listé, mais sans effet.
+    { mode: "hard", label: "Hard", line: "discard everything…", enabled: false },
+  ] as const;
+
+  function runReset(mode: "soft" | "mixed") {
+    const target = menu;
+    if (target === null) return;
+    onclose();
+    onresetbranch?.(target, mode);
+  }
+
+  function openReset() {
+    resetOpen = true;
+    queueMicrotask(() => menuEl?.querySelector<HTMLElement>(".submenu [role='menuitem']")?.focus());
+  }
+
   function runEntry(entry: Entry) {
     onclose();
     entry.run();
@@ -119,6 +158,22 @@
       if (event.key === "Escape") {
         event.preventDefault();
         onclose();
+      } else if (
+        event.key === "ArrowRight" &&
+        hasReset &&
+        document.activeElement === resetTrigger
+      ) {
+        event.preventDefault();
+        openReset();
+      } else if (
+        event.key === "ArrowLeft" &&
+        resetOpen &&
+        (document.activeElement === resetTrigger ||
+          menuEl?.querySelector(".submenu")?.contains(document.activeElement))
+      ) {
+        event.preventDefault();
+        resetOpen = false;
+        resetTrigger?.focus();
       } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
         const items = [...(menuEl?.querySelectorAll<HTMLElement>("[role='menuitem']") ?? [])];
@@ -155,6 +210,33 @@
         onclick={() => runEntry(entry)}>{entry.label}</button
       >
     {/each}
+    {#if hasReset}
+      <button
+        type="button"
+        role="menuitem"
+        class="entry"
+        aria-haspopup="menu"
+        aria-expanded={resetOpen}
+        bind:this={resetTrigger}
+        onclick={() => (resetOpen ? (resetOpen = false) : openReset())}
+        >Reset {currentBranch} to here ›</button
+      >
+      {#if resetOpen}
+        <div class="submenu" role="menu" aria-label="Reset {currentBranch} to here">
+          {#each resetModes as item (item.mode)}
+            <button
+              type="button"
+              role="menuitem"
+              class="entry"
+              aria-disabled={item.enabled ? undefined : "true"}
+              onclick={() => {
+                if (item.mode !== "hard") runReset(item.mode);
+              }}><strong>{item.label}</strong> — {item.line}</button
+            >
+          {/each}
+        </div>
+      {/if}
+    {/if}
   </div>
 {/if}
 
@@ -227,6 +309,24 @@
   .entry:focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: -2px;
+  }
+
+  /* Sous-menu déplié sous son entrée : jamais coupé au bord de la fenêtre. */
+  .submenu {
+    display: flex;
+    flex-direction: column;
+    margin: 2px 0 2px 10px;
+    padding-left: 4px;
+    border-left: 2px solid var(--border-strong);
+  }
+
+  .entry[aria-disabled="true"] {
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  .entry[aria-disabled="true"]:hover {
+    background: none;
   }
 
   .backdrop {

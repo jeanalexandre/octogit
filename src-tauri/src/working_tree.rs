@@ -155,6 +155,31 @@ pub fn apply_stash(path: &Path, stash: &str) -> Result<CommittedView, String> {
     committed(path, tree)
 }
 
+/// Mode d'un reset qui garde l'arbre de travail (Hard : autre geste, avec confirmation).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ResetModeView {
+    /// Les changements des commits retirés restent indexés.
+    Soft,
+    /// Les changements des commits retirés restent non indexés.
+    Mixed,
+}
+
+/// Reset de la branche courante sur `target` (SHA, branche ou `origin/…`) ; rend l'arbre et le dépôt relus.
+/// Aucun commit n'est créé : pas de contrôle d'identité.
+pub fn reset_branch(
+    path: &Path,
+    target: &str,
+    mode: ResetModeView,
+) -> Result<CommittedView, String> {
+    let mode = match mode {
+        ResetModeView::Soft => octogit_git::ResetMode::Soft,
+        ResetModeView::Mixed => octogit_git::ResetMode::Mixed,
+    };
+    let tree = octogit_git::reset_branch(path, target, mode).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
 /// Drop du stash `stash` (`stash@{n}`).
 pub fn drop_stash(path: &Path, stash: &str) -> Result<CommittedView, String> {
     let tree = octogit_git::stash_drop(path, stash).map_err(|e| e.to_string())?;

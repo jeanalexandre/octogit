@@ -108,6 +108,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::pop_stash,
             commands::apply_stash,
             commands::drop_stash,
+            commands::reset_branch,
             commands::amend_message,
             commands::get_commit_email,
             commands::get_identity_mismatch,

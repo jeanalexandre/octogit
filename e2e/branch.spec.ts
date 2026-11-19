@@ -148,7 +148,10 @@ test("gerer-les-branches CA-9 : clic droit sur un commit › Create branch here 
   await row(page, "Main work")
     .getByRole("button", { name: /Main work/ })
     .click({ button: "right" });
-  await expect(page.getByRole("menuitem")).toHaveText(["Create branch here"]);
+  await expect(page.getByRole("menuitem")).toHaveText([
+    "Create branch here",
+    "Reset develop to here ›",
+  ]);
   await page.getByRole("menuitem", { name: "Create branch here" }).click();
   await expect(row(page, "Main work").getByRole("textbox", { name: "Branch name" })).toBeFocused();
   await page.keyboard.type("fix/graph");

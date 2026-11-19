@@ -16,6 +16,7 @@
     type RecentView,
     type SectionLayoutView,
     type RepositoryView,
+    type ResetModeView,
     type SyncAction,
     type WorkingTreeView,
   } from "./lib/bindings";
@@ -741,6 +742,29 @@
     }
   }
 
+  /**
+   * Reset Soft ou Mixed de la branche courante sur le commit désigné par le menu (un commit, ou la ref d'une
+   * branche ou d'une `origin/…`), sans dialogue. Même garde que le stash ; le dépôt et l'arbre relus remplacent
+   * l'affichage, un refus s'affiche en une ligne près de l'en-tête. Aucun contrôle d'identité : pas de commit créé.
+   */
+  async function resetFromMenu(menu: RefMenuTarget, mode: ResetModeView) {
+    const path = openPath;
+    if (path === null || screen?.screen !== "history") return;
+    const target =
+      menu.kind === "commit"
+        ? menu.commit
+        : screen.repository.refs.find((r) => r.name === menu.name)?.target;
+    if (target === undefined) return;
+    try {
+      await runStash((p) => commands.resetBranch(p, target, mode));
+    } catch (e) {
+      checkoutNotice = {
+        path,
+        text: (typeof e === "string" ? e : "The reset failed.").split("\n")[0],
+      };
+    }
+  }
+
   function askDropStash(name: string) {
     if (screen?.screen !== "history") return;
     const target = screen.repository.refs.find(
@@ -1371,6 +1395,9 @@
 {#if screen?.screen === "history"}
   <RefContextMenu
     menu={refMenu}
+    currentBranch={screen.repository.refs.find((r) => r.kind === "branch" && r.current)?.name ??
+      null}
+    onresetbranch={resetFromMenu}
     onapplystash={(name) => stashFromMenu((path) => commands.applyStash(path, name))}
     onpopstash={(name) => stashFromMenu((path) => commands.popStash(path, name))}
     ondropstash={askDropStash}

@@ -96,6 +96,20 @@ export const commands = {
 	 */
 	commit: (path: string, summary: string, description: string, amend: boolean) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("commit", { path, summary, description, amend })),
 	/**
+	 *  Stash : modifications et fichiers non suivis dans un stash (nommé par `message` s'il est saisi) ;
+	 *  rend l'arbre de travail et le dépôt relus. L'erreur est la sortie de Git.
+	 */
+	stashChanges: (path: string, message: string | null) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("stash_changes", { path, message })),
+	/**
+	 *  Pop du stash `stash` (`stash@{n}`), sinon du dernier : le stash est appliqué puis retiré. En conflit, il
+	 *  reste et les fichiers en conflit sont dans l'arbre rendu.
+	 */
+	popStash: (path: string, stash: string | null) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("pop_stash", { path, stash })),
+	/**  Apply du stash `stash` (`stash@{n}`) : il reste dans la liste. */
+	applyStash: (path: string, stash: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("apply_stash", { path, stash })),
+	/**  Drop du stash `stash` (`stash@{n}`). */
+	dropStash: (path: string, stash: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("drop_stash", { path, stash })),
+	/**
 	 *  Amend du seul message du dernier commit (`CommitDetail`) : index et arbre de travail intacts, identité
 	 *  du `.git/config` local contrôlée comme pour `commit` ; rend l'arbre de travail et le dépôt relus.
 	 */
@@ -237,7 +251,9 @@ export type BranchNameCheckView = "valid" |
 /**  « Invalid branch name. » */
 "invalid";
 
-export type ChangeStatusView = "modified" | "added" | "deleted";
+export type ChangeStatusView = "modified" | "added" | "deleted" | 
+/**  Fichier en conflit après un Pop ou un Apply (arbre de travail seulement). */
+"conflicted";
 
 /**  Choix de la confirmation du checkout d'une `origin/…` dont la locale diffère (Cancel : aucun appel). */
 export type CheckoutChoiceView = 

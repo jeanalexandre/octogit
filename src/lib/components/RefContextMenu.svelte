@@ -7,7 +7,9 @@
     /** Clic droit sur un commit du graphe : `name` est son SHA abrégé, `commit` l'identifiant complet. */
     | { name: string; kind: "commit"; commit: string; x: number; y: number }
     /** Clic droit sur un fichier non indexé ou non suivi de `WorkingChanges` : `name` est son chemin. */
-    | { name: string; kind: "file"; untracked: boolean; x: number; y: number };
+    | { name: string; kind: "file"; untracked: boolean; x: number; y: number }
+    /** Clic droit sur un stash (`BranchSidebar`, graphe) : `name` est `stash@{n}`. */
+    | { name: string; kind: "stash"; x: number; y: number };
   /** Une locale de même nom que l'`origin/…` choisie est sur un autre commit : le choix est à faire. */
   export type CheckoutConfirm = { branch: string; remote: string; commits: LocalCommitView[] };
 </script>
@@ -24,6 +26,9 @@
     oncheckout,
     oncreatebranch,
     ondiscard,
+    onapplystash,
+    onpopstash,
+    ondropstash,
     onclose,
     onreset,
     onasis,
@@ -37,6 +42,10 @@
     oncreatebranch?: (commit: string) => void;
     /** Entrée « Discard changes » d'un fichier : son chemin, et s'il est non suivi (il sera supprimé). */
     ondiscard?: (file: string, untracked: boolean) => void;
+    /** Entrées Apply, Pop et Drop d'un stash : son nom (`stash@{n}`). */
+    onapplystash?: (name: string) => void;
+    onpopstash?: (name: string) => void;
+    ondropstash?: (name: string) => void;
     /** Le menu se ferme (entrée choisie, Échap, clic ailleurs). */
     onclose: () => void;
     /** « Reset and checkout ». */
@@ -59,6 +68,13 @@
       ];
     }
     const { name } = menu;
+    if (menu.kind === "stash") {
+      return [
+        { id: "apply", label: "Apply", run: () => onapplystash?.(name) },
+        { id: "pop", label: "Pop", run: () => onpopstash?.(name) },
+        { id: "drop", label: "Drop", run: () => ondropstash?.(name) },
+      ];
+    }
     if (menu.kind === "file") {
       const { untracked } = menu;
       return [{ id: "discard", label: "Discard changes", run: () => ondiscard?.(name, untracked) }];

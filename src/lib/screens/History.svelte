@@ -22,6 +22,7 @@
   import RepoPicker from "../components/RepoPicker.svelte";
   import SearchBox from "../components/SearchBox.svelte";
   import { searchResults, shaTarget, stepPosition } from "../search";
+  import StashButtons from "../components/StashButtons.svelte";
   import SyncButton from "../components/SyncButton.svelte";
   import Toolbar from "../components/Toolbar.svelte";
   import WorkingChanges from "../components/WorkingChanges.svelte";
@@ -87,7 +88,13 @@
     onopendiff,
     onopenworking,
     onfilecontextmenu,
+    onstash,
+    onpopstash,
   }: {
+    /** Stash de `StashButtons` (message optionnel) ; rejette avec le message de Git si refusé. */
+    onstash?: (message: string | null) => Promise<void>;
+    /** Pop de `StashButtons` : le stash nommé, `null` pour le dernier ; rejette avec le message de Git si refusé. */
+    onpopstash?: (name: string | null) => Promise<void>;
     /** Clic sur un fichier de `WorkingChanges` : ouvre `DiffView` (mode travail ou indexé) sur ce groupe de fichiers. */
     onopenworking?: (open: {
       group: "unstaged" | "staged";
@@ -508,6 +515,32 @@
     ),
   );
   const tracking = $derived(current?.upstream ? current : undefined);
+
+  /** Stash dont la ligne ou le nœud est sélectionné dans le graphe ; sans sélection de stash, Pop prend le dernier. */
+  const selectedStash = $derived(
+    wipSelected || selected === null
+      ? undefined
+      : repository.refs.find((r) => r.kind === "stash" && r.target === selected),
+  );
+  /** Stash impossible sans modification, et sans commit (Git le refuse). */
+  const stashReason = $derived(
+    repository.commits.length === 0
+      ? "No commit yet"
+      : (changedFiles ?? 0) === 0
+        ? "Working tree clean"
+        : null,
+  );
+  const popReason = $derived(stashTargets.size === 0 ? "No stash" : null);
+
+  // Des fichiers en conflit apparaissent (Pop ou Apply) : `WorkingChanges` les montre, quelle que soit la sélection.
+  let lastConflicts = 0;
+  $effect.pre(() => {
+    const now = workingTree?.unstaged.filter((f) => f.status === "conflicted").length ?? 0;
+    untrack(() => {
+      if (now > 0 && lastConflicts === 0 && !wipSelected) selectWip();
+      lastConflicts = now;
+    });
+  });
   const stashTitles = $derived(
     Object.fromEntries(
       repository.refs
@@ -530,8 +563,13 @@
     />
     <span class="path">{repository.path}</span>
     <div class="end">
-      <!-- Stash complet (StashButtons) : S-32. Ici, seulement l'état désactivé. -->
-      <button type="button" class="stash-button" disabled>Stash</button>
+      <StashButtons
+        {stashReason}
+        {popReason}
+        popName={selectedStash?.name ?? null}
+        onstash={async (message) => onstash?.(message)}
+        onpop={async (name) => onpopstash?.(name)}
+      />
       <ProfileBadge
         profile={repository.profile ?? null}
         {profiles}
@@ -768,16 +806,6 @@
 
   .end:has(:global([data-push-commits])) > :first-child {
     margin-left: auto;
-  }
-
-  .stash-button {
-    padding: 2px 10px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    background: transparent;
-    color: var(--muted);
-    font: inherit;
-    font-size: 12px;
   }
 
   .sync {

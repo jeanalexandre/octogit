@@ -100,7 +100,12 @@
     };
   });
 
-  const LETTERS: Record<ChangeStatusView, string> = { modified: "M", added: "A", deleted: "D" };
+  const LETTERS: Record<ChangeStatusView, string> = {
+    modified: "M",
+    added: "A",
+    deleted: "D",
+    conflicted: "U",
+  };
 
   function step(delta: number) {
     const next = index + delta;
@@ -552,7 +557,8 @@
     background: var(--success);
   }
 
-  .status.deleted {
+  .status.deleted,
+  .status.conflicted {
     background: var(--danger);
   }
 

@@ -92,7 +92,12 @@
       closeChooser(false);
   }
 
-  const LETTERS: Record<ChangeStatusView, string> = { modified: "M", added: "A", deleted: "D" };
+  const LETTERS: Record<ChangeStatusView, string> = {
+    modified: "M",
+    added: "A",
+    deleted: "D",
+    conflicted: "U",
+  };
   const isMerge = $derived(detail.parents.length > 1);
   const lines = $derived(detail.message.replace(/\n+$/, "").split("\n"));
   const title = $derived(lines[0] ?? "");

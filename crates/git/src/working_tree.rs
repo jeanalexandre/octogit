@@ -65,7 +65,11 @@ pub fn read_working_tree(path: &Path) -> Result<WorkingTree, GitError> {
                     tree.unstaged
                         .push(change(rela_path.as_ref(), ChangeStatus::Deleted));
                 }
-                EntryStatus::Change(_) | EntryStatus::Conflict { .. } => {
+                EntryStatus::Conflict { .. } => {
+                    tree.unstaged
+                        .push(change(rela_path.as_ref(), ChangeStatus::Conflicted));
+                }
+                EntryStatus::Change(_) => {
                     tree.unstaged
                         .push(change(rela_path.as_ref(), ChangeStatus::Modified));
                 }
@@ -97,7 +101,20 @@ pub fn read_working_tree(path: &Path) -> Result<WorkingTree, GitError> {
             }
         }
     }
+    // Un fichier en conflit n'est listé qu'une fois : l'index ne le porte pas comme un changement.
+    let conflicted: Vec<String> = tree
+        .unstaged
+        .iter()
+        .filter(|f| f.status == ChangeStatus::Conflicted)
+        .map(|f| f.path.clone())
+        .collect();
+    tree.staged.retain(|f| !conflicted.contains(&f.path));
     tree.unstaged.sort_by(|a, b| a.path.cmp(&b.path));
+    tree.unstaged.dedup_by(|b, a| {
+        a.path == b.path
+            && a.status == ChangeStatus::Conflicted
+            && b.status == ChangeStatus::Conflicted
+    });
     tree.staged.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(tree)
 }

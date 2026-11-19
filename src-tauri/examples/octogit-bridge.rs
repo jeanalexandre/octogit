@@ -110,6 +110,15 @@ struct CommitArgs {
 }
 
 #[derive(Deserialize)]
+struct StashArgs {
+    path: String,
+    #[serde(default)]
+    message: Option<String>,
+    #[serde(default)]
+    stash: Option<String>,
+}
+
+#[derive(Deserialize)]
 struct AmendMessageArgs {
     path: String,
     summary: String,
@@ -541,6 +550,25 @@ fn main() {
                 &args.description,
                 args.amend,
             ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "stash_changes" | "pop_stash" | "apply_stash" | "drop_stash" => {
+            let args: StashArgs =
+                serde_json::from_str(&input).expect("arguments { path, message | stash }");
+            let stash = || args.stash.clone().expect("argument stash");
+            let result = match command.as_str() {
+                "stash_changes" => {
+                    octogit_app::commands::stash_changes(args.path.clone(), args.message.clone())
+                }
+                "pop_stash" => {
+                    octogit_app::commands::pop_stash(args.path.clone(), args.stash.clone())
+                }
+                "apply_stash" => octogit_app::commands::apply_stash(args.path.clone(), stash()),
+                _ => octogit_app::commands::drop_stash(args.path.clone(), stash()),
+            };
+            match result {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

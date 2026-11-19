@@ -11,6 +11,8 @@ pub enum ChangeStatusView {
     Modified,
     Added,
     Deleted,
+    /// Fichier en conflit après un Pop ou un Apply (arbre de travail seulement).
+    Conflicted,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
@@ -58,6 +60,7 @@ pub fn commit_detail(path: &Path, id: &str) -> Result<CommitDetailView, String> 
                     octogit_git::ChangeStatus::Modified => ChangeStatusView::Modified,
                     octogit_git::ChangeStatus::Added => ChangeStatusView::Added,
                     octogit_git::ChangeStatus::Deleted => ChangeStatusView::Deleted,
+                    octogit_git::ChangeStatus::Conflicted => ChangeStatusView::Conflicted,
                 },
             })
             .collect(),
@@ -119,6 +122,7 @@ fn file_diff_view(d: octogit_git::FileDiff) -> FileDiffView {
         octogit_git::ChangeStatus::Modified => ChangeStatusView::Modified,
         octogit_git::ChangeStatus::Added => ChangeStatusView::Added,
         octogit_git::ChangeStatus::Deleted => ChangeStatusView::Deleted,
+        octogit_git::ChangeStatus::Conflicted => ChangeStatusView::Conflicted,
     };
     match d.content {
         octogit_git::FileDiffContent::Binary { old_size, new_size } => FileDiffView {

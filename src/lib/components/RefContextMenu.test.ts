@@ -24,6 +24,29 @@ function props(overrides = {}) {
 const local = { name: "feature/graph", kind: "branch" as const, x: 40, y: 60 };
 const remote = { name: "origin/feature/graph", kind: "remote" as const, x: 40, y: 60 };
 
+describe("RefContextMenu stash", () => {
+  const stash = { name: "stash@{1}", kind: "stash" as const, x: 40, y: 60 };
+
+  it("preparer-un-commit CA-19: the menu of a stash offers Apply, Pop and Drop, each acting on that stash", async () => {
+    const handlers = { onapplystash: vi.fn(), onpopstash: vi.fn(), ondropstash: vi.fn() };
+    const p = { ...props({ menu: stash }), ...handlers };
+    render(RefContextMenu, p);
+    const items = within(screen.getByRole("menu", { name: "stash@{1}" })).getAllByRole("menuitem");
+    expect(items.map((i) => i.textContent?.trim())).toEqual(["Apply", "Pop", "Drop"]);
+    for (const [item, run] of [
+      [items[0], p.onapplystash],
+      [items[1], p.onpopstash],
+      [items[2], p.ondropstash],
+    ] as const) {
+      await fireEvent.click(item);
+      expect(run).toHaveBeenCalledTimes(1);
+      expect(run).toHaveBeenCalledWith("stash@{1}");
+    }
+    expect(p.onclose).toHaveBeenCalledTimes(3);
+    expect(p.oncheckout).not.toHaveBeenCalled();
+  });
+});
+
 describe("RefContextMenu menu", () => {
   it("gerer-les-branches CA-3: the menu of a local branch and of an origin/… branch offers Checkout, which acts like the double-click", async () => {
     for (const target of [local, remote]) {

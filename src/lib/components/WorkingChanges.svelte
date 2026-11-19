@@ -46,7 +46,14 @@
     identity?: { profile: string; email: string } | null;
   } = $props();
 
-  const LETTERS: Record<ChangeStatusView, string> = { modified: "M", added: "A", deleted: "D" };
+  const LETTERS: Record<ChangeStatusView, string> = {
+    modified: "M",
+    added: "A",
+    deleted: "D",
+    conflicted: "U",
+  };
+  /** Fichiers en conflit après un Pop ou un Apply (le stash est resté dans la liste). */
+  const conflicts = $derived(tree.unstaged.filter((f) => f.status === "conflicted").length);
   /** Fichiers modifiés, un fichier présent des deux côtés compté une fois (comme la ligne WIP). */
   const count = $derived(new Set([...tree.unstaged, ...tree.staged].map((f) => f.path)).size);
   const clean = $derived(count === 0);
@@ -148,6 +155,12 @@
   {#if clean}
     <p class="clean">Working tree clean.</p>
   {:else}
+    {#if conflicts > 0}
+      <p class="conflicts" role="status">
+        {conflicts}
+        {conflicts === 1 ? "file" : "files"} in conflict
+      </p>
+    {/if}
     {@render group("Unstaged", tree.unstaged, "Stage all", onstageall)}
     {@render group("Staged", tree.staged, "Unstage all", onunstageall)}
   {/if}
@@ -214,6 +227,7 @@
         >
           <span class="status {file.status}" aria-label={file.status}>{LETTERS[file.status]}</span>
           <span class="path">{file.path}</span>
+          {#if file.status === "conflicted"}<span class="conflict">Conflict</span>{/if}
         </button>
       </li>
     {/each}
@@ -443,7 +457,20 @@
     background: var(--success);
   }
 
-  .deleted {
+  .deleted,
+  .conflicted {
     background: var(--danger);
+  }
+
+  .conflicts,
+  .conflict {
+    color: var(--danger);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .conflict {
+    margin-left: auto;
+    flex: none;
   }
 </style>

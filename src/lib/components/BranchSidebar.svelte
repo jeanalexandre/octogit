@@ -291,6 +291,23 @@
         >
           {@render rowBody(node)}
         </div>
+      {:else if node.ref.kind === "stash"}
+        <!-- Un stash n'a pas de checkout : seulement son menu (Apply, Pop, Drop). -->
+        <div
+          class="item stash"
+          role="button"
+          aria-label={node.ref.name}
+          tabindex="0"
+          style="padding-left: {6 + depth * 12}px"
+          oncontextmenu={(event) => onrefcontextmenu?.(node.ref.name, event)}
+          onkeydown={(event) => {
+            if (event.target !== event.currentTarget || !isMenuKey(event)) return;
+            event.preventDefault();
+            onrefcontextmenu?.(node.ref.name, menuEventAt(event.currentTarget as Element));
+          }}
+        >
+          {@render rowBody(node)}
+        </div>
       {:else}
         <div
           class="item"
@@ -548,7 +565,8 @@
     border-radius: 4px;
   }
 
-  .item.branch:focus-visible {
+  .item.branch:focus-visible,
+  .item.stash:focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: -2px;
   }

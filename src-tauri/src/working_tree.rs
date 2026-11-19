@@ -36,6 +36,7 @@ fn view(files: Vec<octogit_git::FileChange>) -> Vec<FileChangeView> {
                 octogit_git::ChangeStatus::Modified => ChangeStatusView::Modified,
                 octogit_git::ChangeStatus::Added => ChangeStatusView::Added,
                 octogit_git::ChangeStatus::Deleted => ChangeStatusView::Deleted,
+                octogit_git::ChangeStatus::Conflicted => ChangeStatusView::Conflicted,
             },
         })
         .collect()
@@ -132,6 +133,32 @@ fn committed(path: &Path, tree: octogit_git::WorkingTree) -> Result<CommittedVie
         tree: tree.into(),
         repository,
     })
+}
+
+/// Stash (message optionnel, fichiers non suivis compris) ; rend l'arbre propre et le dépôt relu (le stash
+/// est une ref). Aucun commit de l'historique n'est écrit : pas de contrôle d'identité.
+pub fn stash_changes(path: &Path, message: Option<&str>) -> Result<CommittedView, String> {
+    let tree = octogit_git::stash_push(path, message).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
+/// Pop du stash `stash` (`stash@{n}`), sinon du dernier. Un conflit n'est pas une erreur : le stash reste,
+/// et les fichiers en conflit sont dans l'arbre rendu.
+pub fn pop_stash(path: &Path, stash: Option<&str>) -> Result<CommittedView, String> {
+    let tree = octogit_git::stash_pop(path, stash).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
+/// Apply du stash `stash` (`stash@{n}`) : il reste dans la liste.
+pub fn apply_stash(path: &Path, stash: &str) -> Result<CommittedView, String> {
+    let tree = octogit_git::stash_apply(path, stash).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
+/// Drop du stash `stash` (`stash@{n}`).
+pub fn drop_stash(path: &Path, stash: &str) -> Result<CommittedView, String> {
+    let tree = octogit_git::stash_drop(path, stash).map_err(|e| e.to_string())?;
+    committed(path, tree)
 }
 
 /// Amend du seul message du dernier commit (index et arbre de travail intacts) ; la même garde d'identité
@@ -274,6 +301,41 @@ mod tests {
         assert_eq!(done.tree.unstaged.len(), 2);
         assert_eq!(done.repository.commits[0].summary, "feat: from the view");
         assert!(commit(&repo, "", "", false).is_err());
+        let _ = std::fs::remove_dir_all(repo.parent().unwrap());
+    }
+
+    #[test]
+    fn preparer_un_commit_ca_17_stash_then_pop_return_the_tree_and_the_graph_with_the_stash_ref() {
+        use crate::launch::RefKindView;
+        let repo = repo("stash");
+        let stashed = stash_changes(&repo, Some("park it")).unwrap();
+        assert!(stashed.tree.unstaged.is_empty() && stashed.tree.staged.is_empty());
+        let stashes: Vec<_> = stashed
+            .repository
+            .refs
+            .iter()
+            .filter(|r| r.kind == RefKindView::Stash)
+            .collect();
+        assert_eq!(stashes.len(), 1);
+        assert_eq!(stashes[0].name, "stash@{0}");
+        let applied = apply_stash(&repo, "stash@{0}").unwrap();
+        assert_eq!(applied.tree.unstaged.len(), 3);
+        assert_eq!(
+            applied
+                .repository
+                .refs
+                .iter()
+                .filter(|r| r.kind == RefKindView::Stash)
+                .count(),
+            1
+        );
+        let dropped = drop_stash(&repo, "stash@{0}").unwrap();
+        assert!(dropped
+            .repository
+            .refs
+            .iter()
+            .all(|r| r.kind != RefKindView::Stash));
+        assert!(pop_stash(&repo, None).is_err());
         let _ = std::fs::remove_dir_all(repo.parent().unwrap());
     }
 

@@ -68,7 +68,14 @@ Ajouter `StashButtons` (Stash avec message optionnel, Pop du stash sélectionné
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `04aad4c`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (tests, lint, build, e2e, audit:deps, tauri build verts) ; écarts : variante `Conflicted` de `ChangeStatus`, 4 commandes Tauri, `DropStashDialog`, ligne de stash de `BranchSidebar` en `role="button"` | — |
+| 1 | reviewer | CA-17 à CA-21 couverts, interface conforme à 1500×900 et 1280×720 | validé (`stories/S-32-revue-1.md`) |
+
+## Traitement des retours
+### Après la revue 1
+- Hauteur figée de la section Stashes de `BranchSidebar` après un premier Stash : pris en compte (pour information), reporté dans `notes-production.md`.
+- `audit:deps` et `tauri build` : pris en compte (pour information), passés par `dev`.

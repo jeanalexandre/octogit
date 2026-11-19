@@ -11,6 +11,7 @@ mod pull;
 mod push;
 mod rewrite;
 mod stage;
+mod stash;
 mod unpushed;
 mod working_tree;
 
@@ -34,6 +35,7 @@ pub use pull::{pull, PullError, PullMode};
 pub use push::{push, PushError};
 pub use rewrite::{rewrite_identity, RewriteError, RewriteTarget};
 pub use stage::{discard_file, stage_file, stage_lines, unstage_file, unstage_lines};
+pub use stash::{stash_apply, stash_drop, stash_pop, stash_push};
 pub use unpushed::{read_unpushed, UnpushedCommit};
 pub use working_tree::{
     amend_message, amend_message_with_home, commit, commit_with_home, read_working_tree, stage_all,
@@ -106,6 +108,8 @@ pub enum ChangeStatus {
     Modified,
     Added,
     Deleted,
+    /// Fichier en conflit (Pop ou Apply d'un stash) : seul l'arbre de travail en rend.
+    Conflicted,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

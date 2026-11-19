@@ -24,6 +24,7 @@
   import { sshApi } from "./lib/sshKeys";
   import CloneDialog from "./lib/components/CloneDialog.svelte";
   import DiscardDialog from "./lib/components/DiscardDialog.svelte";
+  import DropStashDialog from "./lib/components/DropStashDialog.svelte";
   import ForcePushDialog from "./lib/components/ForcePushDialog.svelte";
   import IdentityMismatch from "./lib/components/IdentityMismatch.svelte";
   import RefContextMenu, {
@@ -682,15 +683,87 @@
   /** Confirmation du checkout d'une `origin/…` dont la locale de même nom diffère, avec le dépôt et la ref demandée. */
   let checkoutConfirm: (CheckoutConfirm & { path: string; name: string }) | null = $state(null);
 
-  /** Ouvre le menu d'une branche locale ou d'une `origin/…` ; tags et stashes n'ont pas de menu ici (S-36). */
+  /** Ouvre le menu d'une branche locale, d'une `origin/…` ou d'un stash ; les tags n'en ont pas ici (S-36). */
   function openRefMenu(name: string, event: MouseEvent) {
     event.preventDefault();
     if (screen?.screen !== "history") return;
     const found = screen.repository.refs.find(
-      (r) => r.name === name && (r.kind === "branch" || r.kind === "remote"),
+      (r) => r.name === name && (r.kind === "branch" || r.kind === "remote" || r.kind === "stash"),
     );
-    if (!found || (found.kind !== "branch" && found.kind !== "remote")) return;
+    if (!found || (found.kind !== "branch" && found.kind !== "remote" && found.kind !== "stash"))
+      return;
     refMenu = { name, kind: found.kind, x: event.clientX, y: event.clientY };
+  }
+
+  /** Confirmation du Drop d'un stash, avec le dépôt concerné. */
+  let dropDialog: {
+    path: string;
+    name: string;
+    summary: string;
+    busy: boolean;
+    error: string | null;
+  } | null = $state(null);
+
+  /**
+   * Stash, Pop ou Apply : sous la même garde que le checkout (jamais en même temps qu'un fetch du même dépôt, un
+   * seul geste à la fois). Le dépôt relu et l'arbre rendus par le cœur remplacent l'affichage ; un conflit de Pop ou
+   * d'Apply n'est pas un refus : le stash reste, les fichiers en conflit sont dans l'arbre. Rejette avec le message
+   * de Git si refusé.
+   */
+  async function runStash(run: (path: string) => ReturnType<typeof commands.stashChanges>) {
+    const path = openPath;
+    if (path === null || screen?.screen !== "history") return;
+    if (checkoutPath !== null) throw "Operation in progress.";
+    checkoutNotice = null;
+    checkoutPath = path;
+    try {
+      await runFetchNow(path, async () => applyCommitted(path, await run(path)));
+    } finally {
+      checkoutPath = null;
+    }
+  }
+
+  const stashStart = (message: string | null) =>
+    runStash((path) => commands.stashChanges(path, message));
+  const popStash = (name: string | null) => runStash((path) => commands.popStash(path, name));
+
+  /** Apply ou Pop du clic droit : un refus s'affiche en une ligne près de l'en-tête, comme un checkout refusé. */
+  async function stashFromMenu(run: (path: string) => ReturnType<typeof commands.stashChanges>) {
+    const path = openPath;
+    try {
+      await runStash(run);
+    } catch (e) {
+      if (path !== null)
+        checkoutNotice = {
+          path,
+          text: (typeof e === "string" ? e : "The stash action failed.").split("\n")[0],
+        };
+    }
+  }
+
+  function askDropStash(name: string) {
+    if (screen?.screen !== "history") return;
+    const target = screen.repository.refs.find(
+      (r) => r.kind === "stash" && r.name === name,
+    )?.target;
+    const summary = screen.repository.commits.find((c) => c.id === target)?.summary ?? "";
+    dropDialog = { path: screen.repository.path, name, summary, busy: false, error: null };
+  }
+
+  async function dropStash() {
+    const asked = dropDialog;
+    if (asked === null || asked.busy || asked.path !== openPath) return;
+    dropDialog = { ...asked, busy: true, error: null };
+    try {
+      await runStash((path) => commands.dropStash(path, asked.name));
+      dropDialog = null;
+    } catch (e) {
+      dropDialog = {
+        ...asked,
+        busy: false,
+        error: (typeof e === "string" ? e : "The drop failed.").split("\n")[0],
+      };
+    }
   }
 
   /**
@@ -746,6 +819,12 @@
   function openCommitMenu(commit: string, event: MouseEvent) {
     event.preventDefault();
     if (screen?.screen !== "history") return;
+    // Le nœud d'un stash a le menu du stash, pas celui d'un commit.
+    const stash = screen.repository.refs.find((r) => r.kind === "stash" && r.target === commit);
+    if (stash) {
+      refMenu = { name: stash.name, kind: "stash", x: event.clientX, y: event.clientY };
+      return;
+    }
     refMenu = {
       name: commit.slice(0, 7),
       kind: "commit",
@@ -1209,6 +1288,8 @@
           start,
         })}
       onfilecontextmenu={openFileMenu}
+      onstash={stashStart}
+      onpopstash={popStash}
     />
   </div>
   {#if diff !== null}
@@ -1276,9 +1357,23 @@
   />
 {/if}
 
+{#if dropDialog && dropDialog.path === openPath}
+  <DropStashDialog
+    stash={dropDialog.name}
+    summary={dropDialog.summary}
+    busy={dropDialog.busy}
+    error={dropDialog.error}
+    ondrop={dropStash}
+    oncancel={() => (dropDialog = null)}
+  />
+{/if}
+
 {#if screen?.screen === "history"}
   <RefContextMenu
     menu={refMenu}
+    onapplystash={(name) => stashFromMenu((path) => commands.applyStash(path, name))}
+    onpopstash={(name) => stashFromMenu((path) => commands.popStash(path, name))}
+    ondropstash={askDropStash}
     confirm={checkoutConfirm !== null && checkoutConfirm.path === openPath ? checkoutConfirm : null}
     oncheckout={(name) => checkout(name)}
     oncreatebranch={(commit) => (branchInput = { commit, source: "row" })}

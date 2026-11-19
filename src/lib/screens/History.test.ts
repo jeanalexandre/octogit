@@ -228,6 +228,53 @@ describe("History", () => {
     expect(screen.getByRole("button", { name: /^Commit/ })).toBeDisabled();
   });
 
+  it("preparer-un-commit CA-17: Stash is enabled with changes and asks for the stash with the typed message", async () => {
+    const onstash = vi.fn(async () => {});
+    render(History, props({ workingTree, onstash }));
+    const header = within(screen.getByRole("banner"));
+    expect(header.getByRole("button", { name: "Stash" })).toBeEnabled();
+    await fireEvent.click(header.getByRole("button", { name: "Stash" }));
+    await fireEvent.input(header.getByRole("textbox", { name: "Stash message" }), {
+      target: { value: "park it" },
+    });
+    await fireEvent.keyDown(header.getByRole("textbox", { name: "Stash message" }), {
+      key: "Enter",
+    });
+    expect(onstash).toHaveBeenCalledWith("park it");
+  });
+
+  it("preparer-un-commit CA-18: Pop takes the stash whose line is selected in the graph, else the last one", async () => {
+    const onpopstash = vi.fn(async () => {});
+    render(History, props({ workingTree, onpopstash }));
+    const pop = () => within(screen.getByRole("banner")).getByRole("button", { name: "Pop" });
+    await fireEvent.click(pop());
+    expect(onpopstash).toHaveBeenLastCalledWith(null);
+    // « Main work » est le commit que désigne stash@{0} dans ce dépôt.
+    await fireEvent.click(screen.getByRole("button", { name: /Main work/ }));
+    await fireEvent.click(pop());
+    expect(onpopstash).toHaveBeenLastCalledWith("stash@{0}");
+    await fireEvent.click(screen.getByRole("button", { name: /Add profiles/ }));
+    await fireEvent.click(pop());
+    expect(onpopstash).toHaveBeenLastCalledWith(null);
+  });
+
+  it("preparer-un-commit CA-18: Pop is disabled when the repository has no stash", () => {
+    const noStash = { ...repository, refs: refs.filter((r) => r.kind !== "stash") };
+    render(History, props({ repository: noStash, workingTree }));
+    expect(within(screen.getByRole("banner")).getByRole("button", { name: "Pop" })).toBeDisabled();
+  });
+
+  it("preparer-un-commit CA-21: files in conflict after a Pop bring WorkingChanges back, even from another commit", async () => {
+    const view = render(History, props({ workingTree }));
+    await fireEvent.click(screen.getByRole("button", { name: /Main work/ }));
+    await screen.findByRole("region", { name: "Commit detail" });
+    await view.rerender({
+      workingTree: { unstaged: [{ path: "file.txt", status: "conflicted" }], staged: [] },
+    });
+    const panel = await screen.findByRole("region", { name: "Working changes" });
+    expect(within(panel).getByText("Conflict")).toBeInTheDocument();
+  });
+
   it("preparer-un-commit CA-2: clicking the WIP row replaces CommitDetail by WorkingChanges, and the reverse", async () => {
     render(History, props({ workingTree }));
     await fireEvent.click(screen.getByRole("button", { name: /Main work/ }));

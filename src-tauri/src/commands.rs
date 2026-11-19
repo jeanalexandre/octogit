@@ -464,6 +464,36 @@ pub fn discard_file(path: String, file: String) -> Result<WorkingTreeView, Strin
     working_tree::discard_file(Path::new(&path), &file)
 }
 
+/// Stash : modifications et fichiers non suivis dans un stash (nommé par `message` s'il est saisi) ;
+/// rend l'arbre de travail et le dépôt relus. L'erreur est la sortie de Git.
+#[tauri::command]
+#[specta::specta]
+pub fn stash_changes(path: String, message: Option<String>) -> Result<CommittedView, String> {
+    working_tree::stash_changes(Path::new(&path), message.as_deref())
+}
+
+/// Pop du stash `stash` (`stash@{n}`), sinon du dernier : le stash est appliqué puis retiré. En conflit, il
+/// reste et les fichiers en conflit sont dans l'arbre rendu.
+#[tauri::command]
+#[specta::specta]
+pub fn pop_stash(path: String, stash: Option<String>) -> Result<CommittedView, String> {
+    working_tree::pop_stash(Path::new(&path), stash.as_deref())
+}
+
+/// Apply du stash `stash` (`stash@{n}`) : il reste dans la liste.
+#[tauri::command]
+#[specta::specta]
+pub fn apply_stash(path: String, stash: String) -> Result<CommittedView, String> {
+    working_tree::apply_stash(Path::new(&path), &stash)
+}
+
+/// Drop du stash `stash` (`stash@{n}`).
+#[tauri::command]
+#[specta::specta]
+pub fn drop_stash(path: String, stash: String) -> Result<CommittedView, String> {
+    working_tree::drop_stash(Path::new(&path), &stash)
+}
+
 /// Commit des fichiers indexés (ou amend du dernier commit) avec l'identité du `.git/config` local ;
 /// rend l'arbre de travail et le dépôt relus. L'erreur est la sortie de Git.
 #[tauri::command]

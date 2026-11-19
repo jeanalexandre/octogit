@@ -38,6 +38,34 @@ const rows = (list: HTMLElement) =>
     .getAllByRole("listitem")
     .map((li) => li.textContent?.replace(/\s+/g, " ").trim());
 
+describe("WorkingChanges conflicts", () => {
+  const conflicted: WorkingTreeView = {
+    unstaged: [
+      { path: "lib/a.txt", status: "conflicted" },
+      { path: "notes.txt", status: "added" },
+    ],
+    staged: [],
+  };
+
+  it("preparer-un-commit CA-21: a file in conflict is told by its letter, its name and the word Conflict, not by colour alone", () => {
+    render(WorkingChanges, props({ tree: conflicted }));
+    const unstaged = screen.getByRole("list", { name: "Unstaged" });
+    expect(rows(unstaged)).toEqual(["U lib/a.txt Conflict", "A notes.txt"]);
+    expect(within(unstaged).getByLabelText("conflicted")).toHaveTextContent("U");
+  });
+
+  it("preparer-un-commit CA-21: the panel counts the files in conflict", () => {
+    render(WorkingChanges, props({ tree: conflicted }));
+    expect(screen.getByRole("status")).toHaveTextContent("1 file in conflict");
+  });
+
+  it("preparer-un-commit CA-21: without a conflict there is no conflict line", () => {
+    render(WorkingChanges, props());
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText("Conflict")).toBeNull();
+  });
+});
+
 describe("WorkingChanges", () => {
   it("preparer-un-commit CA-3: files are split in Unstaged · n and Staged · n, each with a status letter and its path", () => {
     render(WorkingChanges, props());

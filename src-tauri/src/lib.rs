@@ -100,6 +100,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::stage_all,
             commands::unstage_all,
             commands::commit,
+            commands::amend_message,
             commands::get_commit_email,
             commands::get_identity_mismatch,
             commands::get_push_check,

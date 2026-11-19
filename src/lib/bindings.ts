@@ -78,6 +78,11 @@ export const commands = {
 	 *  rend l'arbre de travail et le dépôt relus. L'erreur est la sortie de Git.
 	 */
 	commit: (path: string, summary: string, description: string, amend: boolean) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("commit", { path, summary, description, amend })),
+	/**
+	 *  Amend du seul message du dernier commit (`CommitDetail`) : index et arbre de travail intacts, identité
+	 *  du `.git/config` local contrôlée comme pour `commit` ; rend l'arbre de travail et le dépôt relus.
+	 */
+	amendMessage: (path: string, summary: string, description: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("amend_message", { path, summary, description })),
 	/**  Adresse e-mail effective des commits de `path` (`user.email` du `.git/config` local). */
 	getCommitEmail: (path: string) => __TAURI_INVOKE<string | null>("get_commit_email", { path }),
 	/**

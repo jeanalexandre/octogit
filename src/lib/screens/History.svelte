@@ -62,6 +62,7 @@
     onstageall,
     onunstageall,
     oncommit,
+    onamendmessage,
     commitEmail = null,
     blocked = null,
     onfixidentity,
@@ -151,6 +152,8 @@
     onunstageall?: () => void;
     /** Commit ou amend des fichiers indexés (`WorkingChanges`) ; rejette avec le message de Git si refusé. */
     oncommit?: (summary: string, description: string, amend: boolean) => Promise<void>;
+    /** Amend du seul message du dernier commit (`CommitDetail`) ; rejette avec le message de Git si refusé. */
+    onamendmessage?: (summary: string, description: string) => Promise<void>;
     /** Adresse e-mail effective des commits (`.git/config` local), ou `null` si inconnue. */
     commitEmail?: string | null;
     /** Double-clic sur une branche de `BranchSidebar` ou sur l'étiquette d'une ref du graphe : checkout. */
@@ -206,6 +209,8 @@
   let wipSelected = $state(true);
   let selected: string | null = $state(null);
   let detail: CommitDetailView | null = $state(null);
+  /** Dernier commit dont le `CommitDetail` porte le formulaire d'Amend (arbre propre à la sélection), sinon `null`. */
+  let amendable: string | null = $state(null);
   let detailError: string | null = $state(null);
 
   /** Vrai de l'ouverture d'un dépôt jusqu'à la première lecture de l'arbre : la sélection initiale en dépend. */
@@ -230,6 +235,7 @@
   function selectWip() {
     wipSelected = true;
     selected = null;
+    amendable = null;
     detail = null;
     detailError = null;
   }
@@ -270,6 +276,8 @@
     initialPending = false;
     wipSelected = false;
     selected = id;
+    // Décidée ici, pas recalculée ensuite : la ligne WIP qui apparaît pendant la saisie ne retire pas le formulaire.
+    amendable = changedFiles === 0 && id === current?.target ? id : null;
     detail = null;
     detailError = null;
     try {
@@ -470,6 +478,13 @@
     return (await loadDetail(current.target)).message;
   }
 
+  /** Amend du message depuis `CommitDetail` : le commit réécrit (nouveau dernier commit du dépôt relu) est ensuite sélectionné. */
+  async function amendMessage(summary: string, description: string) {
+    await onamendmessage?.(summary, description);
+    const id = current?.target ?? lastCommitId;
+    if (id) await select(id);
+  }
+
   /** Identité conforme au profil rattaché, pour la ligne sous Commit ; sinon `null` (S-16 : l'état bloqué). */
   const identity = $derived(
     repository.profile?.conform && commitEmail
@@ -639,20 +654,28 @@
     {:else if detail}
       {@const shown = detail}
       <aside class="panel">
-        <CommitDetail
-          {detail}
-          refs={detailRefs}
-          oncheckout={(name) => oncheckout?.(name)}
-          oncreatebranch={(commit) => startBranch(commit, "detail")}
-          onopenfile={(start) =>
-            onopendiff?.({
-              commit: shown.id,
-              parent: shown.parents[0] ?? null,
-              summary: shown.message.trim().split("\n")[0] ?? "",
-              files: shown.files,
-              start,
-            })}
-        />
+        {#key shown.id}
+          <CommitDetail
+            {detail}
+            editable={amendable === shown.id}
+            onamend={amendMessage}
+            {identity}
+            {blocked}
+            noProfile={!repository.profile}
+            onfix={async () => onfixidentity?.()}
+            refs={detailRefs}
+            oncheckout={(name) => oncheckout?.(name)}
+            oncreatebranch={(commit) => startBranch(commit, "detail")}
+            onopenfile={(start) =>
+              onopendiff?.({
+                commit: shown.id,
+                parent: shown.parents[0] ?? null,
+                summary: shown.message.trim().split("\n")[0] ?? "",
+                files: shown.files,
+                start,
+              })}
+          />
+        {/key}
       </aside>
     {:else if detailError}
       <aside class="panel"><p class="error" role="alert">{detailError}</p></aside>

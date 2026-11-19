@@ -158,6 +158,18 @@
     const path = openPath;
     if (path === null) return;
     const result = await commands.commit(path, summary, description, amend);
+    applyCommitted(path, result);
+  }
+
+  /** Amend du seul message du dernier commit (`CommitDetail`) : même remplacement, index et arbre inchangés. */
+  async function amendMessage(summary: string, description: string) {
+    const path = openPath;
+    if (path === null) return;
+    const result = await commands.amendMessage(path, summary, description);
+    applyCommitted(path, result);
+  }
+
+  function applyCommitted(path: string, result: Awaited<ReturnType<typeof commands.commit>>) {
     if (result.status !== "ok") throw result.error;
     if (openPath !== path || screen?.screen !== "history") return;
     workingTree = result.data.tree;
@@ -1092,6 +1104,7 @@
       onstageall={() => moveAll(commands.stageAll)}
       onunstageall={() => moveAll(commands.unstageAll)}
       oncommit={commit}
+      onamendmessage={amendMessage}
       {commitEmail}
       {blocked}
       onfixidentity={fixIdentity}

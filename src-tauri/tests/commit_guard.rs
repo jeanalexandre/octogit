@@ -6,7 +6,7 @@ use std::process::Command;
 
 use octogit_app::attach::{current_mismatch, overwrite_identity};
 use octogit_app::open::open_repository_in;
-use octogit_app::working_tree::commit_checked;
+use octogit_app::working_tree::{amend_message_checked, commit_checked};
 use octogit_identity::{MatchingRule, Profile, RuleKind};
 use octogit_store::Store;
 
@@ -103,6 +103,45 @@ fn proteger_l_identite_ca_15_commit_and_amend_are_refused_and_git_log_is_unchang
         git(&repo, &["diff", "--cached", "--name-only"]),
         "staged.txt"
     );
+}
+
+#[test]
+fn preparer_un_commit_ca_29_amend_message_is_refused_when_not_conform_and_git_log_is_unchanged() {
+    let sb = Sandbox::new("ca29");
+    let repo = sb.conform_repo();
+    git(
+        &repo,
+        &["config", "--local", "user.email", "perso@example.org"],
+    );
+    let log = git(&repo, &["log", "--format=%H"]);
+
+    let error = amend_message_checked(&sb.store, &sb.home, &repo, "reworded", "").unwrap_err();
+
+    assert_eq!(error, "Identity does not match profile Work.");
+    assert_eq!(git(&repo, &["log", "--format=%H"]), log);
+}
+
+#[test]
+fn preparer_un_commit_ca_28_amend_message_rewrites_the_last_commit_when_conform_and_keeps_the_index(
+) {
+    let sb = Sandbox::new("ca28");
+    let repo = sb.conform_repo();
+    let old = git(&repo, &["rev-parse", "HEAD"]);
+
+    let view = amend_message_checked(&sb.store, &sb.home, &repo, "reworded", "Body.").unwrap();
+
+    assert_ne!(git(&repo, &["rev-parse", "HEAD"]), old);
+    assert_eq!(
+        git(&repo, &["log", "-1", "--format=%B"]),
+        "reworded\n\nBody."
+    );
+    assert_eq!(
+        git(&repo, &["diff", "--cached", "--name-only"]),
+        "staged.txt"
+    );
+    assert_eq!(view.tree.staged.len(), 1);
+    let new = git(&repo, &["rev-parse", "HEAD"]);
+    assert!(view.repository.commits.iter().any(|c| c.id == new));
 }
 
 #[test]

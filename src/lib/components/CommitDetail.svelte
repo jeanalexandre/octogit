@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ChangeStatusView, CommitDetailView, RefView } from "../bindings";
+  import type { ChangeStatusView, CommitDetailView, MismatchView, RefView } from "../bindings";
   import { formatAbsolute, formatRelative } from "../relativeTime";
 
   let {
@@ -8,7 +8,25 @@
     oncheckout,
     oncreatebranch,
     onopenfile,
+    editable = false,
+    onamend,
+    identity = null,
+    blocked = null,
+    noProfile = false,
+    onfix,
   }: {
+    /** Variante « dernier commit sur arbre propre » : Summary, Description et « Amend <sha> » (décidée par l'appelant à la sélection). */
+    editable?: boolean;
+    /** Amend du seul message ; rejette avec le message de Git si refusé. */
+    onamend?: (summary: string, description: string) => Promise<void>;
+    /** Identité effective conforme au profil rattaché ; `null` : la ligne n'est pas affichée. */
+    identity?: { profile: string; email: string } | null;
+    /** L'identité du `.git/config` local diffère du profil : raison et « Fix repository identity » sous Amend. */
+    blocked?: Pick<MismatchView, "profileName" | "rows"> | null;
+    /** Le dépôt n'a pas de profil rattaché : Amend est désactivé avec la raison « No profile ». */
+    noProfile?: boolean;
+    /** « Fix repository identity » ; rejette avec un message si l'écriture échoue. */
+    onfix?: () => Promise<void>;
     /** Clic sur un fichier de la liste : rang (depuis 0) du fichier, pour ouvrir `DiffView`. */
     onopenfile?: (index: number) => void;
     detail: CommitDetailView;
@@ -79,6 +97,66 @@
   const lines = $derived(detail.message.replace(/\n+$/, "").split("\n"));
   const title = $derived(lines[0] ?? "");
   const body = $derived(lines.slice(1).join("\n").replace(/^\n+/, ""));
+
+  /** Message d'origine séparé comme `WorkingChanges` : première ligne, puis le corps sans lignes vides de tête. */
+  const original = $derived.by(() => {
+    const [first = "", ...rest] = detail.message.replace(/\r\n/g, "\n").split("\n");
+    return { summary: first, description: rest.join("\n").replace(/^\n+/, "").trimEnd() };
+  });
+  /** Saisies ; `null` tant que le champ n'a pas été modifié (il montre alors le message d'origine). */
+  let editedSummary: string | null = $state(null);
+  let editedDescription: string | null = $state(null);
+  const summary = $derived(editedSummary ?? original.summary);
+  const description = $derived(editedDescription ?? original.description);
+  const changed = $derived(summary !== original.summary || description !== original.description);
+  let busy = $state(false);
+  let fixing = $state(false);
+  let failure: string | null = $state(null);
+
+  /** Pourquoi Amend est désactivé (ligne de raison), ou `null`. Un message identique le désactive sans raison. */
+  const reason = $derived(
+    blocked
+      ? `Identity does not match profile ${blocked.profileName}.`
+      : noProfile
+        ? "No profile"
+        : summary.trim() === ""
+          ? "Summary required"
+          : null,
+  );
+  const disabled = $derived(reason !== null || !changed || busy);
+
+  async function amend() {
+    if (disabled || !onamend) return;
+    busy = true;
+    failure = null;
+    try {
+      await onamend(summary, description);
+    } catch (e) {
+      failure = (typeof e === "string" ? e : "The amend failed.").split("\n")[0];
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function fix() {
+    if (fixing || !onfix) return;
+    fixing = true;
+    failure = null;
+    try {
+      await onfix();
+    } catch (e) {
+      failure = (typeof e === "string" ? e : "The identity could not be fixed.").split("\n")[0];
+    } finally {
+      fixing = false;
+    }
+  }
+
+  function keydown(event: KeyboardEvent) {
+    if (event.metaKey && event.key === "Enter") {
+      event.preventDefault();
+      void amend();
+    }
+  }
 </script>
 
 <svelte:window {onpointerdown} />
@@ -131,8 +209,48 @@
       onclick={() => oncreatebranch?.(detail.id)}>Create branch here</button
     >
   </div>
-  <h2>{title}</h2>
-  {#if body}<p class="body">{body}</p>{/if}
+  {#if editable}
+    <div class="form">
+      <label class="field">
+        <span>Summary</span>
+        <input
+          type="text"
+          value={summary}
+          oninput={(e) => (editedSummary = e.currentTarget.value)}
+          onkeydown={keydown}
+        />
+      </label>
+      <label class="field">
+        <span>Description</span>
+        <textarea
+          rows="4"
+          value={description}
+          oninput={(e) => (editedDescription = e.currentTarget.value)}
+          onkeydown={keydown}></textarea>
+      </label>
+      <button type="button" class="amend" {disabled} onclick={amend}>
+        Amend {detail.id.slice(0, 7)}
+        <kbd aria-hidden="true">⌘↵</kbd>
+      </button>
+      {#if blocked}
+        <div class="blocked">
+          <p><strong>{reason}</strong></p>
+          <button type="button" class="fixlink" disabled={fixing} onclick={fix}
+            >Fix repository identity</button
+          >
+        </div>
+      {:else}
+        {#if identity}
+          <p class="identity">✓ Identity matches profile {identity.profile} · {identity.email}</p>
+        {/if}
+        {#if reason}<p class="reason">{reason}</p>{/if}
+      {/if}
+      {#if failure}<p class="failure" role="alert">{failure}</p>{/if}
+    </div>
+  {:else}
+    <h2>{title}</h2>
+    {#if body}<p class="body">{body}</p>{/if}
+  {/if}
   <p class="meta">
     Author: {detail.author} · {detail.email}<br />
     Date:
@@ -299,6 +417,114 @@
   .body {
     color: var(--muted);
     white-space: pre-wrap;
+  }
+
+  .form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .field span {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .field input,
+  .field textarea {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 5px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    resize: vertical;
+  }
+
+  .field input:focus-visible,
+  .field textarea:focus-visible,
+  .amend:focus-visible,
+  .fixlink:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .amend {
+    padding: 6px 10px;
+    border: 1px solid var(--brand);
+    border-radius: 5px;
+    background: var(--brand);
+    color: var(--on-brand);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .amend:disabled {
+    border-color: var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: default;
+  }
+
+  kbd {
+    margin-left: 6px;
+    font: inherit;
+    font-size: 12px;
+    opacity: 0.85;
+  }
+
+  .identity {
+    color: var(--success);
+    font-size: 12px;
+  }
+
+  .reason {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .failure {
+    color: var(--danger);
+    font-size: 12px;
+  }
+
+  .blocked {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    border: 1px solid var(--warning);
+    border-radius: 5px;
+    background: var(--surface);
+    font-size: 12px;
+  }
+
+  .fixlink {
+    align-self: flex-start;
+    padding: 2px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .fixlink:disabled {
+    color: var(--muted);
+    cursor: default;
   }
 
   .meta {

@@ -88,12 +88,30 @@ pub fn commit(
     amend: bool,
 ) -> Result<CommittedView, String> {
     let tree = octogit_git::commit(path, summary, description, amend).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
+fn committed(path: &Path, tree: octogit_git::WorkingTree) -> Result<CommittedView, String> {
     let repository =
         repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())?;
     Ok(CommittedView {
         tree: tree.into(),
         repository,
     })
+}
+
+/// Amend du seul message du dernier commit (index et arbre de travail intacts) ; la même garde d'identité
+/// que `commit_checked`, refaite ici, rien n'est créé en cas de refus. L'erreur est la sortie de Git.
+pub fn amend_message_checked(
+    store: &Store,
+    home: &Path,
+    path: &Path,
+    summary: &str,
+    description: &str,
+) -> Result<CommittedView, String> {
+    crate::attach::ensure_conform(store, path, home)?;
+    let tree = octogit_git::amend_message(path, summary, description).map_err(|e| e.to_string())?;
+    committed(path, tree)
 }
 
 /// Commit ou amend refusé tant que l'identité locale diffère du profil rattaché : le contrôle est refait

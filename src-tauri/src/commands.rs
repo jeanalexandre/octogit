@@ -448,6 +448,28 @@ pub async fn commit(
     .map_err(|_| "The commit was interrupted.".to_string())?
 }
 
+/// Amend du seul message du dernier commit (`CommitDetail`) : index et arbre de travail intacts, identité
+/// du `.git/config` local contrôlée comme pour `commit` ; rend l'arbre de travail et le dépôt relus.
+#[tauri::command]
+#[specta::specta]
+pub async fn amend_message(
+    path: String,
+    summary: String,
+    description: String,
+) -> Result<CommittedView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        working_tree::amend_message_checked(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+            &summary,
+            &description,
+        )
+    })
+    .await
+    .map_err(|_| "The amend was interrupted.".to_string())?
+}
+
 /// Écart actuel entre le `.git/config` local de `path` et son profil (`WorkingChanges` bloqué, badge) ;
 /// `None` : conforme ou sans profil. Relu à chaque appel, rien n'est écrit.
 #[tauri::command]

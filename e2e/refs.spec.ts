@@ -202,7 +202,8 @@ test("explorer-l-historique CA-24 : un clic sur un commit ouvre CommitDetail ave
 
   // Un autre commit, signé : le panneau suit la sélection.
   await row(page, "Signed work").getByRole("button", { name: "Signed work" }).click();
-  await expect(panel(page).getByRole("heading", { name: "Signed work" })).toBeVisible();
+  // « Signed work » est le dernier commit de develop sur arbre propre : son message est dans Summary (preparer-un-commit CA-27).
+  await expect(panel(page).getByRole("textbox", { name: "Summary" })).toHaveValue("Signed work");
   await expect(panel(page)).toContainText("Signed");
   await expect(panel(page)).not.toContainText("Not signed");
   await expect(panel(page).getByRole("listitem")).toHaveCount(0);

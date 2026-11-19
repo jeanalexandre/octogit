@@ -3,7 +3,10 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use octogit_git::{commit, commit_with_home, read_commits, read_working_tree, stage_all};
+use octogit_git::{
+    amend_message, amend_message_with_home, commit, commit_with_home, read_commits,
+    read_working_tree, stage_all,
+};
 
 struct Fixture(PathBuf);
 
@@ -162,6 +165,98 @@ fn preparer_un_commit_ca_16_amend_replaces_the_last_commit_with_the_staged_files
     let commits = read_commits(&fx.0, 10).unwrap();
     assert!(commits.iter().all(|c| c.id != old.trim()));
     assert_eq!(commits.len(), 3);
+}
+
+#[test]
+fn preparer_un_commit_ca_28_amend_message_keeps_parent_and_tree_and_changes_only_the_message() {
+    let fx = Fixture::new();
+    let old = fx.git(&["rev-parse", "HEAD"]);
+    let parent = fx.git(&["rev-parse", "HEAD^"]);
+    let tree_before = fx.git(&["rev-parse", "HEAD^{tree}"]);
+    amend_message(&fx.0, "Reworded", "Body line.").unwrap();
+    assert_ne!(fx.git(&["rev-parse", "HEAD"]), old);
+    assert_eq!(fx.git(&["rev-parse", "HEAD^"]), parent);
+    assert_eq!(fx.git(&["rev-parse", "HEAD^{tree}"]), tree_before);
+    assert_eq!(
+        fx.git(&["log", "-1", "--format=%B"]).trim_end(),
+        "Reworded\n\nBody line."
+    );
+    let commits = read_commits(&fx.0, 10).unwrap();
+    assert!(commits.iter().all(|c| c.id != old.trim()));
+    assert!(amend_message(&fx.0, "  ", "body").is_err());
+}
+
+#[test]
+fn preparer_un_commit_ca_28_amend_message_uses_the_local_identity_and_signature_and_leaves_the_home_file(
+) {
+    let fx = Fixture::new();
+    let home = fx.0.parent().unwrap().join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let global = home.join(".gitconfig");
+    std::fs::write(
+        &global,
+        "[user]\n\tname = Global Name\n\temail = global@example.org\n",
+    )
+    .unwrap();
+    let before = std::fs::read(&global).unwrap();
+    let key = home.join("key");
+    assert!(Command::new("/usr/bin/ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-f"])
+        .arg(&key)
+        .status()
+        .unwrap()
+        .success());
+    fx.git(&["config", "--local", "user.name", "Local Name"]);
+    fx.git(&["config", "--local", "user.email", "local@example.com"]);
+    fx.git(&["config", "--local", "gpg.format", "ssh"]);
+    fx.git(&[
+        "config",
+        "--local",
+        "user.signingkey",
+        home.join("key.pub").to_str().unwrap(),
+    ]);
+    fx.git(&["config", "--local", "commit.gpgsign", "true"]);
+    amend_message_with_home(&fx.0, "who am I", "", &home).unwrap();
+    // Auteur et committer viennent du `.git/config` local (`--reset-author`).
+    assert_eq!(
+        fx.git(&["log", "-1", "--format=%an <%ae>"]).trim(),
+        "Local Name <local@example.com>"
+    );
+    assert_eq!(
+        fx.git(&["log", "-1", "--format=%cn <%ce>"]).trim(),
+        "Local Name <local@example.com>"
+    );
+    assert!(fx.git(&["cat-file", "-p", "HEAD"]).contains("gpgsig"));
+    assert_eq!(std::fs::read(&global).unwrap(), before);
+}
+
+#[test]
+fn preparer_un_commit_ca_28_amend_message_replaces_the_original_author_with_the_local_identity() {
+    let fx = Fixture::new();
+    let original = fx.git(&["log", "-1", "--format=%an <%ae>"]);
+    fx.git(&["config", "--local", "user.name", "Profile Person"]);
+    fx.git(&["config", "--local", "user.email", "profile@example.com"]);
+    assert_ne!(original.trim(), "Profile Person <profile@example.com>");
+    amend_message(&fx.0, "Reworded", "").unwrap();
+    let author = fx.git(&["log", "-1", "--format=%an <%ae>"]);
+    assert_eq!(author.trim(), "Profile Person <profile@example.com>");
+    assert_ne!(author, original);
+}
+
+#[test]
+fn preparer_un_commit_ca_30_amend_message_leaves_the_index_and_the_working_tree_intact() {
+    let fx = Fixture::new();
+    // keep.txt est indexé, file.txt et notes.txt sont modifiés non indexés.
+    let status = fx.git(&["status", "--porcelain"]);
+    let staged = fx.staged_names();
+    assert!(!staged.is_empty());
+    let file = std::fs::read(fx.0.join("file.txt")).unwrap();
+    let tree = amend_message(&fx.0, "Reworded", "").unwrap();
+    assert_eq!(fx.git(&["status", "--porcelain"]), status);
+    assert_eq!(fx.staged_names(), staged);
+    assert_eq!(std::fs::read(fx.0.join("file.txt")).unwrap(), file);
+    assert_eq!(tree, read_working_tree(&fx.0).unwrap());
+    assert!(!tree.staged.is_empty() && !tree.unstaged.is_empty());
 }
 
 #[test]

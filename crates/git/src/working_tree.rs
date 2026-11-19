@@ -168,7 +168,29 @@ pub fn commit(
     description: &str,
     amend: bool,
 ) -> Result<WorkingTree, GitError> {
-    commit_in(path, summary, description, amend, None)
+    commit_in(path, summary, description, amend, false, None)
+}
+
+/// Amend du seul message du dernier commit (`git commit --amend --only`, sans chemin) : le commit garde
+/// son parent et l'arbre de `HEAD` ; l'index et l'arbre de travail ne sont pas touchés. Auteur
+/// (`--reset-author`), committer et signature : ceux du `.git/config` local. Refuse un résumé vide ; un refus de Git rend sa sortie brute.
+/// Rend le nouvel état de l'arbre de travail. Écriture d'Octogit : le watcher ne la signale pas.
+pub fn amend_message(
+    path: &Path,
+    summary: &str,
+    description: &str,
+) -> Result<WorkingTree, GitError> {
+    commit_in(path, summary, description, true, true, None)
+}
+
+/// Comme `amend_message`, avec le `HOME` des sous-processus fixé (tests : un `~/.gitconfig` factice).
+pub fn amend_message_with_home(
+    path: &Path,
+    summary: &str,
+    description: &str,
+    home: &Path,
+) -> Result<WorkingTree, GitError> {
+    commit_in(path, summary, description, true, true, Some(home))
 }
 
 /// Comme `commit`, avec le `HOME` des sous-processus fixé (tests : un `~/.gitconfig` factice).
@@ -179,7 +201,7 @@ pub fn commit_with_home(
     amend: bool,
     home: &Path,
 ) -> Result<WorkingTree, GitError> {
-    commit_in(path, summary, description, amend, Some(home))
+    commit_in(path, summary, description, amend, false, Some(home))
 }
 
 fn commit_in(
@@ -187,6 +209,7 @@ fn commit_in(
     summary: &str,
     description: &str,
     amend: bool,
+    only: bool,
     home: Option<&Path>,
 ) -> Result<WorkingTree, GitError> {
     use std::io::Write;
@@ -212,6 +235,10 @@ fn commit_in(
         .stderr(Stdio::piped());
     if amend {
         command.arg("--amend");
+    }
+    if only {
+        // Amend du message seul : l'auteur devient l'identité du `.git/config` local (CA-28, CA-14).
+        command.args(["--only", "--reset-author"]);
     }
     if let Some(home) = home {
         command.env("HOME", home);

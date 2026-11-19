@@ -164,3 +164,99 @@ describe("CommitDetail Checkout and Create branch here", () => {
     expect(oncreatebranch).toHaveBeenCalledWith(detail.id);
   });
 });
+
+describe("CommitDetail amend of the last commit message", () => {
+  const form = (props: Record<string, unknown> = {}) =>
+    render(CommitDetail, { detail, editable: true, onamend: vi.fn(async () => {}), ...props });
+  const amendButton = () => screen.getByRole("button", { name: /^Amend a3f9c21/ });
+
+  it("preparer-un-commit CA-27: Summary and Description are pre-filled and Amend is disabled, with no Commit button", () => {
+    form();
+    expect((screen.getByLabelText("Summary") as HTMLInputElement).value).toBe("Rework files");
+    expect((screen.getByLabelText("Description") as HTMLTextAreaElement).value).toBe(
+      "Split the parser in two modules.",
+    );
+    expect(amendButton()).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^Commit/ })).toBeNull();
+  });
+
+  it("preparer-un-commit CA-27: a changed message enables Amend, the original message disables it again", async () => {
+    form();
+    const summary = screen.getByLabelText("Summary");
+    await fireEvent.input(summary, { target: { value: "Rework the files" } });
+    expect(amendButton()).toBeEnabled();
+    await fireEvent.input(summary, { target: { value: "Rework files" } });
+    expect(amendButton()).toBeDisabled();
+    await fireEvent.input(screen.getByLabelText("Description"), { target: { value: "More." } });
+    expect(amendButton()).toBeEnabled();
+  });
+
+  it("preparer-un-commit CA-27: an empty Summary disables Amend and shows Summary required", async () => {
+    form();
+    await fireEvent.input(screen.getByLabelText("Summary"), { target: { value: "  " } });
+    expect(amendButton()).toBeDisabled();
+    expect(screen.getByText("Summary required")).toBeTruthy();
+  });
+
+  it("preparer-un-commit CA-27: without the editable variant there is no field and no Amend button", () => {
+    render(CommitDetail, { detail });
+    expect(screen.queryByLabelText("Summary")).toBeNull();
+    expect(screen.queryByLabelText("Description")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Amend/ })).toBeNull();
+  });
+
+  it("preparer-un-commit CA-28: a click and Cmd+Enter in Summary or Description amend with the typed message", async () => {
+    const onamend = vi.fn(async () => {});
+    form({ onamend });
+    const summary = screen.getByLabelText("Summary");
+    await fireEvent.input(summary, { target: { value: "Reworded" } });
+    await fireEvent.click(amendButton());
+    expect(onamend).toHaveBeenLastCalledWith("Reworded", "Split the parser in two modules.");
+    await fireEvent.keyDown(summary, { key: "Enter", metaKey: true });
+    await fireEvent.keyDown(screen.getByLabelText("Description"), { key: "Enter", metaKey: true });
+    expect(onamend).toHaveBeenCalledTimes(3);
+  });
+
+  it("preparer-un-commit CA-28: Cmd+Enter does nothing while Amend is disabled", async () => {
+    const onamend = vi.fn(async () => {});
+    form({ onamend });
+    await fireEvent.keyDown(screen.getByLabelText("Summary"), { key: "Enter", metaKey: true });
+    expect(onamend).not.toHaveBeenCalled();
+  });
+
+  it("preparer-un-commit CA-29: a conform identity is shown under Amend", () => {
+    form({ identity: { profile: "Work", email: "alice@work.example" } });
+    expect(screen.getByText("✓ Identity matches profile Work · alice@work.example")).toBeTruthy();
+  });
+
+  it("preparer-un-commit CA-29: a mismatch disables Amend even with a changed message, with a reason and the fix link but no Expected / Found", async () => {
+    const onamend = vi.fn(async () => {});
+    const onfix = vi.fn(async () => {});
+    form({
+      onamend,
+      onfix,
+      blocked: {
+        profileName: "Work",
+        rows: [{ setting: "user.email", profile: "a@work", local: "b@perso", differs: true }],
+      },
+    });
+    const summary = screen.getByLabelText("Summary");
+    await fireEvent.input(summary, { target: { value: "Reworded" } });
+    expect(amendButton()).toBeDisabled();
+    await fireEvent.keyDown(summary, { key: "Enter", metaKey: true });
+    expect(onamend).not.toHaveBeenCalled();
+    expect(screen.getByText("Identity does not match profile Work.")).toBeTruthy();
+    expect(screen.queryByText(/Expected/)).toBeNull();
+    expect(screen.queryByText(/Found in/)).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Fix repository identity" }));
+    expect(onfix).toHaveBeenCalledTimes(1);
+  });
+
+  it("preparer-un-commit CA-29: without profile Amend is disabled with No profile and no fix link", async () => {
+    form({ noProfile: true });
+    await fireEvent.input(screen.getByLabelText("Summary"), { target: { value: "Reworded" } });
+    expect(amendButton()).toBeDisabled();
+    expect(screen.getByText("No profile")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Fix repository identity" })).toBeNull();
+  });
+});

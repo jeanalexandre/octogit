@@ -22,6 +22,9 @@ Amender le message du dernier commit depuis son `CommitDetail` sur arbre propre 
 ### Fiche (18/11/2026)
 1. Lien « Fix repository identity » sous « No profile » : a (le lien n'apparaît que pour l'identité non conforme ; sous « No profile », seule la raison s'affiche), décision de l'humain du 18/11/2026
 
+### Passage 1 (écart)
+1. Auteur du commit amendé (`CA-28`) : b (remplacer l'auteur par l'identité du profil : `dev` ajoute `--reset-author` et un test), décision de l'humain du 19/11/2026
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test, dépôts d'exemple)
@@ -72,7 +75,13 @@ Amender le message du dernier commit depuis son `CommitDetail` sur arbre propre 
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `a27929d`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé côté code (16 fichiers, tests/lint/build/format/audit verts) ; `pnpm e2e` complet : 1 échec `e2e/refs-column.spec.ts:189` (S-69, CA-18), instable : repasse seul (4/4, relancé par story-runner), non lié à S-68. Écart à trancher avant revue : auteur d'origine conservé par `--amend --only` (pas de `--reset-author`) alors que CA-28 dit « auteur et signature suivent CA-14 » ; committer et signature viennent du `.git/config` local. Autres écarts (hors contrat) : `e2e/refs.spec.ts` CA-24 adapté, `{#key shown.id}` dans `History.svelte`, variante non activée tant que `changedFiles === null`. | question |
+| 2 | dev | terminé : `--reset-author` ajouté à l'amend du message seul, test Rust CA-28 (auteur remplacé par l'identité locale), README ligne 43 ; tests, lint, build, format, audit verts (1 échec instable connu relancé), `e2e/amend-detail.spec.ts` 6/6 ; aucun écart | |
+| 2 | reviewer | CA-27 à CA-30 couverts, interface conforme, aucun problème ; `pnpm test` complet relancé : 34 fichiers, 423 tests verts (le « 25 FAIL » vu était un artefact de troncature rtk). Détail : `stories/S-68-revue-1.md` | validé |
+
+## Décisions de l'humain › Après la revue 1
+- Point « pour information » (« 25 FAIL » de `pnpm test`) : pris en compte (pour information) ; levé par une relance verte.

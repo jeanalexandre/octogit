@@ -110,6 +110,13 @@ struct CommitArgs {
 }
 
 #[derive(Deserialize)]
+struct AmendMessageArgs {
+    path: String,
+    summary: String,
+    description: String,
+}
+
+#[derive(Deserialize)]
 struct DetailArgs {
     path: String,
     id: String,
@@ -490,6 +497,20 @@ fn main() {
                 &args.summary,
                 &args.description,
                 args.amend,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "amend_message" => {
+            let args: AmendMessageArgs =
+                serde_json::from_str(&input).expect("arguments { path, summary, description }");
+            match octogit_app::working_tree::amend_message_checked(
+                &octogit_store::Store::new(octogit_app::data_dir()),
+                &octogit_app::home_dir(),
+                std::path::Path::new(&args.path),
+                &args.summary,
+                &args.description,
             ) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),

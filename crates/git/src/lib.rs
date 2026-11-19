@@ -32,8 +32,8 @@ pub use push::{push, PushError};
 pub use rewrite::{rewrite_identity, RewriteError, RewriteTarget};
 pub use unpushed::{read_unpushed, UnpushedCommit};
 pub use working_tree::{
-    commit, commit_with_home, read_working_tree, stage_all, unstage_all, WorkingTree,
-    WorkingTreeWatcher,
+    amend_message, amend_message_with_home, commit, commit_with_home, read_working_tree, stage_all,
+    unstage_all, WorkingTree, WorkingTreeWatcher,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

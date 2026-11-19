@@ -1225,4 +1225,90 @@ describe("History", () => {
       expect(matched()).toEqual([]);
     });
   });
+
+  describe("amend of the last commit message from its CommitDetail", () => {
+    const last = "a".repeat(40);
+    const lastDetail = (overrides: Partial<CommitDetailView> = {}) =>
+      detail({ id: last, message: "Merge feature/profiles\n\nBody.\n", ...overrides });
+    const loadByRow = (id: string) => (id === last ? lastDetail() : detail({ id }));
+    const summaryField = () => screen.queryByLabelText("Summary") as HTMLInputElement | null;
+    const withProfile: RepositoryView = { ...repository, profile: attached };
+
+    it("preparer-un-commit CA-27: on a clean tree the last commit gets the editable variant, another commit never", async () => {
+      const loadDetail = vi.fn(async (id: string) => loadByRow(id));
+      render(History, props({ workingTree: clean, loadDetail, onamendmessage: vi.fn() }));
+      expect(await screen.findByLabelText("Summary")).toHaveValue("Merge feature/profiles");
+      expect(screen.getByLabelText("Description")).toHaveValue("Body.");
+      expect(screen.getByRole("button", { name: "Amend aaaaaaa" })).toBeDisabled();
+      await fireEvent.click(screen.getByRole("button", { name: /Main work/ }));
+      await screen.findByRole("heading", { name: "Main work" });
+      expect(summaryField()).toBeNull();
+      expect(screen.queryByRole("button", { name: /^Amend/ })).toBeNull();
+    });
+
+    it("preparer-un-commit CA-27: with a change in the working tree the last commit is read-only", async () => {
+      const loadDetail = vi.fn(async (id: string) => loadByRow(id));
+      render(History, props({ workingTree, loadDetail, onamendmessage: vi.fn() }));
+      await fireEvent.click(screen.getByRole("button", { name: /Merge feature\/profiles/ }));
+      await screen.findByRole("heading", { name: "Merge feature/profiles" });
+      expect(summaryField()).toBeNull();
+      expect(screen.queryByRole("button", { name: /^Amend/ })).toBeNull();
+    });
+
+    it("preparer-un-commit CA-30: a change appearing keeps the form and the typed message, and another row removes it", async () => {
+      const loadDetail = vi.fn(async (id: string) => loadByRow(id));
+      const view = render(
+        History,
+        props({
+          repository: withProfile,
+          workingTree: clean,
+          loadDetail,
+          onamendmessage: vi.fn(),
+        }),
+      );
+      await fireEvent.input(await screen.findByLabelText("Summary"), {
+        target: { value: "Typed" },
+      });
+      await view.rerender({ workingTree: { unstaged: [extra], staged: [] } });
+      expect(wipRow()).toHaveTextContent("1 changed file");
+      expect(summaryField()).toHaveValue("Typed");
+      expect(screen.getByRole("button", { name: "Amend aaaaaaa" })).toBeEnabled();
+      await fireEvent.click(screen.getByRole("button", { name: /Main work/ }));
+      await screen.findByRole("heading", { name: "Main work" });
+      expect(summaryField()).toBeNull();
+      // Resélectionné avec des changements : lecture seule.
+      await fireEvent.click(screen.getByRole("button", { name: /Merge feature\/profiles/ }));
+      await screen.findByRole("heading", { name: "Merge feature/profiles" });
+      expect(summaryField()).toBeNull();
+    });
+
+    it("preparer-un-commit CA-28: after the amend the rewritten commit is selected with its message pre-filled and Amend disabled", async () => {
+      const rewritten = "d".repeat(40);
+      const loadDetail = vi.fn(async (id: string) =>
+        id === rewritten
+          ? lastDetail({ id: rewritten, message: "Reworded\n\nNew body.\n" })
+          : loadByRow(id),
+      );
+      const newRepository: RepositoryView = {
+        ...withProfile,
+        refs: refs.map((r) => (r.target === last ? { ...r, target: rewritten } : r)),
+        commits: repository.commits.map((c, i) => (i === 0 ? { ...c, id: rewritten } : c)),
+      };
+      const onamendmessage = vi.fn(async () => {
+        await view.rerender({ repository: newRepository });
+      });
+      const view = render(
+        History,
+        props({ repository: withProfile, workingTree: clean, loadDetail, onamendmessage }),
+      );
+      await fireEvent.input(await screen.findByLabelText("Summary"), {
+        target: { value: "Reworded" },
+      });
+      await fireEvent.click(screen.getByRole("button", { name: "Amend aaaaaaa" }));
+      expect(onamendmessage).toHaveBeenCalledWith("Reworded", "Body.");
+      expect(await screen.findByRole("button", { name: "Amend ddddddd" })).toBeDisabled();
+      expect(summaryField()).toHaveValue("Reworded");
+      expect(screen.getByLabelText("Description")).toHaveValue("New body.");
+    });
+  });
 });

@@ -79,6 +79,7 @@ Un clic sur un fichier de `WorkingChanges` ouvre `DiffView` en mode travail (non
 - Échec Vitest illisible de la 1re passe : pris en compte (pour information).
 ### Après la revue 2
 - Instabilité e2e de `graph-width` / `refs-column` (S-69) : pris en compte (pour information), consigné dans `notes-production.md` ; reste dans « À décider » pour `/story`.
+- Décidé par l'humain (19/11/2026) : option a, à rejuger dans la revue de S-69 ; pas de story de correction.
 
 ## Journal
 - Référence : `ccefbe4`

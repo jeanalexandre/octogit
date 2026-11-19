@@ -26,10 +26,16 @@
     onheight,
     onsectiontoggle,
     onpaneltoggle,
+    onrefclick,
+    selectedRef = null,
     onrefdblclick,
     onrefcontextmenu,
     checkoutStarts = 0,
   }: {
+    /** Clic sur une branche locale ou une `origin/…` : sa sélection comme branche qui reçoit (le parent bascule). */
+    onrefclick?: (name: string) => void;
+    /** Branche sélectionnée comme celle qui reçoit : marquée par `aria-pressed` et un marqueur, pas seulement la couleur. */
+    selectedRef?: string | null;
     /** Augmente à chaque checkout lancé, d'où qu'il vienne (dont le `RefContextMenu`) : il ferme le volet flottant. */
     checkoutStarts?: number;
     /** Double-clic (ou Entrée) sur une branche locale ou une `origin/…` : son checkout ; il ferme le volet flottant. */
@@ -250,6 +256,8 @@
 {#snippet rowBody(node: RefNode)}
   <span class="mark" aria-hidden="true">{node.ref.current ? "●" : ""}</span>
   <span class="name">{node.text}</span>
+  {#if selectedRef === node.ref.name}<span class="recv" data-receiving aria-hidden="true">▸</span
+    >{/if}
   {#if node.ref.kind === "stash" && stashTitles[node.ref.name]}
     <span class="note">{stashTitles[node.ref.name]}</span>
   {/if}
@@ -283,8 +291,13 @@
           role="button"
           tabindex="0"
           aria-current={node.ref.current ? "true" : undefined}
+          aria-pressed={selectedRef === node.ref.name}
           class:current={node.ref.current}
+          class:receiving={selectedRef === node.ref.name}
           style="padding-left: {6 + depth * 12}px"
+          onclick={(event) => {
+            if (event.detail <= 1) onrefclick?.(node.ref.name);
+          }}
           ondblclick={() => checkout(node.ref.name)}
           oncontextmenu={(event) => onrefcontextmenu?.(node.ref.name, event)}
           onkeydown={(event) => onrowkeydown(event, node.ref.name)}
@@ -574,6 +587,18 @@
   .item.current {
     background: var(--selection);
     font-weight: 600;
+  }
+
+  /* Branche qui reçoit : contour et marqueur « ▸ », pas la couleur seule. */
+  .item.receiving {
+    outline: 1.5px solid var(--border-strong);
+    outline-offset: -1.5px;
+    text-decoration: underline;
+  }
+
+  .recv {
+    flex: none;
+    margin-left: auto;
   }
 
   .folder {

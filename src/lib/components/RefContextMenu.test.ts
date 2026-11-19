@@ -24,6 +24,96 @@ function props(overrides = {}) {
 const local = { name: "feature/graph", kind: "branch" as const, x: 40, y: 60 };
 const remote = { name: "origin/feature/graph", kind: "remote" as const, x: 40, y: 60 };
 
+describe("RefContextMenu merge and rebase", () => {
+  const recv = { name: "feature/profiles", kind: "branch" as const };
+  const develop = { name: "develop", kind: "branch" as const, x: 40, y: 60 };
+  const labels = () =>
+    screen.getAllByRole("menuitem").map((i) => i.textContent?.replace(/\s+/g, " ").trim());
+  const sha = "c41d8e0".padEnd(40, "0");
+  const commitMenu = { kind: "commit" as const, name: "c41d8e0", commit: sha, x: 40, y: 60 };
+
+  it("integrer-une-branche CA-1: a source branch offers Merge and Rebase naming both branches, never the other way", async () => {
+    const p = { ...props({ menu: develop, receiving: recv }), onmerge: vi.fn(), onrebase: vi.fn() };
+    render(RefContextMenu, p);
+    expect(labels().slice(0, 3)).toEqual([
+      "Checkout",
+      "Merge develop into feature/profiles",
+      "Rebase feature/profiles onto develop",
+    ]);
+    expect(labels().some((l) => l?.includes("Merge feature/profiles"))).toBe(false);
+    expect(labels().some((l) => l?.includes("Rebase develop"))).toBe(false);
+    await fireEvent.click(screen.getByRole("menuitem", { name: /^Merge/ }));
+    expect(p.onmerge).toHaveBeenCalledWith("develop", "feature/profiles");
+    expect(p.onclose).toHaveBeenCalledTimes(1);
+  });
+
+  it("integrer-une-branche CA-1: choosing Rebase reports the source and the receiving branch", async () => {
+    const p = { ...props({ menu: develop, receiving: recv }), onmerge: vi.fn(), onrebase: vi.fn() };
+    render(RefContextMenu, p);
+    await fireEvent.click(screen.getByRole("menuitem", { name: /^Rebase/ }));
+    expect(p.onrebase).toHaveBeenCalledWith("develop", "feature/profiles");
+    expect(p.onmerge).not.toHaveBeenCalled();
+  });
+
+  it("integrer-une-branche CA-2: the receiving branch itself and a missing receiving branch have no merge nor rebase", () => {
+    const { unmount } = render(
+      RefContextMenu,
+      props({ menu: { ...develop, name: "feature/profiles" }, receiving: recv }),
+    );
+    expect(labels()).toEqual(["Checkout"]);
+    unmount();
+    render(RefContextMenu, props({ menu: develop, receiving: null }));
+    expect(labels()).toEqual(["Checkout"]);
+  });
+
+  it("integrer-une-branche CA-3: an origin/… source is named in full, before Cherry-pick, and nothing moves a remote", () => {
+    render(
+      RefContextMenu,
+      props({
+        menu: { name: "origin/develop", kind: "remote" as const, x: 1, y: 1 },
+        receiving: recv,
+        oncherrypick: vi.fn(),
+      }),
+    );
+    expect(labels()).toEqual([
+      "Checkout",
+      "Merge origin/develop into feature/profiles",
+      "Rebase feature/profiles onto origin/develop",
+      "Cherry-pick",
+      "Revert",
+    ]);
+  });
+
+  it("integrer-une-branche CA-3: an origin/… receiving ref gives no merge nor rebase", () => {
+    render(
+      RefContextMenu,
+      props({ menu: develop, receiving: { name: "origin/main", kind: "remote" as const } }),
+    );
+    expect(labels()).toEqual(["Checkout"]);
+  });
+
+  it("integrer-une-branche CA-4: a commit without branch offers only Rebase onto its short SHA, after Create branch here", async () => {
+    const p = {
+      ...props({ menu: commitMenu, receiving: recv, carriesBranch: false }),
+      onmerge: vi.fn(),
+      onrebase: vi.fn(),
+    };
+    render(RefContextMenu, p);
+    expect(labels().slice(0, 2)).toEqual([
+      "Create branch here",
+      "Rebase feature/profiles onto c41d8e0",
+    ]);
+    expect(labels().some((l) => l?.startsWith("Merge"))).toBe(false);
+    await fireEvent.click(screen.getByRole("menuitem", { name: /^Rebase/ }));
+    expect(p.onrebase).toHaveBeenCalledWith(sha, "feature/profiles");
+  });
+
+  it("integrer-une-branche CA-4: a commit carrying a branch has no Rebase entry", () => {
+    render(RefContextMenu, props({ menu: commitMenu, receiving: recv, carriesBranch: true }));
+    expect(labels().some((l) => l?.startsWith("Rebase") || l?.startsWith("Merge"))).toBe(false);
+  });
+});
+
 describe("RefContextMenu stash", () => {
   const stash = { name: "stash@{1}", kind: "stash" as const, x: 40, y: 60 };
 

@@ -17,6 +17,18 @@ function inline(overrides = {}) {
   };
 }
 
+describe("RefLabel click", () => {
+  it("integrer-une-branche CA-1: a click reports the ref name, a double-click's clicks do not", async () => {
+    const onclick = vi.fn();
+    render(RefLabel, { name: "develop", variant: "synced" as const, onclick });
+    const label = screen.getByText("develop");
+    await fireEvent.click(label);
+    expect(onclick).toHaveBeenCalledWith("develop");
+    await fireEvent.click(label, { detail: 2 });
+    expect(onclick).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("RefLabel inline input", () => {
   it("gerer-les-branches CA-8: the inline input takes the place of the label, with the focus", () => {
     const { container } = render(RefLabel, inline());

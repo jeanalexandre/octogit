@@ -34,6 +34,13 @@
     type CheckoutConfirm,
     type RefMenuTarget,
   } from "./lib/components/RefContextMenu.svelte";
+  import {
+    activeSelection,
+    resolveReceiving,
+    runIntegrate,
+    toggleSelection,
+    type RefSelection,
+  } from "./lib/integrate";
   import DiffView from "./lib/screens/DiffView.svelte";
   import History from "./lib/screens/History.svelte";
   import ProfileSettings from "./lib/screens/ProfileSettings.svelte";
@@ -685,6 +692,64 @@
   let refMenu: RefMenuTarget | null = $state(null);
   /** Confirmation du checkout d'une `origin/…` dont la locale de même nom diffère, avec le dépôt et la ref demandée. */
   let checkoutConfirm: (CheckoutConfirm & { path: string; name: string }) | null = $state(null);
+  /** Branche sélectionnée par un clic comme celle qui reçoit (merge, rebase), ou `null` ; vit jusqu'à un autre clic ou un autre dépôt. */
+  let refSelection: RefSelection | null = $state(null);
+
+  /** Un clic sur une branche la sélectionne, un nouveau clic sur la même la désélectionne ; tags et stashes sont sans effet. */
+  function selectRef(name: string) {
+    if (screen?.screen !== "history" || openPath === null) return;
+    refSelection = toggleSelection(screen.repository.refs, refSelection, openPath, name);
+  }
+
+  /** Sélection valable : celle du dépôt ouvert, tant que la branche existe (un autre dépôt l'oublie). */
+  const selectedRef = $derived.by(() => {
+    if (screen?.screen !== "history") return null;
+    return activeSelection(screen.repository.refs, refSelection, openPath);
+  });
+
+  /** Branche qui reçoit : la sélection si elle existe encore, sinon la branche courante, sinon aucune. */
+  const receiving = $derived.by(() => {
+    if (screen?.screen !== "history") return null;
+    return resolveReceiving(screen.repository.refs, refSelection, openPath);
+  });
+
+  /** Le commit du menu porte-t-il une branche locale ou une `origin/…` ? */
+  const menuCommitCarriesBranch = $derived.by(() => {
+    if (refMenu?.kind !== "commit" || screen?.screen !== "history") return false;
+    const commit = refMenu.commit;
+    return screen.repository.refs.some(
+      (r) => (r.kind === "branch" || r.kind === "remote") && r.target === commit,
+    );
+  });
+
+  const currentBranchName = () =>
+    screen?.screen === "history"
+      ? (screen.repository.refs.find((r) => r.kind === "branch" && r.current)?.name ?? null)
+      : null;
+
+  /** Point d'accroche : S-37 y exécute le merge (`source` dans `receiving`) ou le rebase (`receiving` sur `source`). */
+  function integrate(kind: "merge" | "rebase", source: string, receivingName: string) {
+    void kind;
+    void source;
+    void receivingName;
+  }
+
+  /**
+   * Entrée Merge ou Rebase du menu : checkout de la branche qui reçoit si elle n'est pas la courante (un refus, une
+   * confirmation ou un échec arrête là), puis l'opération.
+   */
+  async function integrateFromMenu(
+    kind: "merge" | "rebase",
+    source: string,
+    receivingName: string,
+  ) {
+    await runIntegrate({
+      receiving: receivingName,
+      currentBranch: currentBranchName,
+      checkout: (name) => checkout(name),
+      integrate: () => integrate(kind, source, receivingName),
+    });
+  }
 
   /** Ouvre le menu d'une branche locale, d'une `origin/…` ou d'un stash ; les tags n'en ont pas ici (S-36). */
   function openRefMenu(name: string, event: MouseEvent) {
@@ -1367,6 +1432,8 @@
       {pushCheck}
       rewrite={rewritten}
       onforcepush={openForcePush}
+      onrefclick={selectRef}
+      {selectedRef}
       onrefdblclick={(name) => checkout(name)}
       onrefcontextmenu={openRefMenu}
       oncommitcontextmenu={openCommitMenu}
@@ -1490,6 +1557,10 @@
     currentBranch={screen.repository.refs.find((r) => r.kind === "branch" && r.current)?.name ??
       null}
     onresetbranch={resetFromMenu}
+    {receiving}
+    carriesBranch={menuCommitCarriesBranch}
+    onmerge={(source, into) => integrateFromMenu("merge", source, into)}
+    onrebase={(onto, into) => integrateFromMenu("rebase", onto, into)}
     oncherrypick={(target) => pickFromMenu(target, false)}
     onrevert={(target) => pickFromMenu(target, true)}
     onapplystash={(name) => stashFromMenu((path) => commands.applyStash(path, name))}

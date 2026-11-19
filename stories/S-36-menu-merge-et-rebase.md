@@ -74,8 +74,12 @@ Dans `History`, un clic sélectionne la branche qui reçoit (sinon la courante r
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `f3af5d0`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (14 fichiers ; e2e 336/338 avant correction des 2 attentes obsolètes ; pas de test Vitest `App`) | — |
+| 1 | reviewer | 2 bloquants : CA-5 « déjà courante : aucun checkout » non prouvé ; décision 1 (disparition, changement de dépôt) sans test | à corriger (`stories/S-36-revue-1.md`) |
+| 2 | dev | terminé (logique extraite dans `src/lib/integrate.ts` + tests ; Vitest 500/500) | — |
+| 2 | reviewer | 2 bloquants levés, aucun problème | validé (`stories/S-36-revue-2.md`) |

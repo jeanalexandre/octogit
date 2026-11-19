@@ -48,6 +48,8 @@
     ontogglefolder,
     onsectionheight,
     onsectiontoggle,
+    onrefclick,
+    selectedRef = null,
     onrefdblclick,
     onrefcontextmenu,
     oncommitcontextmenu,
@@ -180,6 +182,10 @@
     commitEmail?: string | null;
     /** Double-clic sur une branche de `BranchSidebar` ou sur l'étiquette d'une ref du graphe : checkout. */
     onrefdblclick?: (name: string) => void;
+    /** Clic sur une branche de `BranchSidebar` ou une étiquette du graphe : sélection de la branche qui reçoit. */
+    onrefclick?: (name: string) => void;
+    /** Branche sélectionnée comme celle qui reçoit (marque de `BranchSidebar`), ou `null`. */
+    selectedRef?: string | null;
     /** Clic droit, touche menu ou Maj+F10 sur une branche de `BranchSidebar` ou une étiquette du graphe : `RefContextMenu`. */
     onrefcontextmenu?: (name: string, event: MouseEvent) => void;
     /** Choix d'une branche dans le sélecteur de `Toolbar` : checkout. */
@@ -658,6 +664,8 @@
       {onpaneltoggle}
       onheight={onsectionheight}
       {onsectiontoggle}
+      {onrefclick}
+      {selectedRef}
       {onrefdblclick}
       {onrefcontextmenu}
       {checkoutStarts}
@@ -672,6 +680,7 @@
       onwidth={ongraphwidth}
       onselect={select}
       {onhidecolumns}
+      {onrefclick}
       {onrefdblclick}
       {onrefcontextmenu}
       {oncommitcontextmenu}

@@ -106,6 +106,31 @@ describe("BranchSidebar collapse and floating pane", () => {
   });
 });
 
+describe("BranchSidebar receiving branch", () => {
+  it("integrer-une-branche CA-1: a click on a local branch or an origin/… branch reports its name", async () => {
+    const onrefclick = vi.fn();
+    render(BranchSidebar, props({ onrefclick }));
+    const [local, remote] = screen.getAllByRole("button", { name: "main" });
+    await fireEvent.click(local);
+    expect(onrefclick).toHaveBeenLastCalledWith("main");
+    await fireEvent.click(remote);
+    expect(onrefclick).toHaveBeenLastCalledWith("origin/main");
+    await fireEvent.click(local, { detail: 2 });
+    expect(onrefclick).toHaveBeenCalledTimes(2);
+  });
+
+  it("integrer-une-branche CA-1: the selected branch carries a non-colour mark", async () => {
+    const { rerender } = render(BranchSidebar, props({ selectedRef: "origin/main" }));
+    const [local, remote] = screen.getAllByRole("button", { name: "main" });
+    expect(remote).toHaveAttribute("aria-pressed", "true");
+    expect(remote.querySelector("[data-receiving]")).not.toBeNull();
+    expect(local).not.toHaveAttribute("aria-pressed", "true");
+    expect(local.querySelector("[data-receiving]")).toBeNull();
+    await rerender(props({ selectedRef: null }));
+    expect(screen.queryByText("▸")).toBeNull();
+  });
+});
+
 describe("BranchSidebar checkout gestures", () => {
   const rows = () => screen.getAllByRole("button", { name: "main" });
 

@@ -659,6 +659,19 @@ describe("History", () => {
     expect(onrefcontextmenu).toHaveBeenCalledWith("v1.1.0", expect.any(MouseEvent));
   });
 
+  it("integrer-une-branche CA-1: a click on a label (column or floating) and on a panel branch reaches onrefclick", async () => {
+    const onrefclick = vi.fn();
+    render(History, props({ onrefclick }));
+    const row = screen.getAllByRole("listitem")[0];
+    await fireEvent.mouseEnter(row.querySelector("[data-labels]") as HTMLElement);
+    const tag = within(row.querySelector("[data-floating]") as HTMLElement).getByText("v1.1.0");
+    await fireEvent.click(tag);
+    expect(onrefclick).toHaveBeenCalledWith("v1.1.0");
+    const nav = screen.getByRole("navigation", { name: "Branches" });
+    await fireEvent.click(within(nav).getAllByRole("button", { name: "develop" })[0]);
+    expect(onrefclick).toHaveBeenLastCalledWith("develop");
+  });
+
   it("organiser-l-espace CA-18: the author name has a tooltip with the address, on hover and on keyboard focus", async () => {
     const olivier = {
       ...repository.commits[0],

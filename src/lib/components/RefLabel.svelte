@@ -19,8 +19,11 @@
     full = false,
     ondblclick,
     oncontextmenu,
+    onclick,
     input = null,
   }: {
+    /** Clic simple sur l'étiquette (pas ceux d'un double-clic) : rappel avec le nom de sa ref. */
+    onclick?: (name: string) => void;
     /**
      * État « saisie en ligne » (création ou renommage d'une branche, Create tag) : un champ prend la place de
      * l'étiquette. Il garde le focus, s'élargit au nom tapé par-dessus le graphe (la colonne des refs ne change
@@ -90,7 +93,7 @@
   </span>
 {:else}
   <!-- Les gestes sont ceux d'une ref, rappelés par ref ; le focus clavier est porté par la cellule des refs. -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
   <span
     class="ref {variant}"
     class:full
@@ -99,6 +102,9 @@
     data-full={full ? "" : undefined}
     title={name}
     style="--lane: var(--lane-{color + 1})"
+    onclick={(event) => {
+      if (event.detail <= 1) onclick?.(name);
+    }}
     ondblclick={() => ondblclick?.(name)}
     oncontextmenu={(event) => oncontextmenu?.(name, event)}
     ><span class="name">{name}</span>

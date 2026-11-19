@@ -25,6 +25,7 @@
     onselect,
     onhidecolumns,
     onwidth,
+    onrefclick,
     onrefdblclick,
     onrefcontextmenu,
     oncommitcontextmenu,
@@ -55,6 +56,8 @@
     wipSelected?: boolean;
     onselectwip?: () => void;
     /** Double-clic sur une étiquette de ref (celle de la colonne ou une flottante) : le nom de la ref. */
+    /** Clic sur une étiquette de ref : sélection de la branche qui reçoit. */
+    onrefclick?: (name: string) => void;
     onrefdblclick?: (name: string) => void;
     /** Clic droit sur une étiquette de ref : le nom de la ref. */
     onrefcontextmenu?: (name: string, event: MouseEvent) => void;
@@ -449,6 +452,7 @@
                     variant={labels[0].variant}
                     published={labels[0].published}
                     color={commit.color}
+                    onclick={onrefclick}
                     ondblclick={onrefdblclick}
                     oncontextmenu={onrefcontextmenu}
                   />
@@ -463,6 +467,7 @@
                           published={label.published}
                           color={commit.color}
                           full
+                          onclick={onrefclick}
                           ondblclick={onrefdblclick}
                           oncontextmenu={onrefcontextmenu}
                         />

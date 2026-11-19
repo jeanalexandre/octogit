@@ -117,7 +117,13 @@ test("gerer-les-branches CA-3 : clic droit › Checkout sur une branche locale d
 
   await section(page, 0).getByRole("button", { name: "profiles" }).click({ button: "right" });
   await expect(page.getByRole("menu")).toBeVisible();
-  await expect(page.getByRole("menuitem")).toHaveText(["Checkout", "Reset develop to here ›"]);
+  // `develop` (courante) reçoit : la source `feature/profiles` propose Merge et Rebase (S-36).
+  await expect(page.getByRole("menuitem")).toHaveText([
+    "Checkout",
+    "Merge feature/profiles into develop",
+    "Rebase develop onto feature/profiles",
+    "Reset develop to here ›",
+  ]);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("menu")).toHaveCount(0);
   expect(current(repo)).toBe("develop");

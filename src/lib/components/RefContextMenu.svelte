@@ -37,8 +37,20 @@
     onresetbranch,
     oncherrypick,
     onrevert,
+    receiving = null,
+    carriesBranch = false,
+    onmerge,
+    onrebase,
   }: {
     menu?: RefMenuTarget | null;
+    /** Branche qui reçoit (sélectionnée, sinon la courante), ou `null` : sans branche locale, ni merge ni rebase. */
+    receiving?: { name: string; kind: "branch" | "remote" } | null;
+    /** Le commit du menu porte une branche (locale ou `origin/…`) : il n'a alors pas d'entrée Rebase. */
+    carriesBranch?: boolean;
+    /** « Merge <source> into <reçoit> » : la source et la branche qui reçoit. */
+    onmerge?: (source: string, receiving: string) => void;
+    /** « Rebase <reçoit> onto <cible> » : la cible (nom de ref ou commit complet) et la branche qui reçoit. */
+    onrebase?: (onto: string, receiving: string) => void;
     /** Entrées Cherry-pick et Revert d'un commit ou d'une `origin/…` : la cible du menu (le parent trouve son commit). */
     oncherrypick?: (target: RefMenuTarget) => void;
     onrevert?: (target: RefMenuTarget) => void;
@@ -77,10 +89,22 @@
       { id: "cherry-pick", label: "Cherry-pick", run: () => oncherrypick?.(target) },
       { id: "revert", label: "Revert", run: () => onrevert?.(target) },
     ];
+    const into = receiving !== null && receiving.kind === "branch" ? receiving.name : null;
     if (menu.kind === "commit") {
       const { commit } = menu;
+      const rebase: Entry[] =
+        into !== null && !carriesBranch
+          ? [
+              {
+                id: "rebase",
+                label: `Rebase ${into} onto ${menu.name}`,
+                run: () => onrebase?.(commit, into),
+              },
+            ]
+          : [];
       return [
         { id: "create-branch", label: "Create branch here", run: () => oncreatebranch?.(commit) },
+        ...rebase,
         ...pick,
       ];
     }
@@ -97,7 +121,22 @@
       return [{ id: "discard", label: "Discard changes", run: () => ondiscard?.(name, untracked) }];
     }
     const checkout: Entry = { id: "checkout", label: "Checkout", run: () => oncheckout(name) };
-    return menu.kind === "remote" ? [checkout, ...pick] : [checkout];
+    const integrate: Entry[] =
+      into !== null && into !== name
+        ? [
+            {
+              id: "merge",
+              label: `Merge ${name} into ${into}`,
+              run: () => onmerge?.(name, into),
+            },
+            {
+              id: "rebase",
+              label: `Rebase ${into} onto ${name}`,
+              run: () => onrebase?.(name, into),
+            },
+          ]
+        : [];
+    return menu.kind === "remote" ? [checkout, ...integrate, ...pick] : [checkout, ...integrate];
   });
 
   let menuEl: HTMLElement | undefined = $state();

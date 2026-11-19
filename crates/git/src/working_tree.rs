@@ -114,7 +114,7 @@ fn key(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
-fn remember(path: &Path, tree: &WorkingTree) {
+pub(crate) fn remember(path: &Path, tree: &WorkingTree) {
     if let Ok(mut map) = known().lock() {
         map.insert(key(path), tree.clone());
     }

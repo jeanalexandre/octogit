@@ -136,6 +136,18 @@ struct FileDiffArgs {
 }
 
 #[derive(Deserialize)]
+struct WorkingFileArgs {
+    path: String,
+    file: String,
+    #[serde(default)]
+    staged: bool,
+    #[serde(default)]
+    stage: bool,
+    #[serde(default)]
+    lines: Vec<u32>,
+}
+
+#[derive(Deserialize)]
 struct SaveProfileArgs {
     profile: octogit_app::profiles::ProfileView,
 }
@@ -472,6 +484,37 @@ fn main() {
             match octogit_app::commands::commit_file_diff(args.path, args.commit, args.file) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "working_file_diff" | "move_file" | "move_lines" | "discard_file" => {
+            let args: WorkingFileArgs =
+                serde_json::from_str(&input).expect("arguments { path, file, … }");
+            match command.as_str() {
+                "working_file_diff" => {
+                    match octogit_app::commands::working_file_diff(
+                        args.path,
+                        args.file,
+                        args.staged,
+                    ) {
+                        Ok(view) => (serde_json::to_string(&view), 0),
+                        Err(error) => (serde_json::to_string(&error), 3),
+                    }
+                }
+                other => {
+                    let result = match other {
+                        "move_file" => {
+                            octogit_app::commands::move_file(args.path, args.file, args.stage)
+                        }
+                        "move_lines" => octogit_app::commands::move_lines(
+                            args.path, args.file, args.lines, args.stage,
+                        ),
+                        _ => octogit_app::commands::discard_file(args.path, args.file),
+                    };
+                    match result {
+                        Ok(view) => (serde_json::to_string(&view), 0),
+                        Err(error) => (serde_json::to_string(&error), 3),
+                    }
+                }
             }
         }
         "get_working_tree" | "stage_all" | "unstage_all" => {

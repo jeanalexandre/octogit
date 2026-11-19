@@ -5,7 +5,9 @@
   export type RefMenuTarget =
     | { name: string; kind: "branch" | "remote"; x: number; y: number }
     /** Clic droit sur un commit du graphe : `name` est son SHA abrégé, `commit` l'identifiant complet. */
-    | { name: string; kind: "commit"; commit: string; x: number; y: number };
+    | { name: string; kind: "commit"; commit: string; x: number; y: number }
+    /** Clic droit sur un fichier non indexé ou non suivi de `WorkingChanges` : `name` est son chemin. */
+    | { name: string; kind: "file"; untracked: boolean; x: number; y: number };
   /** Une locale de même nom que l'`origin/…` choisie est sur un autre commit : le choix est à faire. */
   export type CheckoutConfirm = { branch: string; remote: string; commits: LocalCommitView[] };
 </script>
@@ -21,6 +23,7 @@
     confirm = null,
     oncheckout,
     oncreatebranch,
+    ondiscard,
     onclose,
     onreset,
     onasis,
@@ -32,6 +35,8 @@
     oncheckout: (name: string) => void;
     /** Entrée « Create branch here » d'un commit : l'identifiant complet du commit. */
     oncreatebranch?: (commit: string) => void;
+    /** Entrée « Discard changes » d'un fichier : son chemin, et s'il est non suivi (il sera supprimé). */
+    ondiscard?: (file: string, untracked: boolean) => void;
     /** Le menu se ferme (entrée choisie, Échap, clic ailleurs). */
     onclose: () => void;
     /** « Reset and checkout ». */
@@ -54,6 +59,10 @@
       ];
     }
     const { name } = menu;
+    if (menu.kind === "file") {
+      const { untracked } = menu;
+      return [{ id: "discard", label: "Discard changes", run: () => ondiscard?.(name, untracked) }];
+    }
     return [{ id: "checkout", label: "Checkout", run: () => oncheckout(name) }];
   });
 

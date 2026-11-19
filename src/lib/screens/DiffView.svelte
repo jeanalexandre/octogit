@@ -1,6 +1,7 @@
 <script lang="ts">
   import ChevronLeft from "@lucide/svelte/icons/chevron-left";
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import Check from "@lucide/svelte/icons/check";
   import Columns2 from "@lucide/svelte/icons/columns-2";
   import Rows2 from "@lucide/svelte/icons/rows-2";
   import { untrack } from "svelte";
@@ -12,26 +13,38 @@
   } from "../bindings";
 
   let {
-    commit,
-    parent,
-    summary,
+    mode = "commit",
+    commit = "",
+    parent = null,
+    summary = "",
     files,
     start,
     loadDiff,
+    apply,
     onclose,
   }: {
-    /** Identifiant complet du commit dont on montre un fichier. */
-    commit: string;
+    /**
+     * `commit` : un fichier d'un commit, en lecture seule. `work` : un fichier non indexé de l'arbre de travail,
+     * `staged` : un fichier indexé ; en unifié, avec Stage / Unstage du fichier, d'un bloc ou de lignes.
+     */
+    mode?: "commit" | "work" | "staged";
+    /** Identifiant complet du commit dont on montre un fichier (mode commit). */
+    commit?: string;
     /** Identifiant complet du premier parent (côté « before »), `null` pour un commit racine. */
-    parent: string | null;
+    parent?: string | null;
     /** Titre du commit (première ligne du message). */
-    summary: string;
-    /** Fichiers du commit, dans l'ordre de `CommitDetail` : « File i / n » les parcourt. */
+    summary?: string;
+    /** Fichiers du commit (ordre de `CommitDetail`) ou du groupe de `WorkingChanges` : « File i / n » les parcourt. */
     files: FileChangeView[];
     /** Rang (depuis 0) du fichier ouvert. */
     start: number;
-    /** Lit le diff d'un fichier du commit ; rejette avec un message si la lecture échoue. */
+    /** Lit le diff d'un fichier ; rejette avec un message si la lecture échoue. */
     loadDiff: (file: string) => Promise<FileDiffView>;
+    /**
+     * Modes travail et indexé : Stage ou Unstage du fichier (`lines` à `null`) ou des lignes de ce rang dans le
+     * diff (un bloc : toutes ses lignes) ; rejette avec un message si Git refuse. Le diff est relu ensuite.
+     */
+    apply?: (change: { file: string; lines: number[] | null }) => Promise<void>;
     /** Échap ou « Back to graph » : retour à `History`, avec le rang du fichier où l'on s'est arrêté. */
     onclose: (index: number) => void;
   } = $props();
@@ -44,13 +57,33 @@
   let index = $state(untrack(() => start));
   let layout: "split" | "unified" = $state("split");
   let loaded: Loaded = $state({ kind: "loading" });
+  /** Incrémenté après chaque Stage / Unstage : le diff du fichier est relu. */
+  let reloads = $state(0);
+  let loadedPath = "";
+  /** Rangs des lignes choisies (modes travail et indexé), triés. */
+  let selected: number[] = $state([]);
+  let anchor: number | null = null;
+  let dragFrom: number | null = null;
+  let busy = $state(false);
+  let actionError: string | null = $state(null);
+
+  const working = $derived(mode !== "commit");
+  const verb = $derived(mode === "staged" ? "Unstage" : "Stage");
 
   const file = $derived(files[index]);
 
   $effect(() => {
     const path = file.path;
+    void reloads;
     let stale = false;
-    loaded = { kind: "loading" };
+    // Une relecture après Stage / Unstage garde le diff affiché jusqu'à l'arrivée du nouveau.
+    if (loadedPath !== path) {
+      loaded = { kind: "loading" };
+      selected = [];
+      anchor = null;
+      actionError = null;
+      loadedPath = path;
+    }
     untrack(() => loadDiff(path))
       .then((diff) => {
         if (!stale) loaded = { kind: "ready", diff };
@@ -141,17 +174,88 @@
   }
 
   const MARKS = { context: "", added: "+", removed: "−" } as const;
+
+  const changed = (lines: DiffLineView[], i: number) => lines[i]?.kind !== "context";
+
+  /** Un bloc : des lignes modifiées consécutives. Rang de ses lignes, dans l'ordre du diff. */
+  function hunks(lines: DiffLineView[]): number[][] {
+    const out: number[][] = [];
+    lines.forEach((line, i) => {
+      if (line.kind === "context") return;
+      if (i > 0 && changed(lines, i - 1)) out[out.length - 1].push(i);
+      else out.push([i]);
+    });
+    return out;
+  }
+
+  /** Les lignes modifiées entre deux rangs inclus. */
+  function between(lines: DiffLineView[], a: number, b: number): number[] {
+    const out: number[] = [];
+    for (let i = Math.min(a, b); i <= Math.max(a, b); i++) if (changed(lines, i)) out.push(i);
+    return out;
+  }
+
+  const union = (a: number[], b: number[]) => [...new Set([...a, ...b])].sort((x, y) => x - y);
+
+  /** Appui dans la marge : Maj étend depuis l'ancrage, sinon choisit cette ligne et démarre un glissé. */
+  function pressLine(lines: DiffLineView[], i: number, event: PointerEvent) {
+    if (event.button !== 0) return;
+    if (event.shiftKey && anchor !== null) {
+      selected = union(selected, between(lines, anchor, i));
+    } else {
+      anchor = i;
+      selected = [i];
+    }
+    dragFrom = i;
+  }
+
+  /** Glissé dans la marge : la sélection va de la ligne pressée à la ligne survolée. */
+  function dragOver(lines: DiffLineView[], i: number) {
+    if (dragFrom !== null) selected = between(lines, dragFrom, i);
+  }
+
+  /** Clavier (Entrée, Espace sur la ligne focalisée) : bascule la ligne, Maj étend depuis l'ancrage. */
+  function clickLine(lines: DiffLineView[], i: number, event: MouseEvent) {
+    // Un clic de souris est déjà traité à l'appui (`detail` à 0 pour le clavier seulement).
+    if (event.detail !== 0) return;
+    if (event.shiftKey && anchor !== null) {
+      selected = union(selected, between(lines, anchor, i));
+    } else {
+      anchor = i;
+      selected = selected.includes(i) ? selected.filter((n) => n !== i) : union(selected, [i]);
+    }
+  }
+
+  async function run(lines: number[] | null) {
+    if (!apply || busy) return;
+    busy = true;
+    actionError = null;
+    try {
+      await apply({ file: file.path, lines });
+      selected = [];
+      anchor = null;
+      reloads++;
+    } catch (e) {
+      actionError = typeof e === "string" ? e : "Git refused this change.";
+    } finally {
+      busy = false;
+    }
+  }
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window {onkeydown} onpointerup={() => (dragFrom = null)} />
 
 <section class="diff" aria-label="File diff" tabindex="-1" use:focusOnMount>
   <header>
     <button type="button" class="control back" onclick={() => onclose(index)}>
       <ChevronLeft size={16} strokeWidth={1.8} /> Back to graph <kbd>Esc</kbd>
     </button>
-    <span class="sha">{commit.slice(0, 7)}</span>
-    <span class="summary">{summary}</span>
+    {#if working}
+      <span class="summary">{mode === "staged" ? "Staged changes" : "Working changes"}</span>
+    {:else}
+      <span class="sha">{commit.slice(0, 7)}</span>
+      <span class="summary">{summary}</span>
+    {/if}
     <span class="grow"></span>
     <span class="status {file.status}" aria-label={file.status}>{LETTERS[file.status]}</span>
     <span class="path">{file.path}</span>
@@ -176,7 +280,20 @@
         onclick={() => step(1)}><ChevronRight size={16} strokeWidth={1.8} /></button
       >
     </span>
-    <span class="segmented" role="radiogroup" aria-label="Diff layout">
+    {#if working && loaded.kind === "ready"}
+      {#if !loaded.diff.binary}
+        <button
+          type="button"
+          class="control"
+          disabled={selected.length === 0 || busy}
+          onclick={() => run(selected)}>{verb} selected lines</button
+        >
+      {/if}
+      <button type="button" class="control primary" disabled={busy} onclick={() => run(null)}
+        >{verb} file</button
+      >
+    {/if}
+    <span class="segmented" role="radiogroup" aria-label="Diff layout" hidden={working}>
       <button
         type="button"
         role="radio"
@@ -198,6 +315,9 @@
     </span>
   </header>
 
+  {#if actionError}
+    <p class="error" role="alert">{actionError}</p>
+  {/if}
   {#if loaded.kind === "error"}
     <p class="error" role="alert">{loaded.message}</p>
   {:else if loaded.kind === "ready"}
@@ -206,6 +326,53 @@
       <p class="notice">
         Binary file · {binarySizes(diff)}. No text diff.
       </p>
+    {:else if working}
+      {@const all = diff.lines}
+      {@const blocks = hunks(all)}
+      {#if blocks.length === 0}
+        <p class="notice">No more changes in this file</p>
+      {:else}
+        <div class="scroller">
+          <div class="pane" data-layout="unified">
+            {#each all as line, i (i)}
+              {#if line.kind !== "context" && !changed(all, i - 1)}
+                {@const block = blocks.find((b) => b[0] === i)!}
+                <div class="hunk bar">
+                  <span>Hunk {blocks.indexOf(block) + 1} / {blocks.length}</span>
+                  <button type="button" class="control" disabled={busy} onclick={() => run(block)}
+                    >{verb} hunk</button
+                  >
+                </div>
+              {/if}
+              <div
+                class="ln unified work"
+                data-kind={line.kind}
+                data-selected={selected.includes(i) ? "true" : undefined}
+              >
+                {#if line.kind !== "context"}
+                  <button
+                    type="button"
+                    class="sel"
+                    data-line={i}
+                    aria-label="Select {line.kind} line {line.newNumber ?? line.oldNumber}"
+                    aria-pressed={selected.includes(i)}
+                    onpointerdown={(e) => pressLine(all, i, e)}
+                    onpointerenter={() => dragOver(all, i)}
+                    onclick={(e) => clickLine(all, i, e)}
+                    >{#if selected.includes(i)}<Check size={12} strokeWidth={2} />{/if}</button
+                  >
+                {:else}
+                  <span></span>
+                {/if}
+                <span class="n">{line.oldNumber ?? ""}</span>
+                <span class="n">{line.newNumber ?? ""}</span>
+                <span class="mark">{MARKS[line.kind]}</span>
+                <span class="t">{line.text}</span>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
     {:else}
       <div class="scroller">
         {#if layout === "unified"}
@@ -446,6 +613,67 @@
 
   .ln.unified {
     grid-template-columns: 48px 48px 16px 1fr;
+  }
+
+  .ln.unified.work {
+    grid-template-columns: 24px 48px 48px 16px 1fr;
+  }
+
+  .hunk.bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .control.primary {
+    border-color: var(--brand);
+    background: var(--brand);
+    color: var(--on-brand);
+    font-weight: 600;
+  }
+
+  .control.primary:hover:not(:disabled) {
+    background: var(--brand);
+  }
+
+  .control.primary:disabled {
+    border-color: var(--border);
+    background: transparent;
+    color: var(--muted);
+  }
+
+  .sel {
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    align-self: center;
+    justify-self: center;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .sel:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  .sel[aria-pressed="true"] {
+    background: var(--selection);
+    border-color: var(--ink);
+  }
+
+  .ln[data-selected="true"] {
+    box-shadow: inset 3px 0 0 var(--focus);
+  }
+
+  [hidden] {
+    display: none;
   }
 
   .n {

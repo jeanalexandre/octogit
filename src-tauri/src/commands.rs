@@ -424,6 +424,46 @@ pub fn unstage_all(path: String) -> Result<WorkingTreeView, String> {
     working_tree::unstage_all(Path::new(&path))
 }
 
+/// Diff du fichier `file` dans l'arbre de travail (`staged` faux) ou dans l'index (`staged` vrai) du dépôt
+/// `path` (`DiffView`, modes travail et indexé).
+#[tauri::command]
+#[specta::specta]
+pub fn working_file_diff(
+    path: String,
+    file: String,
+    staged: bool,
+) -> Result<detail::FileDiffView, String> {
+    detail::working_file_diff(Path::new(&path), &file, staged)
+}
+
+/// Stage file (`stage` vrai) ou Unstage file : le fichier entier ; rend le nouvel état.
+#[tauri::command]
+#[specta::specta]
+pub fn move_file(path: String, file: String, stage: bool) -> Result<WorkingTreeView, String> {
+    working_tree::move_file(Path::new(&path), &file, stage)
+}
+
+/// Stage ou Unstage (`stage`) de lignes choisies de `file` (rangs dans le diff, un bloc : toutes ses
+/// lignes) ; rend le nouvel état.
+#[tauri::command]
+#[specta::specta]
+pub fn move_lines(
+    path: String,
+    file: String,
+    lines: Vec<u32>,
+    stage: bool,
+) -> Result<WorkingTreeView, String> {
+    working_tree::move_lines(Path::new(&path), &file, &lines, stage)
+}
+
+/// Discard changes : un fichier suivi non indexé retrouve l'index, un fichier non suivi est supprimé ;
+/// rend le nouvel état.
+#[tauri::command]
+#[specta::specta]
+pub fn discard_file(path: String, file: String) -> Result<WorkingTreeView, String> {
+    working_tree::discard_file(Path::new(&path), &file)
+}
+
 /// Commit des fichiers indexés (ou amend du dernier commit) avec l'identité du `.git/config` local ;
 /// rend l'arbre de travail et le dépôt relus. L'erreur est la sortie de Git.
 #[tauri::command]

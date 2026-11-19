@@ -50,7 +50,8 @@ export class Workspace {
       | "wide"
       | "large"
       | "search"
-      | "wip",
+      | "wip"
+      | "stage",
     name = "my-repo",
   ): string {
     const path = join(this.root, name);

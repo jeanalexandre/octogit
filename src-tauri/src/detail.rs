@@ -101,13 +101,26 @@ pub struct FileDiffView {
 
 /// Diff du fichier `file` dans le commit `id` du dépôt `path` ; l'erreur est un message lisible.
 pub fn commit_file_diff(path: &Path, id: &str, file: &str) -> Result<FileDiffView, String> {
-    let d = octogit_git::read_file_diff(path, id, file).map_err(|e| e.to_string())?;
+    octogit_git::read_file_diff(path, id, file)
+        .map(file_diff_view)
+        .map_err(|e| e.to_string())
+}
+
+/// Diff du fichier `file` dans l'arbre de travail (`staged` faux : contre l'index) ou dans l'index
+/// (`staged` vrai : contre `HEAD`) ; l'erreur est un message lisible.
+pub fn working_file_diff(path: &Path, file: &str, staged: bool) -> Result<FileDiffView, String> {
+    octogit_git::read_working_diff(path, file, staged)
+        .map(file_diff_view)
+        .map_err(|e| e.to_string())
+}
+
+fn file_diff_view(d: octogit_git::FileDiff) -> FileDiffView {
     let status = match d.status {
         octogit_git::ChangeStatus::Modified => ChangeStatusView::Modified,
         octogit_git::ChangeStatus::Added => ChangeStatusView::Added,
         octogit_git::ChangeStatus::Deleted => ChangeStatusView::Deleted,
     };
-    Ok(match d.content {
+    match d.content {
         octogit_git::FileDiffContent::Binary { old_size, new_size } => FileDiffView {
             path: d.path,
             status,
@@ -136,7 +149,7 @@ pub fn commit_file_diff(path: &Path, id: &str, file: &str) -> Result<FileDiffVie
                 })
                 .collect(),
         },
-    })
+    }
 }
 
 #[cfg(test)]

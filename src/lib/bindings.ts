@@ -74,6 +74,23 @@ export const commands = {
 	/**  Unstage all : l'index revient à `HEAD` ; rend le nouvel état. */
 	unstageAll: (path: string) => typedError<WorkingTreeView, string>(__TAURI_INVOKE("unstage_all", { path })),
 	/**
+	 *  Diff du fichier `file` dans l'arbre de travail (`staged` faux) ou dans l'index (`staged` vrai) du dépôt
+	 *  `path` (`DiffView`, modes travail et indexé).
+	 */
+	workingFileDiff: (path: string, file: string, staged: boolean) => typedError<FileDiffView_Serialize, string>(__TAURI_INVOKE("working_file_diff", { path, file, staged })),
+	/**  Stage file (`stage` vrai) ou Unstage file : le fichier entier ; rend le nouvel état. */
+	moveFile: (path: string, file: string, stage: boolean) => typedError<WorkingTreeView, string>(__TAURI_INVOKE("move_file", { path, file, stage })),
+	/**
+	 *  Stage ou Unstage (`stage`) de lignes choisies de `file` (rangs dans le diff, un bloc : toutes ses
+	 *  lignes) ; rend le nouvel état.
+	 */
+	moveLines: (path: string, file: string, lines: number[], stage: boolean) => typedError<WorkingTreeView, string>(__TAURI_INVOKE("move_lines", { path, file, lines, stage })),
+	/**
+	 *  Discard changes : un fichier suivi non indexé retrouve l'index, un fichier non suivi est supprimé ;
+	 *  rend le nouvel état.
+	 */
+	discardFile: (path: string, file: string) => typedError<WorkingTreeView, string>(__TAURI_INVOKE("discard_file", { path, file })),
+	/**
 	 *  Commit des fichiers indexés (ou amend du dernier commit) avec l'identité du `.git/config` local ;
 	 *  rend l'arbre de travail et le dépôt relus. L'erreur est la sortie de Git.
 	 */

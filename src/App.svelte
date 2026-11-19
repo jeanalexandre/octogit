@@ -23,6 +23,7 @@
   import { runFetchNow, scheduleFetch } from "./lib/fetchScheduler";
   import { sshApi } from "./lib/sshKeys";
   import CloneDialog from "./lib/components/CloneDialog.svelte";
+  import DiscardDialog from "./lib/components/DiscardDialog.svelte";
   import ForcePushDialog from "./lib/components/ForcePushDialog.svelte";
   import IdentityMismatch from "./lib/components/IdentityMismatch.svelte";
   import RefContextMenu, {
@@ -47,6 +48,8 @@
    * intacts) : Échap le ferme et rend le même écran. `null` : fermé.
    */
   let diff: {
+    /** `commit` : un fichier d'un commit ; `work` : un fichier non indexé ; `staged` : un fichier indexé. */
+    mode: "commit" | "work" | "staged";
     commit: string;
     parent: string | null;
     summary: string;
@@ -61,17 +64,75 @@
 
   async function closeDiff(index: number) {
     const file = diff?.files[index]?.path;
+    const group = diff?.mode === "work" ? "unstaged" : diff?.mode === "staged" ? "staged" : null;
     diff = null;
     await tick();
     // Le focus revient au fichier d'où l'on était parti.
-    document.querySelector<HTMLElement>(`[data-file="${CSS.escape(file ?? "")}"]`)?.focus();
+    const where = group === null ? "" : `[data-group="${group}"]`;
+    document.querySelector<HTMLElement>(`${where}[data-file="${CSS.escape(file ?? "")}"]`)?.focus();
   }
 
   async function loadFileDiff(file: string) {
-    if (screen?.screen !== "history" || diff === null) throw "No commit is open.";
-    const result = await commands.commitFileDiff(screen.repository.path, diff.commit, file);
+    if (screen?.screen !== "history" || diff === null) throw "No file is open.";
+    const result =
+      diff.mode === "commit"
+        ? await commands.commitFileDiff(screen.repository.path, diff.commit, file)
+        : await commands.workingFileDiff(screen.repository.path, file, diff.mode === "staged");
     if (result.status === "ok") return result.data;
     throw result.error;
+  }
+
+  /**
+   * Stage ou Unstage (selon le mode de `DiffView`) du fichier ou de lignes de son diff : l'état rendu par Git remplace
+   * `WorkingChanges` et la ligne WIP sans attendre la surveillance. Rejette avec le message de Git si refusé.
+   */
+  async function applyChange(change: { file: string; lines: number[] | null }) {
+    const path = openPath;
+    const mode = diff?.mode;
+    if (path === null || (mode !== "work" && mode !== "staged")) throw "No file is open.";
+    const stage = mode === "work";
+    const result =
+      change.lines === null
+        ? await commands.moveFile(path, change.file, stage)
+        : await commands.moveLines(path, change.file, change.lines, stage);
+    if (result.status !== "ok") throw result.error;
+    if (openPath === path) workingTree = result.data;
+  }
+
+  /** Confirmation de Discard changes d'un fichier non indexé ou non suivi, avec le dépôt concerné. */
+  let discardDialog: {
+    path: string;
+    file: string;
+    untracked: boolean;
+    busy: boolean;
+    error: string | null;
+  } | null = $state(null);
+
+  /** Menu d'un fichier non indexé ou non suivi de `WorkingChanges` : « Discard changes ». */
+  function openFileMenu(file: FileChangeView, event: MouseEvent) {
+    event.preventDefault();
+    if (screen?.screen !== "history") return;
+    let { clientX: x, clientY: y } = event;
+    // Touche menu ou Maj+F10 : pas de pointeur, le menu s'ouvre sous le fichier.
+    if (x === 0 && y === 0 && event.currentTarget instanceof HTMLElement) {
+      const box = event.currentTarget.getBoundingClientRect();
+      x = box.left;
+      y = box.bottom;
+    }
+    refMenu = { name: file.path, kind: "file", untracked: file.status === "added", x, y };
+  }
+
+  async function discardFile() {
+    const asked = discardDialog;
+    if (asked === null || asked.busy) return;
+    discardDialog = { ...asked, busy: true, error: null };
+    const result = await commands.discardFile(asked.path, asked.file);
+    if (result.status === "ok") {
+      if (openPath === asked.path) workingTree = result.data;
+      discardDialog = null;
+    } else {
+      discardDialog = { ...asked, busy: false, error: result.error.split("\n")[0] };
+    }
   }
   /** Dernier fetch automatique réussi du dépôt ouvert (secondes depuis l'epoch). */
   let lastFetched: number | null = $state(null);
@@ -1137,12 +1198,24 @@
       checkoutNotice={checkoutNotice !== null && checkoutNotice.path === openPath
         ? checkoutNotice.text
         : null}
-      onopendiff={(open) => (diff = open)}
+      onopendiff={(open) => (diff = { mode: "commit", ...open })}
+      onopenworking={({ group, files, start }) =>
+        (diff = {
+          mode: group === "unstaged" ? "work" : "staged",
+          commit: "",
+          parent: null,
+          summary: "",
+          files,
+          start,
+        })}
+      onfilecontextmenu={openFileMenu}
     />
   </div>
   {#if diff !== null}
     <div class="diff-layer">
       <DiffView
+        mode={diff.mode}
+        apply={applyChange}
         commit={diff.commit}
         parent={diff.parent}
         summary={diff.summary}
@@ -1192,12 +1265,27 @@
   />
 {/if}
 
+{#if discardDialog && discardDialog.path === openPath}
+  <DiscardDialog
+    file={discardDialog.file}
+    untracked={discardDialog.untracked}
+    busy={discardDialog.busy}
+    error={discardDialog.error}
+    ondiscard={discardFile}
+    oncancel={() => (discardDialog = null)}
+  />
+{/if}
+
 {#if screen?.screen === "history"}
   <RefContextMenu
     menu={refMenu}
     confirm={checkoutConfirm !== null && checkoutConfirm.path === openPath ? checkoutConfirm : null}
     oncheckout={(name) => checkout(name)}
     oncreatebranch={(commit) => (branchInput = { commit, source: "row" })}
+    ondiscard={(file, untracked) => {
+      if (openPath !== null)
+        discardDialog = { path: openPath, file, untracked, busy: false, error: null };
+    }}
     onclose={() => (refMenu = null)}
     onreset={() => resolveCheckout("reset")}
     onasis={() => resolveCheckout("asIs")}

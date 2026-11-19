@@ -73,9 +73,20 @@ Un clic sur un fichier de `WorkingChanges` ouvre `DiffView` en mode travail (non
 - [ ] Documentation listée ci-dessus à jour
 - [ ] Verdict du reviewer : **validé**
 
+## Décisions de l'humain (suite)
+### Après la revue 1
+- Bloquant clippy : traité au passage 2 (d'office). Mineur README : traité au passage 2 (d'office).
+- Échec Vitest illisible de la 1re passe : pris en compte (pour information).
+### Après la revue 2
+- Instabilité e2e de `graph-width` / `refs-column` (S-69) : pris en compte (pour information), consigné dans `notes-production.md` ; reste dans « À décider » pour `/story`.
+
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `ccefbe4`
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; tests, lint, build ✅ (28 fichiers) | — |
+| 1 | reviewer | `pnpm lint` ❌ clippy type_complexity (1 bloquant), 1 mineur README | à corriger |
+| 2 | dev | alias `Sides` ; lint, tests, audit, build ✅ ; `pnpm e2e` 2 échecs instables sous charge (`graph-width` CA-13, `refs-column` CA-18/212, tests de S-69, passent seuls, e2e S-31 verts) : relayé au reviewer, pas un écart de S-31 | — |
+| 2 | reviewer | 0 problème ; e2e 286/288 (2 instables de S-69) | validé |

@@ -18,7 +18,13 @@
     blocked = null,
     noProfile = false,
     onfix,
+    onopenfile,
+    onfilecontextmenu,
   }: {
+    /** Clic sur un fichier d'un groupe : ouvre `DiffView` (mode travail ou indexé) à son rang dans le groupe. */
+    onopenfile?: (group: "unstaged" | "staged", index: number) => void;
+    /** Clic droit, touche menu ou Maj+F10 sur un fichier non indexé ou non suivi : son menu (Discard changes). */
+    onfilecontextmenu?: (file: FileChangeView, event: MouseEvent) => void;
     /** Le dépôt n'a pas de profil rattaché : Commit est désactivé avec la raison « No profile ». */
     noProfile?: boolean;
     /** L'identité du `.git/config` local diffère du profil : l'état bloqué remplace la ligne d'identité. */
@@ -187,15 +193,28 @@
 </section>
 
 {#snippet group(title: string, files: FileChangeView[], action: string, run: () => void)}
+  {@const id = title === "Staged" ? "staged" : "unstaged"}
   <div class="head">
     <h3>{title} · {files.length}</h3>
     <button type="button" class="all" disabled={files.length === 0} onclick={run}>{action}</button>
   </div>
   <ul class="files" aria-label={title}>
-    {#each files as file (file.path)}
+    {#each files as file, i (file.path)}
       <li>
-        <span class="status {file.status}" aria-label={file.status}>{LETTERS[file.status]}</span>
-        <span class="path">{file.path}</span>
+        <button
+          type="button"
+          class="file"
+          data-file={file.path}
+          data-group={id}
+          onclick={() => onopenfile?.(id, i)}
+          oncontextmenu={(event) => {
+            // Discard changes : seulement un fichier non indexé ou non suivi.
+            if (id === "unstaged") onfilecontextmenu?.(file, event);
+          }}
+        >
+          <span class="status {file.status}" aria-label={file.status}>{LETTERS[file.status]}</span>
+          <span class="path">{file.path}</span>
+        </button>
       </li>
     {/each}
   </ul>
@@ -377,9 +396,24 @@
 
   .files li {
     display: flex;
+  }
+
+  .files .file {
+    display: flex;
+    flex: 1;
     gap: 8px;
     align-items: center;
     padding: 2px 4px;
+    border: 0;
+    border-radius: 5px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+
+  .files .file:hover {
+    background: var(--selection);
   }
 
   .path {

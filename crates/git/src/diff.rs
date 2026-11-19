@@ -76,7 +76,16 @@ pub fn read_file_diff(path: &Path, id: &str, file: &str) -> Result<FileDiff, Git
     };
     let old_data = read(old)?;
     let new_data = read(new)?;
-    // Binaire comme Git : un octet nul dans les 8 000 premiers octets d'un des blobs.
+    Ok(diff_of(file, status, old_data, new_data))
+}
+
+/// Le diff de deux contenus. Binaire comme Git : un octet nul dans les 8 000 premiers octets d'un côté.
+fn diff_of(
+    file: &str,
+    status: ChangeStatus,
+    old_data: Option<Vec<u8>>,
+    new_data: Option<Vec<u8>>,
+) -> FileDiff {
     let is_binary = |data: &Option<Vec<u8>>| {
         data.as_ref()
             .is_some_and(|d| d.iter().take(8000).any(|&b| b == 0))
@@ -87,15 +96,132 @@ pub fn read_file_diff(path: &Path, id: &str, file: &str) -> Result<FileDiff, Git
             new_size: new_data.as_ref().map(|d| d.len() as u64),
         }
     } else {
-        let text =
-            |data: Option<Vec<u8>>| String::from_utf8_lossy(&data.unwrap_or_default()).into_owned();
-        FileDiffContent::Text(line_diff(&text(old_data), &text(new_data)))
+        FileDiffContent::Text(line_diff(&lossy(old_data), &lossy(new_data)))
     };
-    Ok(FileDiff {
+    FileDiff {
         path: file.to_string(),
         status,
         content,
+    }
+}
+
+pub(crate) fn lossy(data: Option<Vec<u8>>) -> String {
+    String::from_utf8_lossy(&data.unwrap_or_default()).into_owned()
+}
+
+/// Un chemin relatif au dépôt, sans `..` ni racine : rien ne sort du dépôt.
+pub(crate) fn check_file(file: &str) -> Result<(), GitError> {
+    let path = Path::new(file);
+    let escapes = file.is_empty()
+        || file.contains('\0')
+        || path.is_absolute()
+        || path
+            .components()
+            .any(|c| !matches!(c, std::path::Component::Normal(_)));
+    if escapes {
+        Err(GitError::Read(format!(
+            "{file} is not a path of the repository"
+        )))
+    } else {
+        Ok(())
+    }
+}
+
+/// Le contenu de `file` dans `HEAD` (`None` : absent, ou dépôt sans commit).
+pub(crate) fn head_content(
+    repo: &gix::Repository,
+    file: &str,
+) -> Result<Option<Vec<u8>>, GitError> {
+    let Ok(commit) = repo.head_commit() else {
+        return Ok(None);
+    };
+    let tree = commit.tree_id().map_err(|e| read_error(&e))?.detach();
+    blob_content(repo, blob_at(repo, Some(tree), file)?)
+}
+
+/// Le contenu de `file` dans l'index et son mode octal (`None` : absent de l'index).
+pub(crate) fn index_entry(
+    repo: &gix::Repository,
+    file: &str,
+) -> Result<Option<(Vec<u8>, String)>, GitError> {
+    let index = repo.index_or_empty().map_err(|e| read_error(&e))?;
+    let Some(entry) = index.entry_by_path(gix::bstr::BStr::new(file)) else {
+        return Ok(None);
+    };
+    let mode = format!("{:o}", entry.mode.bits());
+    let data = blob_content(repo, Some(entry.id))?.unwrap_or_default();
+    Ok(Some((data, mode)))
+}
+
+fn blob_content(
+    repo: &gix::Repository,
+    blob: Option<gix::ObjectId>,
+) -> Result<Option<Vec<u8>>, GitError> {
+    blob.map(|id| {
+        repo.find_blob(id)
+            .map(|b| b.data.clone())
+            .map_err(|e| read_error(&e))
     })
+    .transpose()
+}
+
+/// Contenu des deux côtés d'un diff ; `None` : côté absent.
+pub(crate) type Sides = (Option<Vec<u8>>, Option<Vec<u8>>);
+
+/// Les deux côtés du diff de travail (`staged` faux : index contre arbre de travail, un fichier non suivi
+/// est absent de l'index) ou indexé (`HEAD` contre index).
+pub(crate) fn working_sides(
+    repo: &gix::Repository,
+    workdir: &Path,
+    file: &str,
+    staged: bool,
+) -> Result<Sides, GitError> {
+    let index = index_entry(repo, file)?.map(|(data, _)| data);
+    if staged {
+        return Ok((head_content(repo, file)?, index));
+    }
+    let disk = match std::fs::read(workdir.join(file)) {
+        Ok(data) => Some(data),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => return Err(GitError::Read(format!("cannot read {file}: {e}"))),
+    };
+    Ok((index, disk))
+}
+
+/// Diff de `file` dans l'arbre de travail (`staged` faux : contre l'index, un fichier non suivi est un
+/// ajout complet) ou dans l'index (`staged` vrai : contre `HEAD`). Même forme que `read_file_diff` ; un
+/// fichier sans différence rend un diff sans ligne modifiée.
+pub fn read_working_diff(path: &Path, file: &str, staged: bool) -> Result<FileDiff, GitError> {
+    check_file(file)?;
+    let repo = gix::open(path).map_err(|_| GitError::NotARepository)?;
+    let (old, new) = working_sides(&repo, path, file, staged)?;
+    let status = match (&old, &new) {
+        (None, Some(_)) => ChangeStatus::Added,
+        (Some(_), None) => ChangeStatus::Deleted,
+        _ => ChangeStatus::Modified,
+    };
+    Ok(diff_of(file, status, old, new))
+}
+
+/// Les lignes du texte avec leur fin de ligne, comme `lines_of` sans l'ôter.
+pub(crate) fn raw_lines(text: &str) -> Vec<&str> {
+    text.split_inclusive('\n').collect()
+}
+
+/// Les lignes du diff d'un fichier texte ; `None` pour un binaire.
+pub(crate) fn text_diff(
+    old: Option<Vec<u8>>,
+    new: Option<Vec<u8>>,
+) -> Option<(Vec<DiffLine>, String, String)> {
+    let binary = |d: &Option<Vec<u8>>| {
+        d.as_ref()
+            .is_some_and(|d| d.iter().take(8000).any(|&b| b == 0))
+    };
+    if binary(&old) || binary(&new) {
+        return None;
+    }
+    let (old, new) = (lossy(old), lossy(new));
+    Some((line_diff(&old, &new), old, new))
 }
 
 /// Le blob (fichier) à `path` dans l'arbre `tree` (`None` : vide), s'il existe.

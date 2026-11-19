@@ -85,7 +85,17 @@
     rewrite = false,
     onforcepush,
     onopendiff,
+    onopenworking,
+    onfilecontextmenu,
   }: {
+    /** Clic sur un fichier de `WorkingChanges` : ouvre `DiffView` (mode travail ou indexé) sur ce groupe de fichiers. */
+    onopenworking?: (open: {
+      group: "unstaged" | "staged";
+      files: FileChangeView[];
+      start: number;
+    }) => void;
+    /** Clic droit, touche menu ou Maj+F10 sur un fichier non indexé ou non suivi de `WorkingChanges`. */
+    onfilecontextmenu?: (file: FileChangeView, event: MouseEvent) => void;
     /** Identifiants des commits du dépôt affiché dont le message complet (description comprise) contient la saisie, sans casse ; rejette si la lecture échoue. */
     searchMessages?: (query: string) => Promise<string[]>;
     /** Clic sur un fichier de `CommitDetail` : ouvre `DiffView` (mode commit) sur ce fichier, par-dessus `History`. */
@@ -640,6 +650,9 @@
             branch={current?.name ?? null}
             onstageall={() => onstageall?.()}
             onunstageall={() => onunstageall?.()}
+            onopenfile={(group, start) =>
+              onopenworking?.({ group, files: workingTree?.[group] ?? [], start })}
+            {onfilecontextmenu}
             oncommit={async (summary, description, amend) =>
               oncommit?.(summary, description, amend)}
             onloadlast={lastMessage}

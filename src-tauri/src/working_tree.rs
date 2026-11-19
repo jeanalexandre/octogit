@@ -71,6 +71,40 @@ pub fn unstage_all(path: &Path) -> Result<WorkingTreeView, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Stage file ou Unstage file : le fichier entier ; rend le nouvel état.
+pub fn move_file(path: &Path, file: &str, stage: bool) -> Result<WorkingTreeView, String> {
+    if stage {
+        octogit_git::stage_file(path, file)
+    } else {
+        octogit_git::unstage_file(path, file)
+    }
+    .map(Into::into)
+    .map_err(|e| e.to_string())
+}
+
+/// Stage ou Unstage de lignes choisies (rang dans le diff ; un bloc : toutes ses lignes) ; rend le nouvel état.
+pub fn move_lines(
+    path: &Path,
+    file: &str,
+    lines: &[u32],
+    stage: bool,
+) -> Result<WorkingTreeView, String> {
+    if stage {
+        octogit_git::stage_lines(path, file, lines)
+    } else {
+        octogit_git::unstage_lines(path, file, lines)
+    }
+    .map(Into::into)
+    .map_err(|e| e.to_string())
+}
+
+/// Discard changes d'un fichier non indexé ou non suivi ; rend le nouvel état.
+pub fn discard_file(path: &Path, file: &str) -> Result<WorkingTreeView, String> {
+    octogit_git::discard_file(path, file)
+        .map(Into::into)
+        .map_err(|e| e.to_string())
+}
+
 /// Résultat d'un commit ou d'un amend : l'arbre de travail, et le dépôt relu (le nouveau commit est
 /// en tête du graphe). Le profil et l'écart du dépôt ne sont pas relus : l'appelant garde les siens.
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]

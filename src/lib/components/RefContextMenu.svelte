@@ -40,8 +40,8 @@
     confirm?: CheckoutConfirm | null;
     /** Branche courante : titre du sous-menu « Reset <branche> to here › » ; sans elle, pas d'entrée Reset. */
     currentBranch?: string | null;
-    /** Soft ou Mixed choisi dans le sous-menu Reset : la cible du menu (commit ou ref) et le mode. */
-    onresetbranch?: (target: RefMenuTarget, mode: "soft" | "mixed") => void;
+    /** Mode choisi dans le sous-menu Reset : la cible du menu (commit ou ref) et le mode (Hard : à confirmer). */
+    onresetbranch?: (target: RefMenuTarget, mode: "soft" | "mixed" | "hard") => void;
     /** Entrée Checkout : agit comme le double-clic sur la même ref. */
     oncheckout: (name: string) => void;
     /** Entrée « Create branch here » d'un commit : l'identifiant complet du commit. */
@@ -106,13 +106,13 @@
   });
 
   const resetModes = [
-    { mode: "soft", label: "Soft", line: "keep changes staged", enabled: true },
-    { mode: "mixed", label: "Mixed", line: "keep changes unstaged", enabled: true },
-    // Hard attend `ResetHardDialog` (S-34) : listé, mais sans effet.
-    { mode: "hard", label: "Hard", line: "discard everything…", enabled: false },
+    { mode: "soft", label: "Soft", line: "keep changes staged" },
+    { mode: "mixed", label: "Mixed", line: "keep changes unstaged" },
+    // Hard : le parent ouvre `ResetHardDialog` au lieu d'exécuter.
+    { mode: "hard", label: "Hard", line: "discard everything…" },
   ] as const;
 
-  function runReset(mode: "soft" | "mixed") {
+  function runReset(mode: "soft" | "mixed" | "hard") {
     const target = menu;
     if (target === null) return;
     onclose();
@@ -224,14 +224,8 @@
       {#if resetOpen}
         <div class="submenu" role="menu" aria-label="Reset {currentBranch} to here">
           {#each resetModes as item (item.mode)}
-            <button
-              type="button"
-              role="menuitem"
-              class="entry"
-              aria-disabled={item.enabled ? undefined : "true"}
-              onclick={() => {
-                if (item.mode !== "hard") runReset(item.mode);
-              }}><strong>{item.label}</strong> — {item.line}</button
+            <button type="button" role="menuitem" class="entry" onclick={() => runReset(item.mode)}
+              ><strong>{item.label}</strong> — {item.line}</button
             >
           {/each}
         </div>
@@ -318,15 +312,6 @@
     margin: 2px 0 2px 10px;
     padding-left: 4px;
     border-left: 2px solid var(--border-strong);
-  }
-
-  .entry[aria-disabled="true"] {
-    color: var(--muted);
-    cursor: not-allowed;
-  }
-
-  .entry[aria-disabled="true"]:hover {
-    background: none;
   }
 
   .backdrop {

@@ -114,6 +114,13 @@ export const commands = {
 	 *  est inchangé, aucun commit n'est créé.
 	 */
 	resetBranch: (path: string, target: string, mode: ResetModeView) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("reset_branch", { path, target, mode })),
+	/**  Ce qu'un Hard reset de la branche courante sur `target` ferait perdre (lecture seule). */
+	previewResetHard: (path: string, target: string) => typedError<ResetLossView, string>(__TAURI_INVOKE("preview_reset_hard", { path, target })),
+	/**
+	 *  Hard reset de la branche courante sur `target` : l'index et les fichiers suivis prennent l'état de `target`,
+	 *  les fichiers non suivis ne bougent pas. Aucun commit n'est créé.
+	 */
+	resetHard: (path: string, target: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("reset_hard", { path, target })),
 	/**
 	 *  Amend du seul message du dernier commit (`CommitDetail`) : index et arbre de travail intacts, identité
 	 *  du `.git/config` local contrôlée comme pour `commit` ; rend l'arbre de travail et le dépôt relus.
@@ -512,6 +519,12 @@ export type LocalCommitView = {
 	summary: string,
 };
 
+/**  Commit retiré par un Hard reset : identifiant complet et résumé. */
+export type LostCommitView = {
+	id: string,
+	summary: string,
+};
+
 /**  Écart entre le `.git/config` local et le profil rattaché : rien n'a été écrit. */
 export type MismatchView = MismatchView_Serialize | MismatchView_Deserialize;
 
@@ -715,6 +728,15 @@ export type RepositoryView_Serialize = {
 	 *  `None` aussi après un fetch.
 	 */
 	mismatch: MismatchView_Serialize | null,
+};
+
+/**
+ *  Ce qu'un Hard reset fait perdre : commits retirés de la branche courante (du plus récent au plus ancien) et
+ *  fichiers suivis modifiés (les non suivis ne sont pas listés : ils ne bougent pas).
+ */
+export type ResetLossView = {
+	commits: LostCommitView[],
+	files: FileChangeView[],
 };
 
 /**  Mode d'un reset qui garde l'arbre de travail (Hard : autre geste, avec confirmation). */

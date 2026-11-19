@@ -13,6 +13,7 @@
     type MismatchView,
     type ProfileView,
     type PushCheckView,
+    type LostCommitView,
     type RecentView,
     type SectionLayoutView,
     type RepositoryView,
@@ -25,6 +26,7 @@
   import { sshApi } from "./lib/sshKeys";
   import CloneDialog from "./lib/components/CloneDialog.svelte";
   import DiscardDialog from "./lib/components/DiscardDialog.svelte";
+  import ResetHardDialog from "./lib/components/ResetHardDialog.svelte";
   import DropStashDialog from "./lib/components/DropStashDialog.svelte";
   import ForcePushDialog from "./lib/components/ForcePushDialog.svelte";
   import IdentityMismatch from "./lib/components/IdentityMismatch.svelte";
@@ -747,7 +749,7 @@
    * branche ou d'une `origin/…`), sans dialogue. Même garde que le stash ; le dépôt et l'arbre relus remplacent
    * l'affichage, un refus s'affiche en une ligne près de l'en-tête. Aucun contrôle d'identité : pas de commit créé.
    */
-  async function resetFromMenu(menu: RefMenuTarget, mode: ResetModeView) {
+  async function resetFromMenu(menu: RefMenuTarget, mode: ResetModeView | "hard") {
     const path = openPath;
     if (path === null || screen?.screen !== "history") return;
     const target =
@@ -755,12 +757,59 @@
         ? menu.commit
         : screen.repository.refs.find((r) => r.name === menu.name)?.target;
     if (target === undefined) return;
+    const branch = screen.repository.refs.find((r) => r.kind === "branch" && r.current)?.name;
     try {
+      if (mode === "hard") {
+        if (branch === undefined) return;
+        if (checkoutPath !== null) throw "Operation in progress.";
+        // Aperçu en lecture seule : rien n'est modifié avant la confirmation.
+        const preview = await commands.previewResetHard(path, target);
+        if (preview.status !== "ok") throw preview.error;
+        if (openPath !== path) return;
+        resetHardDialog = {
+          path,
+          branch,
+          target,
+          commits: preview.data.commits,
+          files: preview.data.files,
+          busy: false,
+          error: null,
+        };
+        return;
+      }
       await runStash((p) => commands.resetBranch(p, target, mode));
     } catch (e) {
       checkoutNotice = {
         path,
         text: (typeof e === "string" ? e : "The reset failed.").split("\n")[0],
+      };
+    }
+  }
+
+  /** Confirmation d'un Hard reset (pertes listées), avec le dépôt concerné. */
+  let resetHardDialog: {
+    path: string;
+    branch: string;
+    target: string;
+    commits: LostCommitView[];
+    files: FileChangeView[];
+    busy: boolean;
+    error: string | null;
+  } | null = $state(null);
+
+  /** Hard reset confirmé : même garde que le stash, le dépôt relu remplace l'affichage ; un refus reste dans le dialogue. */
+  async function resetHard() {
+    const asked = resetHardDialog;
+    if (asked === null || asked.busy || asked.path !== openPath) return;
+    resetHardDialog = { ...asked, busy: true, error: null };
+    try {
+      await runStash((p) => commands.resetHard(p, asked.target));
+      resetHardDialog = null;
+    } catch (e) {
+      resetHardDialog = {
+        ...asked,
+        busy: false,
+        error: (typeof e === "string" ? e : "The reset failed.").split("\n")[0],
       };
     }
   }
@@ -1378,6 +1427,19 @@
     error={discardDialog.error}
     ondiscard={discardFile}
     oncancel={() => (discardDialog = null)}
+  />
+{/if}
+
+{#if resetHardDialog && resetHardDialog.path === openPath}
+  <ResetHardDialog
+    branch={resetHardDialog.branch}
+    base={resetHardDialog.target}
+    commits={resetHardDialog.commits}
+    files={resetHardDialog.files}
+    busy={resetHardDialog.busy}
+    error={resetHardDialog.error}
+    onreset={resetHard}
+    oncancel={() => (resetHardDialog = null)}
   />
 {/if}
 

@@ -506,6 +506,24 @@ pub fn reset_branch(
     working_tree::reset_branch(Path::new(&path), &target, mode)
 }
 
+/// Ce qu'un Hard reset de la branche courante sur `target` ferait perdre (lecture seule).
+#[tauri::command]
+#[specta::specta]
+pub fn preview_reset_hard(
+    path: String,
+    target: String,
+) -> Result<working_tree::ResetLossView, String> {
+    working_tree::reset_hard_preview(Path::new(&path), &target)
+}
+
+/// Hard reset de la branche courante sur `target` : l'index et les fichiers suivis prennent l'état de `target`,
+/// les fichiers non suivis ne bougent pas. Aucun commit n'est créé.
+#[tauri::command]
+#[specta::specta]
+pub fn reset_hard(path: String, target: String) -> Result<CommittedView, String> {
+    working_tree::reset_hard(Path::new(&path), &target)
+}
+
 /// Commit des fichiers indexés (ou amend du dernier commit) avec l'identité du `.git/config` local ;
 /// rend l'arbre de travail et le dépôt relus. L'erreur est la sortie de Git.
 #[tauri::command]

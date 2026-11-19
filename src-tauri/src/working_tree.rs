@@ -180,6 +180,46 @@ pub fn reset_branch(
     committed(path, tree)
 }
 
+/// Commit retiré par un Hard reset : identifiant complet et résumé.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LostCommitView {
+    pub id: String,
+    pub summary: String,
+}
+
+/// Ce qu'un Hard reset fait perdre : commits retirés de la branche courante (du plus récent au plus ancien) et
+/// fichiers suivis modifiés (les non suivis ne sont pas listés : ils ne bougent pas).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ResetLossView {
+    pub commits: Vec<LostCommitView>,
+    pub files: Vec<FileChangeView>,
+}
+
+/// Aperçu sans effet d'un Hard reset de la branche courante sur `target`.
+pub fn reset_hard_preview(path: &Path, target: &str) -> Result<ResetLossView, String> {
+    let loss = octogit_git::reset_hard_loss(path, target).map_err(|e| e.to_string())?;
+    Ok(ResetLossView {
+        commits: loss
+            .commits
+            .into_iter()
+            .map(|c| LostCommitView {
+                id: c.id,
+                summary: c.summary,
+            })
+            .collect(),
+        files: view(loss.files),
+    })
+}
+
+/// Hard reset de la branche courante sur `target` ; rend l'arbre et le dépôt relus. Aucun commit n'est créé :
+/// pas de contrôle d'identité.
+pub fn reset_hard(path: &Path, target: &str) -> Result<CommittedView, String> {
+    let tree = octogit_git::reset_hard(path, target).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
 /// Drop du stash `stash` (`stash@{n}`).
 pub fn drop_stash(path: &Path, stash: &str) -> Result<CommittedView, String> {
     let tree = octogit_git::stash_drop(path, stash).map_err(|e| e.to_string())?;

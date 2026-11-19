@@ -3,7 +3,10 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use octogit_git::{reset_branch, ChangeStatus, ResetMode};
+use octogit_git::{
+    read_rewrite, read_working_tree, reset_branch, reset_hard, reset_hard_loss, ChangeStatus,
+    ResetMode,
+};
 
 struct Fixture {
     root: PathBuf,
@@ -153,4 +156,130 @@ fn revenir_en_arriere_ca_11_an_unknown_or_option_like_target_is_refused() {
     assert!(reset_branch(fx.path(), "no-such-commit", ResetMode::Soft).is_err());
     assert!(reset_branch(fx.path(), "--hard", ResetMode::Soft).is_err());
     assert_eq!(fx.head(), before);
+}
+
+/// `Fixture::new` plus : `added.txt` suivi (indexé, ajouté) et `scratch.txt` non suivi.
+fn hard_fixture() -> Fixture {
+    let fx = Fixture::new();
+    fx.write("added.txt", "added\n");
+    fx.git(&["add", "added.txt"]);
+    fx.write("scratch.txt", "scratch\n");
+    fx
+}
+
+#[test]
+fn revenir_en_arriere_ca_13_the_preview_lists_removed_commits_and_tracked_files_and_writes_nothing()
+{
+    let fx = hard_fixture();
+    let head = fx.head();
+    let status = fx.git(&["status", "--porcelain"]);
+    let index = fx.git(&["ls-files", "-s"]);
+
+    let loss = reset_hard_loss(fx.path(), &fx.base).unwrap();
+
+    let summaries: Vec<_> = loss.commits.iter().map(|c| c.summary.as_str()).collect();
+    assert_eq!(summaries, ["Two", "One"]);
+    assert_eq!(loss.commits[0].id, head);
+    let files: Vec<_> = loss
+        .files
+        .iter()
+        .map(|f| (f.path.as_str(), f.status))
+        .collect();
+    assert_eq!(
+        files,
+        [
+            ("added.txt", ChangeStatus::Added),
+            ("file.txt", ChangeStatus::Modified),
+            ("keep.txt", ChangeStatus::Modified),
+        ]
+    );
+    // Aucune écriture : HEAD, index et arbre de travail comme avant.
+    assert_eq!(fx.head(), head);
+    assert_eq!(fx.git(&["status", "--porcelain"]), status);
+    assert_eq!(fx.git(&["ls-files", "-s"]), index);
+}
+
+#[test]
+fn revenir_en_arriere_ca_13_nothing_to_lose_gives_empty_lists() {
+    let fx = hard_fixture();
+    fx.git(&["reset", "-q", "--hard"]);
+    fx.git(&["clean", "-fdq"]);
+    let loss = reset_hard_loss(fx.path(), "HEAD").unwrap();
+    assert!(loss.commits.is_empty());
+    assert!(loss.files.is_empty());
+}
+
+#[test]
+fn revenir_en_arriere_ca_14_hard_puts_head_index_and_tracked_files_on_the_base_and_keeps_untracked()
+{
+    let fx = hard_fixture();
+    let tree = reset_hard(fx.path(), &fx.base).unwrap();
+    assert_eq!(fx.head(), fx.base);
+    assert_eq!(fx.git(&["symbolic-ref", "--short", "HEAD"]).trim(), "main");
+    assert_eq!(fx.git(&["status", "--porcelain"]), "?? scratch.txt\n");
+    assert_eq!(
+        std::fs::read_to_string(fx.root.join("scratch.txt")).unwrap(),
+        "scratch\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(fx.root.join("file.txt")).unwrap(),
+        "base\n"
+    );
+    assert!(!fx.root.join("one.txt").exists());
+    assert!(tree.staged.is_empty());
+    let unstaged: Vec<_> = tree.unstaged.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(unstaged, ["scratch.txt"]);
+    assert_eq!(read_working_tree(fx.path()).unwrap(), tree);
+}
+
+#[test]
+fn revenir_en_arriere_ca_14_hard_on_the_remote_ref_aligns_the_local_branch() {
+    let fx = Fixture::new();
+    fx.git(&["update-ref", "refs/remotes/origin/main", &fx.base]);
+    reset_hard(fx.path(), "origin/main").unwrap();
+    assert_eq!(fx.head(), fx.base);
+}
+
+#[test]
+fn revenir_en_arriere_ca_18_hard_never_asks_for_an_identity_and_refuses_bad_targets() {
+    let fx = Fixture::new();
+    fx.git(&["config", "--unset", "user.name"]);
+    fx.git(&["config", "--unset", "user.email"]);
+    let before = fx.head();
+    assert!(reset_hard(fx.path(), "no-such-commit").is_err());
+    assert!(reset_hard(fx.path(), "--soft").is_err());
+    assert!(reset_hard_loss(fx.path(), "no-such-commit").is_err());
+    assert_eq!(fx.head(), before);
+    reset_hard(fx.path(), &fx.base).unwrap();
+    assert_eq!(fx.head(), fx.base);
+}
+
+#[test]
+fn revenir_en_arriere_ca_16_a_hard_reset_below_pushed_commits_is_a_detected_rewrite_and_pushes_nothing(
+) {
+    let fx = Fixture::new();
+    let bare = fx.root.with_extension("origin.git");
+    let bare_path = bare.to_str().unwrap().to_string();
+    let init = Command::new("git")
+        .args(["init", "-q", "--bare", "-b", "main", &bare_path])
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .output()
+        .unwrap();
+    assert!(init.status.success());
+    fx.git(&["remote", "add", "origin", &bare_path]);
+    fx.git(&["push", "-q", "-u", "origin", "main"]);
+    let remote = fx.git(&["rev-parse", "origin/main"]).trim().to_string();
+    assert_eq!(read_rewrite(fx.path()).unwrap(), None);
+
+    reset_hard(fx.path(), &fx.base).unwrap();
+
+    let rewrite = read_rewrite(fx.path()).unwrap().expect("rewrite");
+    assert_eq!(rewrite.upstream, "origin/main");
+    assert_eq!(rewrite.expected, remote);
+    let bare_head = Command::new("git")
+        .args(["-C", &bare_path, "rev-parse", "refs/heads/main"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&bare_head.stdout).trim(), remote);
+    let _ = std::fs::remove_dir_all(&bare);
 }

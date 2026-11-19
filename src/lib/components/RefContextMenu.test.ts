@@ -117,7 +117,7 @@ describe("RefContextMenu reset", () => {
     }
   });
 
-  it("revenir-en-arriere CA-18: Soft and Mixed are enabled with no identity condition, Hard waits for its dialog", async () => {
+  it("revenir-en-arriere CA-18: Soft, Mixed and Hard are enabled with no identity condition, Hard asks for its dialog", async () => {
     const p = props({ menu: commitMenu, currentBranch: "feature/profiles" });
     const onresetbranch = vi.fn();
     render(RefContextMenu, { ...p, onresetbranch });
@@ -125,10 +125,10 @@ describe("RefContextMenu reset", () => {
     expect(screen.getByRole("menuitem", { name: /^Soft/ })).not.toHaveAttribute("aria-disabled");
     expect(screen.getByRole("menuitem", { name: /^Mixed/ })).not.toHaveAttribute("aria-disabled");
     const hard = screen.getByRole("menuitem", { name: /^Hard/ });
-    expect(hard).toHaveAttribute("aria-disabled", "true");
+    expect(hard).not.toHaveAttribute("aria-disabled");
     await fireEvent.click(hard);
-    expect(onresetbranch).not.toHaveBeenCalled();
-    expect(p.onclose).not.toHaveBeenCalled();
+    expect(onresetbranch).toHaveBeenCalledWith(commitMenu, "hard");
+    expect(p.onclose).toHaveBeenCalled();
   });
 
   it("revenir-en-arriere CA-10: no current branch, no Reset entry", () => {

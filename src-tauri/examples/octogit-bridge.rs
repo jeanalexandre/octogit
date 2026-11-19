@@ -117,6 +117,12 @@ struct ResetArgs {
 }
 
 #[derive(Deserialize)]
+struct ResetHardArgs {
+    path: String,
+    target: String,
+}
+
+#[derive(Deserialize)]
 struct StashArgs {
     path: String,
     #[serde(default)]
@@ -584,6 +590,22 @@ fn main() {
             let args: ResetArgs =
                 serde_json::from_str(&input).expect("arguments { path, target, mode }");
             match octogit_app::commands::reset_branch(args.path, args.target, args.mode) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "preview_reset_hard" => {
+            let args: ResetHardArgs =
+                serde_json::from_str(&input).expect("arguments { path, target }");
+            match octogit_app::commands::preview_reset_hard(args.path, args.target) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "reset_hard" => {
+            let args: ResetHardArgs =
+                serde_json::from_str(&input).expect("arguments { path, target }");
+            match octogit_app::commands::reset_hard(args.path, args.target) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

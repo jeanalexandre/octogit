@@ -20,6 +20,13 @@ Brancher l'entrée Hard du sous-menu Reset sur `ResetHardDialog`, qui liste les 
 ## Décisions de l'humain
 ### Fiche (19/11/2026)
 1. Commits listés dans `ResetHardDialog` : a) tous les commits retirés de la branche courante (décision de l'humain, 19/11/2026)
+### Passage 1 (19/11/2026)
+1. Ligne « Untracked files are kept. This cannot be undone. » : b) la retirer, `dev` fait un passage pour cela (décision de l'humain, 19/11/2026)
+2. Variantes « n commits will be lost. » / « n modified files will be lost. » à un seul type de perte : b) les retirer, `dev` fait un passage pour cela (décision de l'humain, 19/11/2026)
+3. Liste des fichiers perdus calculée contre `HEAD` : a) garder ce comportement (décision de l'humain, 19/11/2026)
+### Après la revue 1 (19/11/2026)
+- Point « pour information » (un fichier non suivi au même chemin qu'un fichier suivi du commit cible est écrasé sans annonce) : pris en compte (pour information) ; reporté dans `notes-production.md`.
+- Écart signalé par `dev` : `ux.md` et `ux/ecrans/dialogues.md` décrivent encore « non suivis gardés » et les variantes à un seul type de perte : à rattraper par `/ksm:ux` (renvoi, pas fait par l'agent).
 
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
@@ -62,8 +69,11 @@ Brancher l'entrée Hard du sous-menu Reset sur `ResetHardDialog`, qui liste les 
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `c323600`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : tests, lint, build, format, audit verts ; e2e touchés verts (`reset`, `checkout`, `force-push`, `branch`, `stash`) ; rouge e2e non constaté. Écarts à `ux/ecrans/dialogues.md` signalés, revue suspendue en attente de l'humain | — |
+| 2 | dev | terminé : retrait de la ligne « Untracked files… » et des variantes à un seul type de perte, README ajusté ; tests Rust et Vitest 470, lint, format, audit, build, e2e `reset` 17/17 verts ; rouge non constaté | — |
+| 2 | reviewer | `stories/S-34-revue-1.md`, aucun problème ; e2e de critère jugés probants malgré l'absence de rouge | validé |

@@ -36,6 +36,7 @@ function open(
   initial = list(["a.txt", "b.txt"], [], ["c.txt"]),
   notMergeable: string[] = [],
   after?: ConflictListView,
+  extra: Record<string, unknown> = {},
 ) {
   const loadList = vi.fn(async () => initial);
   const loadFile = vi.fn(async (file: string) =>
@@ -52,14 +53,19 @@ function open(
         ? list(["b.txt"], ["a.txt"], ["c.txt"])
         : list([], ["a.txt", "b.txt"], ["c.txt"])),
   );
+  const onback = vi.fn();
+  const onlist = vi.fn();
   render(ConflictResolver, {
     oursLane: 0,
     theirsLane: 1,
     loadList,
     loadFile,
     resolve,
+    onback,
+    onlist,
+    ...extra,
   });
-  return { loadList, loadFile, resolve };
+  return { loadList, loadFile, resolve, onback, onlist };
 }
 
 const group = (name: RegExp) => screen.getByRole("group", { name });
@@ -134,6 +140,48 @@ describe("resoudre-les-conflits CA-5 : Mark as resolved", () => {
 
     expect(await screen.findByText("✓ 1 resolved · 1 auto-merged")).toBeTruthy();
     expect(screen.queryByRole("textbox", { name: "Result" })).toBeNull();
+  });
+});
+
+describe("resoudre-les-conflits CA-14 : Back to graph", () => {
+  it("has no Back to graph button of its own: it lives in OperationBanner", async () => {
+    open();
+    await screen.findByRole("textbox", { name: "Result" });
+
+    expect(screen.queryByRole("button", { name: /Back to graph/ })).toBeNull();
+  });
+
+  it("leaves through Escape", async () => {
+    const { onback } = open();
+    await screen.findByRole("textbox", { name: "Result" });
+
+    await fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onback).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports the files and the files seen in conflict to the parent after the opening and after Mark as resolved", async () => {
+    const { onlist } = open();
+    await screen.findByRole("textbox", { name: "Result" });
+    expect(onlist).toHaveBeenLastCalledWith(expect.objectContaining({ ours }), ["a.txt", "b.txt"]);
+
+    await fireEvent.click(screen.getByRole("button", { name: "Take all ours" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Mark as resolved" }));
+
+    await waitFor(() => expect(screen.getByText("Resolved · 1")).toBeTruthy());
+    const [last, seen] = onlist.mock.lastCall as [ConflictListView, string[]];
+    expect(last.files.filter((f) => f.group === "resolved").map((f) => f.path)).toEqual(["a.txt"]);
+    expect(seen).toEqual(["a.txt", "b.txt"]);
+  });
+
+  it("reopens with the files already marked resolved in Resolved", async () => {
+    const { loadList } = open(list(["b.txt"], ["a.txt"], ["c.txt"]), [], undefined, {
+      initialSeen: ["a.txt", "b.txt"],
+    });
+
+    await waitFor(() => expect(screen.getByText("Resolved · 1")).toBeTruthy());
+    expect(loadList).toHaveBeenCalledWith(["a.txt", "b.txt"]);
+    expect(within(group(/^Resolved/)).getByText("a.txt")).toBeTruthy();
   });
 });
 

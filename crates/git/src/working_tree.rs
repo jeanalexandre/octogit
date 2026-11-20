@@ -231,6 +231,21 @@ fn commit_in(
 ) -> Result<WorkingTree, GitError> {
     use std::io::Write;
 
+    // Seul Continue termine un merge en cours (CA-21) : jamais de commit ni d'amend entre-temps.
+    let merging = Command::new("git")
+        .arg("-C")
+        .arg(path)
+        .args(["rev-parse", "-q", "--verify", "MERGE_HEAD"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map_err(|e| GitError::Read(format!("cannot run git: {e}")))?
+        .success();
+    if merging {
+        return Err(GitError::Read("Merge in progress".to_string()));
+    }
+
     let summary = summary.trim();
     if summary.is_empty() {
         return Err(GitError::Read("Summary required".to_string()));

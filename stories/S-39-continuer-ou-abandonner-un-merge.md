@@ -26,6 +26,13 @@ Périmètre de la story : l'opération en cours est un **merge lancé dans Octog
 ### Fiche (à remplir)
 1. Continue sur dépôt non conforme ou « No profile » (CA-13) dans S-39 ou à S-50 : 1a, dans S-39 : Continue désactivé avec « Identity does not match profile Work. » et refusé aussi par `ensure_conform`
 
+### Après la revue 1
+- Mineur 3 (Back to graph dans la zone du bandeau selon la maquette) : traiter au passage 3 (d'office), si le bandeau reste monté une fois ; sinon laisser et consigner.
+
+### Après la revue 2
+- Mineur (placement de Back to graph) : toujours ouvert, traité au passage 3 (d'office).
+- Pour information : `notes-production.md` S-38 caduque, avertissement Svelte `derived_inert`, `refs-column.spec.ts:189` instable hors S-39 : pris en compte (pour information).
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test aux vraies commandes du crate `app`, dépôts d'exemple dont un merge en conflit, données dans un dossier temporaire) ; jamais `npx playwright` ni `cargo run`
@@ -83,8 +90,14 @@ Périmètre de la story : l'opération en cours est un **merge lancé dans Octog
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `0004c9d`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé, tests/lint/build verts ; écarts : bandeau monté une fois dans App, Continue/Abort dans le bandeau | — |
+| 2 | reviewer | revue 1 : 2 bloquants (message de merge avec `# Conflicts:`, « No profile » non testé), 1 mineur | à corriger |
+| 3 | dev | passage 2 : bloquants 1 et 2 corrigés, mineur 3 non traité ; `refs-column.spec.ts:189` (CA-18) échoue aussi sur la référence 0004c9d (constaté par story-runner, stash) : hors S-39 | — |
+| 4 | reviewer | revue 2 : bloquants levés, 1 mineur (placement de Back to graph) | validé |
+| 5 | dev | passage 3 : Back to graph déplacé dans le bandeau, tests/lint/build verts (hors refs-column instable) | — |
+| 6 | reviewer | revue 3 : aucun problème | validé |

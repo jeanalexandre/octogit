@@ -14,7 +14,16 @@
     loadList,
     loadFile,
     resolve,
+    initialSeen = [],
+    onlist,
+    onback,
   }: {
+    /** Fichiers déjà vus en conflit (écran rouvert par Resolve) : ceux qui n'y sont plus sont dans Resolved. */
+    initialSeen?: string[];
+    /** Liste relue (ouverture, Mark as resolved) et fichiers vus en conflit : le parent garde ses comptes. */
+    onlist?: (list: ConflictListView, seen: string[]) => void;
+    /** Back to graph ou Échap : `History` revient, l'opération reste en cours. */
+    onback: () => void;
     /** Indice de lane (0 à 5) de la branche courante et de la branche fusionnée. */
     oursLane: number;
     theirsLane: number;
@@ -60,10 +69,12 @@
 
   onMount(async () => {
     try {
-      const first = await loadList([]);
-      seen = first.files.filter((f) => f.group === "conflicted").map((f) => f.path);
+      const first = await loadList(initialSeen);
+      const found = first.files.filter((f) => f.group === "conflicted").map((f) => f.path);
+      seen = [...new Set([...initialSeen, ...found])];
       list = first;
-      await select(seen[0] ?? null);
+      onlist?.(first, seen);
+      await select(found[0] ?? null);
     } catch (e) {
       error = typeof e === "string" ? e : "The conflicts could not be read.";
     }
@@ -78,6 +89,7 @@
     try {
       const next = await resolve(file, result, seen);
       list = next;
+      onlist?.(next, seen);
       const left = next.files.filter((f) => f.group === "conflicted").map((f) => f.path);
       const after = before.slice(before.indexOf(file) + 1).find((p) => left.includes(p));
       await select(after ?? left[0] ?? null);
@@ -87,7 +99,17 @@
       busy = false;
     }
   }
+
+  /** Échap ramène au graphe, sauf si un dialogue (confirmation d'Abort) l'a déjà pris. */
+  function onkeydown(event: KeyboardEvent) {
+    if (event.key === "Escape" && !event.defaultPrevented) {
+      event.preventDefault();
+      onback();
+    }
+  }
 </script>
+
+<svelte:window {onkeydown} />
 
 <section class="resolver" aria-label="Resolve conflicts">
   <header>
@@ -157,12 +179,15 @@
   .resolver {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: calc(100vh - var(--banner-h, 0px));
     background: var(--surface);
     color: var(--ink);
   }
 
   header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     padding: 10px 16px;
     background: var(--surface-raised);
     border-bottom: 1px solid var(--border);

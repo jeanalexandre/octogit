@@ -688,6 +688,23 @@ fn main() {
                 }
             }
         }
+        "continue_merge" | "abort_merge" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            let path = std::path::Path::new(&args.path);
+            let result = if command == "continue_merge" {
+                octogit_app::working_tree::continue_merge_checked(
+                    &octogit_store::Store::new(octogit_app::data_dir()),
+                    &octogit_app::home_dir(),
+                    path,
+                )
+            } else {
+                octogit_app::working_tree::abort_merge(path)
+            };
+            match result {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
         "list_conflicts" => {
             let args: ConflictArgs =
                 serde_json::from_str(&input).expect("arguments { path, theirsName, seen }");

@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use octogit_app::open::open_repository_in;
-use octogit_app::working_tree::{merge_checked, rebase_checked};
+use octogit_app::working_tree::{
+    abort_merge, commit_checked, continue_merge_checked, merge_checked, rebase_checked,
+};
 use octogit_identity::{MatchingRule, Profile, RuleKind};
 use octogit_store::Store;
 
@@ -136,6 +138,101 @@ fn integrer_une_branche_ca_9_a_conform_repository_rebases_keeping_the_authors() 
         git(&repo, &["log", "-1", "--format=%an <%ae>|%cn <%ce>"]),
         "Zoe Other <zoe@example.com>|Work User <p1@example.org>"
     );
+}
+
+/// Dépôt conforme où le merge de `side` dans `main` s'est arrêté sur un conflit de `clash.txt`, résolu et indexé.
+fn resolved_merge(sb: &Sandbox) -> PathBuf {
+    let repo = sb.conform_repo();
+    let who = [
+        "-c",
+        "user.name=Zoe Other",
+        "-c",
+        "user.email=zoe@example.com",
+    ];
+    let commit = |message: &str| {
+        let mut args = who.to_vec();
+        args.extend(["commit", "-q", "-m", message]);
+        git(&repo, &args);
+    };
+    git(&repo, &["checkout", "-q", "side"]);
+    fs::write(repo.join("clash.txt"), "side\n").unwrap();
+    git(&repo, &["add", "clash.txt"]);
+    commit("Side clash");
+    git(&repo, &["checkout", "-q", "main"]);
+    fs::write(repo.join("clash.txt"), "main\n").unwrap();
+    git(&repo, &["add", "clash.txt"]);
+    commit("Main clash");
+    let merging = merge_checked(&sb.store, &sb.home, &repo, "side", "main").unwrap();
+    assert!(merging.conflict);
+    fs::write(repo.join("clash.txt"), "resolved\n").unwrap();
+    git(&repo, &["add", "clash.txt"]);
+    repo
+}
+
+#[test]
+fn resoudre_les_conflits_ca_8_a_conform_repository_continues_with_the_profile_identity() {
+    let sb = Sandbox::new("continue-ok");
+    let repo = resolved_merge(&sb);
+
+    let view = continue_merge_checked(&sb.store, &sb.home, &repo).unwrap();
+
+    let merged = git(&repo, &["rev-parse", "HEAD"]);
+    assert!(view.repository.commits.iter().any(|c| c.id == merged));
+    assert_eq!(
+        git(&repo, &["log", "-1", "--format=%an <%ae>|%cn <%ce>"]),
+        "Work User <p1@example.org>|Work User <p1@example.org>"
+    );
+    assert!(!repo.join(".git/MERGE_HEAD").exists());
+}
+
+#[test]
+fn resoudre_les_conflits_ca_13_continue_is_refused_when_the_identity_does_not_match_the_profile() {
+    let sb = Sandbox::new("continue-refused");
+    let repo = resolved_merge(&sb);
+    git(
+        &repo,
+        &["config", "--local", "user.email", "perso@example.org"],
+    );
+    let head = git(&repo, &["rev-parse", "HEAD"]);
+    let merge_head = git(&repo, &["rev-parse", "MERGE_HEAD"]);
+
+    let refused = continue_merge_checked(&sb.store, &sb.home, &repo).unwrap_err();
+
+    assert_eq!(refused, "Identity does not match profile Work.");
+    assert_eq!(git(&repo, &["rev-parse", "HEAD"]), head);
+    assert_eq!(git(&repo, &["rev-parse", "MERGE_HEAD"]), merge_head);
+    // Abort reste possible, sans contrôle d'identité.
+    abort_merge(&repo).unwrap();
+    assert!(!repo.join(".git/MERGE_HEAD").exists());
+}
+
+#[test]
+fn resoudre_les_conflits_ca_13_continue_is_refused_without_a_profile() {
+    let sb = Sandbox::new("continue-no-profile");
+    let repo = resolved_merge(&sb);
+    // Le profil disparaît pendant le merge : plus aucun profil rattaché.
+    sb.store.set_profiles(&[]).unwrap();
+    let head = git(&repo, &["rev-parse", "HEAD"]);
+    let merge_head = git(&repo, &["rev-parse", "MERGE_HEAD"]);
+
+    let refused = continue_merge_checked(&sb.store, &sb.home, &repo).unwrap_err();
+
+    assert_eq!(refused, "No profile.");
+    assert_eq!(git(&repo, &["rev-parse", "HEAD"]), head);
+    assert_eq!(git(&repo, &["rev-parse", "MERGE_HEAD"]), merge_head);
+    assert!(repo.join(".git/MERGE_HEAD").exists());
+}
+
+#[test]
+fn resoudre_les_conflits_ca_21_commit_is_refused_during_a_merge_even_when_the_identity_matches() {
+    let sb = Sandbox::new("commit-merging");
+    let repo = resolved_merge(&sb);
+    let head = git(&repo, &["rev-parse", "HEAD"]);
+
+    let refused = commit_checked(&sb.store, &sb.home, &repo, "feat: nope", "", false).unwrap_err();
+
+    assert_eq!(refused, "Merge in progress");
+    assert_eq!(git(&repo, &["rev-parse", "HEAD"]), head);
 }
 
 #[test]

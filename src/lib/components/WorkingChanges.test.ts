@@ -38,6 +38,28 @@ const rows = (list: HTMLElement) =>
     .getAllByRole("listitem")
     .map((li) => li.textContent?.replace(/\s+/g, " ").trim());
 
+describe("WorkingChanges during a merge", () => {
+  it("resoudre-les-conflits CA-21: Commit and Amend are disabled with the reason Merge in progress, ⌘↵ creates nothing", async () => {
+    const p = props({ merging: true });
+    render(WorkingChanges, p);
+    await fireEvent.input(summary(), { target: { value: "feat: during merge" } });
+
+    expect(commitButton()).toBeDisabled();
+    expect(screen.getByText("Merge in progress")).toBeVisible();
+    expect(screen.getByRole("checkbox", { name: "Amend last commit" })).toBeDisabled();
+    await fireEvent.keyDown(summary(), { key: "Enter", metaKey: true });
+    await fireEvent.click(commitButton());
+    expect(p.oncommit).not.toHaveBeenCalled();
+  });
+
+  it("resoudre-les-conflits CA-21: without a merge Commit is not blocked by this reason", async () => {
+    render(WorkingChanges, props());
+    await fireEvent.input(summary(), { target: { value: "feat: normal" } });
+    expect(screen.queryByText("Merge in progress")).toBeNull();
+    expect(commitButton()).toBeEnabled();
+  });
+});
+
 describe("WorkingChanges conflicts", () => {
   const conflicted: WorkingTreeView = {
     unstaged: [

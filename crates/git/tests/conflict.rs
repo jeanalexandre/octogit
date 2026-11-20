@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use octogit_git::{
-    list_conflicts, merge, read_conflict_file, resolve_conflict_file, ConflictGroup,
+    abort_merge, continue_merge, continue_merge_with_home, list_conflicts, merge,
+    read_conflict_file, resolve_conflict_file, ConflictGroup,
 };
 
 struct Fixture {
@@ -350,4 +351,133 @@ fn a_file_under_a_symlinked_folder_is_never_read_or_written_through() {
     assert!(std::fs::read_to_string(outside.join("f.txt"))
         .unwrap()
         .contains("secret"));
+}
+
+/// Tout est résolu : `a.txt` et `b.txt` par Mark as resolved, `bin.dat` (binaire) à la main.
+fn resolve_all(fx: &Fixture) {
+    resolve_conflict_file(fx.path(), "a.txt", "resolved a\n").unwrap();
+    resolve_conflict_file(fx.path(), "b.txt", "resolved b\n").unwrap();
+    fx.write("bin.dat", b"\x00resolved\n");
+    fx.git(&["add", "bin.dat"]);
+}
+
+#[test]
+fn resoudre_les_conflits_ca_8_continue_creates_the_merge_commit_with_the_default_message_and_the_profile_identity(
+) {
+    let fx = Fixture::new();
+    let head = fx.git(&["rev-parse", "HEAD"]).trim().to_string();
+    let theirs = fx
+        .git(&["rev-parse", "feature/profiles"])
+        .trim()
+        .to_string();
+    resolve_all(&fx);
+
+    let tree = continue_merge(fx.path()).unwrap();
+
+    assert_eq!(
+        fx.git(&["log", "-1", "--format=%P"]).trim(),
+        format!("{head} {theirs}")
+    );
+    assert_eq!(
+        fx.git(&["log", "-1", "--format=%s"]).trim(),
+        "Merge branch 'feature/profiles' into develop"
+    );
+    // Message complet : ni « # Conflicts: » ni aucune ligne de commentaire de MERGE_MSG.
+    assert_eq!(
+        fx.git(&["log", "-1", "--format=%B"]).trim_end(),
+        "Merge branch 'feature/profiles' into develop"
+    );
+    assert_eq!(
+        fx.git(&["log", "-1", "--format=%an <%ae>|%cn <%ce>"])
+            .trim(),
+        "Bob Author <bob@example.com>|Bob Author <bob@example.com>"
+    );
+    assert!(!fx.root.join(".git/MERGE_HEAD").exists());
+    assert!(tree.staged.is_empty() && tree.unstaged.is_empty());
+    assert!(!fx.git(&["status"]).contains("merge"));
+    assert_eq!(
+        std::fs::read_to_string(fx.root.join("a.txt")).unwrap(),
+        "resolved a\n"
+    );
+}
+
+#[test]
+fn resoudre_les_conflits_ca_8_the_merge_commit_is_signed_when_the_local_config_signs() {
+    let fx = Fixture::new();
+    let outside = fx.outside();
+    let key = outside.join("key");
+    assert!(Command::new("/usr/bin/ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-f"])
+        .arg(&key)
+        .status()
+        .unwrap()
+        .success());
+    fx.git(&["config", "--local", "gpg.format", "ssh"]);
+    fx.git(&[
+        "config",
+        "--local",
+        "user.signingkey",
+        outside.join("key.pub").to_str().unwrap(),
+    ]);
+    fx.git(&["config", "--local", "commit.gpgsign", "true"]);
+    resolve_all(&fx);
+
+    continue_merge_with_home(fx.path(), &outside).unwrap();
+
+    assert!(fx.git(&["cat-file", "-p", "HEAD"]).contains("gpgsig"));
+}
+
+#[test]
+fn resoudre_les_conflits_ca_8_continue_with_a_file_still_in_conflict_is_refused_and_the_merge_stays_in_progress(
+) {
+    let fx = Fixture::new();
+    resolve_conflict_file(fx.path(), "a.txt", "resolved a\n").unwrap();
+    let head = fx.git(&["rev-parse", "HEAD"]);
+
+    let refused = continue_merge(fx.path()).unwrap_err().to_string();
+
+    assert!(!refused.is_empty());
+    assert!(fx.root.join(".git/MERGE_HEAD").exists());
+    assert_eq!(fx.git(&["rev-parse", "HEAD"]), head);
+    assert!(fx.git(&["status", "--porcelain"]).contains("UU b.txt"));
+}
+
+#[test]
+fn resoudre_les_conflits_ca_11_abort_puts_head_index_and_working_tree_back_as_before_the_merge() {
+    let fx = Fixture::new();
+    let head = fx.git(&["rev-parse", "HEAD"]);
+    resolve_conflict_file(fx.path(), "a.txt", "resolved a\n").unwrap();
+
+    let tree = abort_merge(fx.path()).unwrap();
+
+    assert_eq!(fx.git(&["rev-parse", "HEAD"]), head);
+    assert_eq!(fx.git(&["status", "--porcelain"]), "");
+    assert!(!fx.root.join(".git/MERGE_HEAD").exists());
+    assert!(tree.staged.is_empty() && tree.unstaged.is_empty());
+    assert_eq!(
+        std::fs::read(fx.root.join("a.txt")).unwrap(),
+        b"top\nfirst ours\nm1\nm2\nm3\nm4\nm5\nm6\nm7\nsecond ours\nbottom\n"
+    );
+    assert_eq!(
+        std::fs::read(fx.root.join("c.txt")).unwrap(),
+        b"c1\nc2\nc3\nc4\nc5\nc6\nc7 ours\n"
+    );
+    assert!(!fx.git(&["status"]).contains("merge"));
+}
+
+#[test]
+fn resoudre_les_conflits_ca_21_commit_and_amend_are_refused_during_a_merge() {
+    let fx = Fixture::new();
+    resolve_all(&fx);
+    let head = fx.git(&["rev-parse", "HEAD"]);
+
+    let commit = octogit_git::commit(fx.path(), "feat: nope", "", false).unwrap_err();
+    let amend = octogit_git::commit(fx.path(), "feat: nope", "", true).unwrap_err();
+    let reword = octogit_git::amend_message(fx.path(), "feat: nope", "").unwrap_err();
+
+    for error in [commit, amend, reword] {
+        assert_eq!(error.to_string(), "Merge in progress");
+    }
+    assert_eq!(fx.git(&["rev-parse", "HEAD"]), head);
+    assert!(fx.root.join(".git/MERGE_HEAD").exists());
 }

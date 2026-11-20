@@ -408,7 +408,7 @@
 
 <style>
   .settings {
-    min-height: 100vh;
+    min-height: calc(100vh - var(--banner-h, 0px));
     box-sizing: border-box;
     background: var(--surface);
     color: var(--ink);
@@ -465,7 +465,7 @@
   .body {
     display: grid;
     grid-template-columns: 240px 1fr;
-    min-height: calc(100vh - 42px);
+    min-height: calc(100vh - 42px - var(--banner-h, 0px));
   }
 
   .body.single {

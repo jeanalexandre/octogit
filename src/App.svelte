@@ -8,6 +8,7 @@
     type CloneProgress,
     type Column,
     type FileChangeView,
+    type ConflictListView,
     type ForcePushView,
     type LaunchState,
     type MismatchView,
@@ -42,6 +43,8 @@
     type RefSelection,
   } from "./lib/integrate";
   import ConflictResolver from "./lib/screens/ConflictResolver.svelte";
+  import OperationBanner from "./lib/components/OperationBanner.svelte";
+  import AbortMergeDialog from "./lib/components/AbortMergeDialog.svelte";
   import DiffView from "./lib/screens/DiffView.svelte";
   import History from "./lib/screens/History.svelte";
   import ProfileSettings from "./lib/screens/ProfileSettings.svelte";
@@ -70,11 +73,83 @@
   } | null = $state.raw(null);
 
   /**
-   * `ConflictResolver` ouvert par un merge arrêté sur un conflit, par-dessus `History` qui reste monté dessous (même
-   * patron que `diff`). Aucune sortie avant S-39 : le merge se termine ou s'abandonne au terminal. `null` : fermé.
+   * Merge lancé dans Octogit et arrêté sur un conflit : il reste en cours (`MERGE_HEAD`) jusqu'à Continue ou Abort,
+   * quel que soit l'écran. `seen` : fichiers vus en conflit (Resolved se relit avec eux) ; `left` et `resolved` :
+   * comptes de la dernière liste lue (`null` : pas encore lue). `null` : aucune opération.
    */
-  let conflict: { path: string; source: string; oursLane: number; theirsLane: number } | null =
-    $state.raw(null);
+  let operation: {
+    path: string;
+    source: string;
+    receiving: string;
+    oursLane: number;
+    theirsLane: number;
+    seen: string[];
+    left: number | null;
+    resolved: number;
+  } | null = $state.raw(null);
+  /** `ConflictResolver` ouvert par-dessus `History` qui reste monté dessous (même patron que `diff`). */
+  let resolverOpen = $state(false);
+  /** Confirmation d'Abort ouverte (au moins un fichier résolu). */
+  let abortAsk = $state(false);
+  let operationBusy = $state(false);
+  let operationError: string | null = $state(null);
+
+  function reportList(list: ConflictListView, seen: string[]) {
+    if (operation === null) return;
+    operation = {
+      ...operation,
+      seen,
+      left: list.files.filter((f) => f.group === "conflicted").length,
+      resolved: list.files.filter((f) => f.group === "resolved").length,
+    };
+  }
+
+  /** Back to graph ou Échap : `History` revient, l'opération reste en cours. */
+  function backToGraph() {
+    resolverOpen = false;
+  }
+
+  /** Resolve du bandeau : `ConflictResolver` revient, avec les résolutions déjà marquées. */
+  function resolveAgain() {
+    diff = null;
+    settingsOpen = false;
+    importDraft = null;
+    resolverOpen = true;
+  }
+
+  /** Continue ou Abort : le dépôt relu remplace l'affichage, `ConflictResolver` et le bandeau disparaissent. */
+  async function endOperation(
+    run: (path: string) => ReturnType<typeof commands.continueMerge>,
+    failure: string,
+  ) {
+    const op = operation;
+    if (op === null || operationBusy || op.path !== openPath) return;
+    operationBusy = true;
+    operationError = null;
+    try {
+      applyCommitted(op.path, await run(op.path));
+      operation = null;
+      resolverOpen = false;
+      abortAsk = false;
+    } catch (e) {
+      abortAsk = false;
+      operationError = (typeof e === "string" ? e : failure).split("\n")[0];
+    } finally {
+      operationBusy = false;
+    }
+  }
+
+  function continueMerge() {
+    if (operation === null || operation.left !== 0 || continueReason !== null) return;
+    void endOperation((p) => commands.continueMerge(p), "Continue failed.");
+  }
+
+  /** Abort : confirmé si un fichier est déjà résolu, sinon sans confirmation. */
+  function abortMerge() {
+    if (operation === null || operationBusy) return;
+    if (operation.resolved > 0) abortAsk = true;
+    else void endOperation((p) => commands.abortMerge(p), "Abort failed.");
+  }
 
   /** Lane (0 à 5) de la branche `name` : celle du commit qu'elle désigne dans le graphe. */
   function laneOf(repository: RepositoryView, name: string): number {
@@ -277,6 +352,30 @@
 
   /** Écart actuel entre le `.git/config` local du dépôt ouvert et son profil (`WorkingChanges` bloqué). */
   let blocked: MismatchView | null = $state(null);
+
+  /** Le merge en cours est celui du dépôt ouvert. */
+  const merging = $derived.by(() => {
+    const current = operation as { path: string } | null;
+    return current !== null && current.path === openPath;
+  });
+  /** `ConflictResolver` est l'écran visible (ni `DiffView` ni `ProfileSettings` par-dessus). */
+  const resolverShown = $derived(merging && resolverOpen && !settingsOpen);
+
+  // La hauteur du bandeau est retirée de celle des écrans (variable lue par chacun).
+  $effect(() => {
+    const root = document.documentElement;
+    if (merging) root.style.setProperty("--banner-h", "40px");
+    else root.style.removeProperty("--banner-h");
+    return () => root.style.removeProperty("--banner-h");
+  });
+
+  /** Pourquoi Continue est désactivé malgré des fichiers tous résolus : identité non conforme ou « No profile ». */
+  const continueReason = $derived.by(() => {
+    const mismatch = blocked as MismatchView | null;
+    const current = screen as LaunchState | null;
+    if (mismatch) return `Identity does not match profile ${mismatch.profileName}.`;
+    return current?.screen === "history" && !current.repository.profile ? "No profile" : null;
+  });
 
   /**
    * Relit l'écart : le badge et l'état bloqué suivent le `.git/config` tel qu'il est maintenant
@@ -765,12 +864,18 @@
       });
       // Merge arrêté sur un conflit : il reste en cours, `ConflictResolver` s'ouvre par-dessus `History`.
       if (stopped && openPath === path && screen?.screen === "history") {
-        conflict = {
+        operation = {
           path,
           source,
+          receiving: receivingName,
           oursLane: laneOf(screen.repository, receivingName),
           theirsLane: laneOf(screen.repository, source),
+          seen: [],
+          left: null,
+          resolved: 0,
         };
+        operationError = null;
+        resolverOpen = true;
       }
     } catch (e) {
       checkoutNotice = {
@@ -1413,6 +1518,21 @@
 
 <svelte:window {onkeydown} />
 
+{#if merging && operation !== null}
+  <OperationBanner
+    source={operation.source}
+    receiving={operation.receiving}
+    left={operation.left}
+    reason={continueReason}
+    busy={operationBusy}
+    error={operationError}
+    onresolve={resolverShown && diff === null ? undefined : resolveAgain}
+    onback={resolverShown && diff === null ? backToGraph : undefined}
+    oncontinue={continueMerge}
+    onabort={abortMerge}
+  />
+{/if}
+
 {#if settingsOpen}
   <ProfileSettings
     {profiles}
@@ -1428,7 +1548,7 @@
   />
 {:else if screen?.screen === "history"}
   <!-- `inert` sous DiffView : rien de History ne prend le focus ni les touches, mais son état reste. -->
-  <div class="stage" inert={diff !== null || conflict?.path === openPath}>
+  <div class="stage" inert={diff !== null || resolverShown}>
     <History
       repository={screen.repository}
       {recent}
@@ -1459,6 +1579,7 @@
       onamendmessage={amendMessage}
       {commitEmail}
       {blocked}
+      {merging}
       onfixidentity={fixIdentity}
       {profiles}
       {manualProfile}
@@ -1508,19 +1629,19 @@
       onrevert={(commit) => pickFromTarget(commit, true)}
     />
   </div>
-  {#if conflict !== null && conflict.path === openPath}
-    {@const merging = conflict}
+  {#if merging && resolverOpen && operation !== null}
+    {@const op = operation}
     <div class="diff-layer">
       <ConflictResolver
-        oursLane={merging.oursLane}
-        theirsLane={merging.theirsLane}
-        loadList={async (seen) =>
-          unwrap(await commands.listConflicts(merging.path, merging.source, seen))}
-        loadFile={async (file) => unwrap(await commands.readConflictFile(merging.path, file))}
+        oursLane={op.oursLane}
+        theirsLane={op.theirsLane}
+        initialSeen={op.seen}
+        loadList={async (seen) => unwrap(await commands.listConflicts(op.path, op.source, seen))}
+        loadFile={async (file) => unwrap(await commands.readConflictFile(op.path, file))}
         resolve={async (file, content, seen) =>
-          unwrap(
-            await commands.resolveConflictFile(merging.path, file, content, merging.source, seen),
-          )}
+          unwrap(await commands.resolveConflictFile(op.path, file, content, op.source, seen))}
+        onlist={reportList}
+        onback={backToGraph}
       />
     </div>
   {/if}
@@ -1548,6 +1669,15 @@
     onclone={openClone}
     onprofiles={() => (settingsOpen = true)}
     noProfile={profiles.length === 0}
+  />
+{/if}
+
+{#if abortAsk && operation !== null}
+  <AbortMergeDialog
+    resolved={operation.resolved}
+    busy={operationBusy}
+    onabort={() => endOperation((p) => commands.abortMerge(p), "Abort failed.")}
+    oncancel={() => (abortAsk = false)}
   />
 {/if}
 
@@ -1658,7 +1788,13 @@
 
   .diff-layer {
     position: fixed;
-    inset: 0;
+    inset: var(--banner-h, 0px) 0 0 0;
     z-index: 10;
+  }
+
+  /* Le bandeau d'opération est fixé en haut : les écrans de la page commencent dessous. */
+  :global(body) {
+    padding-top: var(--banner-h, 0px);
+    box-sizing: border-box;
   }
 </style>

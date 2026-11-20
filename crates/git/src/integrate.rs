@@ -80,6 +80,41 @@ pub fn rebase_with_home(
     apply(path, Kind::Rebase, onto, receiving, Some(home)).map(|(tree, _)| tree)
 }
 
+/// Continue d'un merge en conflit : `git commit --no-edit` crée le commit de merge au message par défaut de Git
+/// (`MERGE_MSG`, sans ses lignes de commentaire « # Conflicts: » : `--cleanup=strip`), auteur, committer et signature du `.git/config` local. Si Git refuse (fichiers non fusionnés),
+/// rien ne change, le merge reste en cours et l'erreur est sa sortie brute. Rend l'arbre relu.
+pub fn continue_merge(path: &Path) -> Result<WorkingTree, GitError> {
+    finish_merge(path, &["commit", "--no-edit", "--cleanup=strip"], None)
+}
+
+/// Comme `continue_merge`, avec le `HOME` des sous-processus fixé (tests : un `~/.gitconfig` factice).
+pub fn continue_merge_with_home(path: &Path, home: &Path) -> Result<WorkingTree, GitError> {
+    finish_merge(
+        path,
+        &["commit", "--no-edit", "--cleanup=strip"],
+        Some(home),
+    )
+}
+
+/// Abort d'un merge en cours : `git merge --abort`, la branche, l'index et l'arbre de travail reviennent à leur état
+/// d'avant le merge. Rend l'arbre relu.
+pub fn abort_merge(path: &Path) -> Result<WorkingTree, GitError> {
+    finish_merge(path, &["merge", "--abort"], None)
+}
+
+fn finish_merge(path: &Path, args: &[&str], home: Option<&Path>) -> Result<WorkingTree, GitError> {
+    if !in_progress(path, Kind::Merge, home)? {
+        return Err(GitError::Read("No merge is in progress.".into()));
+    }
+    let (ok, raw) = run(path, args, home)?;
+    if !ok {
+        return Err(GitError::Read(raw));
+    }
+    let tree = read_working_tree(path)?;
+    remember(path, &tree);
+    Ok(tree)
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum Kind {
     Merge,

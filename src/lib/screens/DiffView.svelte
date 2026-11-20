@@ -441,7 +441,7 @@
   .diff {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: calc(100vh - var(--banner-h, 0px));
     background: var(--surface);
     color: var(--ink);
     outline: none;

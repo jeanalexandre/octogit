@@ -584,6 +584,33 @@ pub async fn merge_branch(
     .map_err(|_| "The merge was interrupted.".to_string())?
 }
 
+/// Continue du merge en conflit : commit de merge au message par défaut de Git, auteur et committer du
+/// `.git/config` local ; refusé si l'identité ne correspond pas au profil ou si un fichier est encore en conflit
+/// (le merge reste en cours). Rend l'arbre de travail et le dépôt relus.
+#[tauri::command]
+#[specta::specta]
+pub async fn continue_merge(path: String) -> Result<CommittedView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        working_tree::continue_merge_checked(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+        )
+    })
+    .await
+    .map_err(|_| "The merge was interrupted.".to_string())?
+}
+
+/// Abort du merge en cours : la branche, l'index et l'arbre de travail reviennent comme avant. Rend l'arbre de
+/// travail et le dépôt relus.
+#[tauri::command]
+#[specta::specta]
+pub async fn abort_merge(path: String) -> Result<CommittedView, String> {
+    tauri::async_runtime::spawn_blocking(move || working_tree::abort_merge(Path::new(&path)))
+        .await
+        .map_err(|_| "The abort was interrupted.".to_string())?
+}
+
 /// Fichiers du merge en cours par groupe (Conflicted, Resolved, Auto-merged) ; `theirs_name` : branche fusionnée,
 /// `seen` : fichiers vus en conflit à l'ouverture de `ConflictResolver`.
 #[tauri::command]

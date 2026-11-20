@@ -17,6 +17,7 @@
     identity = null,
     blocked = null,
     noProfile = false,
+    merging = false,
     onfix,
     onopenfile,
     onfilecontextmenu,
@@ -25,6 +26,8 @@
     onopenfile?: (group: "unstaged" | "staged", index: number) => void;
     /** Clic droit, touche menu ou Maj+F10 sur un fichier non indexé ou non suivi : son menu (Discard changes). */
     onfilecontextmenu?: (file: FileChangeView, event: MouseEvent) => void;
+    /** Un merge est en cours : Commit et Amend sont désactivés (« Merge in progress »), seul Continue le termine. */
+    merging?: boolean;
     /** Le dépôt n'a pas de profil rattaché : Commit est désactivé avec la raison « No profile ». */
     noProfile?: boolean;
     /** L'identité du `.git/config` local diffère du profil : l'état bloqué remplace la ligne d'identité. */
@@ -69,16 +72,21 @@
   let amendToken = 0;
 
   /** Pourquoi Commit est désactivé, ou `null`. Rien n'est jamais indexé automatiquement. */
+  const identityReason = $derived(
+    blocked ? `Identity does not match profile ${blocked.profileName}.` : null,
+  );
   const reason = $derived(
-    blocked
-      ? `Identity does not match profile ${blocked.profileName}.`
-      : noProfile
-        ? "No profile"
-        : tree.staged.length === 0
-          ? "No staged changes"
-          : summary.trim() === ""
-            ? "Summary required"
-            : null,
+    merging
+      ? "Merge in progress"
+      : identityReason
+        ? identityReason
+        : noProfile
+          ? "No profile"
+          : tree.staged.length === 0
+            ? "No staged changes"
+            : summary.trim() === ""
+              ? "Summary required"
+              : null,
   );
   const differing = $derived(blocked?.rows.filter((row) => row.differs) ?? []);
   let fixing = $state(false);
@@ -174,12 +182,17 @@
       <textarea rows="4" bind:value={description} onkeydown={keydown}></textarea>
     </label>
     <label class="check">
-      <input type="checkbox" bind:checked={amend} disabled={!canAmend} onchange={toggleAmend} />
+      <input
+        type="checkbox"
+        bind:checked={amend}
+        disabled={!canAmend || merging}
+        onchange={toggleAmend}
+      />
       Amend last commit
     </label>
     {#if blocked}
       <div class="blocked">
-        <p><strong>{reason}</strong></p>
+        <p><strong>{identityReason}</strong></p>
         {#each differing as row (row.setting)}
           <p>Expected: {row.profile}</p>
           <p>Found in .git/config: {row.local ?? "(not set)"}</p>

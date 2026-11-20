@@ -297,6 +297,26 @@ pub fn merge_checked(
     })
 }
 
+/// Continue d'un merge en conflit : commit de merge au message par défaut de Git. Même garde d'identité que
+/// `merge_checked`, refaite ici : un dépôt non conforme ou sans profil refuse, le merge reste en cours. Un refus de
+/// Git (fichier encore en conflit) laisse aussi le merge en cours ; l'erreur est sa sortie, première ligne en tête.
+pub fn continue_merge_checked(
+    store: &Store,
+    home: &Path,
+    path: &Path,
+) -> Result<CommittedView, String> {
+    crate::attach::ensure_conform(store, path, home)?;
+    let tree = octogit_git::continue_merge(path).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
+/// Abort du merge en cours : la branche, l'index et l'arbre de travail reviennent comme avant le merge. Aucun commit
+/// n'est créé : pas de contrôle d'identité. Rend l'arbre et le dépôt relus.
+pub fn abort_merge(path: &Path) -> Result<CommittedView, String> {
+    let tree = octogit_git::abort_merge(path).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
 /// Rebase de `receiving` (la branche courante) sur `onto`, sans dialogue : mêmes garde et refus que `merge_checked`.
 pub fn rebase_checked(
     store: &Store,

@@ -68,6 +68,7 @@
     onamendmessage,
     commitEmail = null,
     blocked = null,
+    merging = false,
     onfixidentity,
     profiles = [],
     manualProfile = false,
@@ -166,6 +167,8 @@
     oneditprofiles?: () => void;
     /** Écart actuel entre le `.git/config` local et le profil (état bloqué de `WorkingChanges`), ou `null`. */
     blocked?: MismatchView | null;
+    /** Un merge est en cours : Commit et Amend de `WorkingChanges` sont désactivés (« Merge in progress »). */
+    merging?: boolean;
     /** « Fix repository identity » : écrit les valeurs du profil ; rejette avec un message si l'écriture échoue. */
     onfixidentity?: () => Promise<void>;
     /** Fichiers non indexés et indexés du dépôt (ligne WIP, `WorkingChanges`), ou `null` tant qu'ils ne sont pas lus. */
@@ -713,6 +716,7 @@
             canAmend={current !== undefined}
             {identity}
             {blocked}
+            {merging}
             noProfile={!repository.profile}
             onfix={async () => onfixidentity?.()}
           />
@@ -756,7 +760,7 @@
   .history {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: calc(100vh - var(--banner-h, 0px));
     background: var(--surface);
     color: var(--ink);
   }

@@ -140,6 +140,17 @@ export const commands = {
 	 */
 	rebaseBranch: (path: string, onto: string, receiving: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("rebase_branch", { path, onto, receiving })),
 	/**
+	 *  Continue du merge en conflit : commit de merge au message par défaut de Git, auteur et committer du
+	 *  `.git/config` local ; refusé si l'identité ne correspond pas au profil ou si un fichier est encore en conflit
+	 *  (le merge reste en cours). Rend l'arbre de travail et le dépôt relus.
+	 */
+	continueMerge: (path: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("continue_merge", { path })),
+	/**
+	 *  Abort du merge en cours : la branche, l'index et l'arbre de travail reviennent comme avant. Rend l'arbre de
+	 *  travail et le dépôt relus.
+	 */
+	abortMerge: (path: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("abort_merge", { path })),
+	/**
 	 *  Fichiers du merge en cours par groupe (Conflicted, Resolved, Auto-merged) ; `theirs_name` : branche fusionnée,
 	 *  `seen` : fichiers vus en conflit à l'ouverture de `ConflictResolver`.
 	 */

@@ -4,6 +4,7 @@
 pub mod attach;
 pub mod clone;
 pub mod commands;
+pub mod conflict;
 pub mod detail;
 pub mod fetch;
 pub mod launch;
@@ -114,6 +115,9 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::cherry_pick,
             commands::merge_branch,
             commands::rebase_branch,
+            commands::list_conflicts,
+            commands::read_conflict_file,
+            commands::resolve_conflict_file,
             commands::revert,
             commands::amend_message,
             commands::get_commit_email,

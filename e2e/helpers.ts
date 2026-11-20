@@ -46,6 +46,7 @@ export class Workspace {
       | "sidebar"
       | "layout"
       | "conflict"
+      | "conflict-merge"
       | "identity"
       | "wide"
       | "large"

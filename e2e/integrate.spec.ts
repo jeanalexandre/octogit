@@ -186,7 +186,7 @@ for (const size of sizes) {
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 
-  test(`décision 1 : un conflit de merge est annulé, le dépôt reste inchangé, refus en une ligne (${size.width}x${size.height})`, async ({
+  test(`integrer-une-branche CA-13 : un conflit de merge reste en cours, sans commit de merge, ConflictResolver s'ouvre (${size.width}x${size.height})`, async ({
     page,
   }) => {
     await page.setViewportSize(size);
@@ -201,11 +201,9 @@ for (const size of sizes) {
 
     await openMenuOfDevelop(page);
     await menuItem(page, merge).click();
-    await expect(page.getByRole("alert")).toHaveText(
-      "develop conflicts with feature/profiles. Nothing was changed.",
-    );
-    expect(existsSync(join(repo, ".git", "MERGE_HEAD"))).toBe(false);
-    expect(ws.git(repo, "status", "--porcelain")).toBe("");
+    await expect(page.getByRole("region", { name: "Resolve conflicts" })).toBeVisible();
+    expect(existsSync(join(repo, ".git", "MERGE_HEAD"))).toBe(true);
+    expect(ws.git(repo, "status", "--porcelain")).toContain("AA clash.txt");
     expect(current(repo)).toBe("feature/profiles");
     expect(ws.git(repo, "for-each-ref", "refs/heads")).toBe(heads);
   });

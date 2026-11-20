@@ -130,14 +130,24 @@ export const commands = {
 	/**
 	 *  Merge de `source` (branche ou `origin/…`) dans `receiving`, la branche courante, sans dialogue : toujours un
 	 *  commit de merge au message par défaut de Git, auteur et committer du `.git/config` local. Rend l'arbre de
-	 *  travail et le dépôt relus. Rien n'est poussé, aucune autre ref ne bouge.
+	 *  travail et le dépôt relus, et si le merge reste en cours sur un conflit. Rien n'est poussé, aucune autre ref
+	 *  ne bouge.
 	 */
-	mergeBranch: (path: string, source: string, receiving: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("merge_branch", { path, source, receiving })),
+	mergeBranch: (path: string, source: string, receiving: string) => typedError<MergeView_Serialize, string>(__TAURI_INVOKE("merge_branch", { path, source, receiving })),
 	/**
 	 *  Rebase de `receiving`, la branche courante, sur `onto` (branche, `origin/…` ou SHA de commit), sans dialogue :
 	 *  les commits sont rejoués et gardent leur auteur. Rend l'arbre de travail et le dépôt relus.
 	 */
 	rebaseBranch: (path: string, onto: string, receiving: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("rebase_branch", { path, onto, receiving })),
+	/**
+	 *  Fichiers du merge en cours par groupe (Conflicted, Resolved, Auto-merged) ; `theirs_name` : branche fusionnée,
+	 *  `seen` : fichiers vus en conflit à l'ouverture de `ConflictResolver`.
+	 */
+	listConflicts: (path: string, theirsName: string, seen: string[]) => typedError<ConflictListView, string>(__TAURI_INVOKE("list_conflicts", { path, theirsName, seen })),
+	/**  Versions Ours et Theirs d'un fichier en conflit, et l'arbre de travail avec ses marqueurs. */
+	readConflictFile: (path: string, file: string) => typedError<ConflictContentView, string>(__TAURI_INVOKE("read_conflict_file", { path, file })),
+	/**  Mark as resolved : `content` est écrit dans le fichier octet pour octet puis indexé ; rend la liste relue. */
+	resolveConflictFile: (path: string, file: string, content: string, theirsName: string, seen: string[]) => typedError<ConflictListView, string>(__TAURI_INVOKE("resolve_conflict_file", { path, file, content, theirsName, seen })),
 	/**
 	 *  Revert de `commit` sur la branche courante, sans dialogue : message par défaut de Git, auteur et committer
 	 *  du `.git/config` local. Rend l'arbre de travail et le dépôt relus.
@@ -397,6 +407,35 @@ export type CommittedView_Serialize = {
 	repository: RepositoryView_Serialize,
 };
 
+export type ConflictContentView = {
+	mergeable: boolean,
+	ours: string,
+	theirs: string,
+	/**  Arbre de travail avec ses marqueurs de conflit. */
+	result: string,
+};
+
+export type ConflictEntryView = {
+	path: string,
+	group: ConflictGroupView,
+	/**  Faux : « Not mergeable yet. », sans Result. */
+	mergeable: boolean,
+};
+
+export type ConflictGroupView = "conflicted" | "resolved" | "autoMerged";
+
+export type ConflictListView = {
+	files: ConflictEntryView[],
+	ours: ConflictSideView,
+	theirs: ConflictSideView,
+};
+
+export type ConflictSideView = {
+	name: string,
+	/**  SHA abrégé (7 caractères). */
+	sha: string,
+};
+
 /**  Issue d'un test de connexion, pour l'interface. */
 export type ConnectionStatus = "authenticated" | "failed" | "timedOut";
 
@@ -545,6 +584,32 @@ export type LocalCommitView = {
 export type LostCommitView = {
 	id: string,
 	summary: string,
+};
+
+/**
+ *  Issue d'un merge lancé : l'arbre et le dépôt relus, et `conflict` vrai si le merge s'est arrêté sur un conflit
+ *  (il reste en cours : `ConflictResolver` s'ouvre, ce n'est pas un refus).
+ */
+export type MergeView = MergeView_Serialize | MergeView_Deserialize;
+
+/**
+ *  Issue d'un merge lancé : l'arbre et le dépôt relus, et `conflict` vrai si le merge s'est arrêté sur un conflit
+ *  (il reste en cours : `ConflictResolver` s'ouvre, ce n'est pas un refus).
+ */
+export type MergeView_Deserialize = {
+	tree: WorkingTreeView,
+	repository: RepositoryView_Deserialize,
+	conflict: boolean,
+};
+
+/**
+ *  Issue d'un merge lancé : l'arbre et le dépôt relus, et `conflict` vrai si le merge s'est arrêté sur un conflit
+ *  (il reste en cours : `ConflictResolver` s'ouvre, ce n'est pas un refus).
+ */
+export type MergeView_Serialize = {
+	tree: WorkingTreeView,
+	repository: RepositoryView_Serialize,
+	conflict: boolean,
 };
 
 /**  Écart entre le `.git/config` local et le profil rattaché : rien n'a été écrit. */

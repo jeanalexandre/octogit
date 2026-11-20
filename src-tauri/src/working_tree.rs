@@ -266,19 +266,35 @@ pub fn revert_checked(
     committed(path, tree)
 }
 
+/// Issue d'un merge lancé : l'arbre et le dépôt relus, et `conflict` vrai si le merge s'est arrêté sur un conflit
+/// (il reste en cours : `ConflictResolver` s'ouvre, ce n'est pas un refus).
+#[derive(Debug, Clone, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MergeView {
+    pub tree: WorkingTreeView,
+    pub repository: RepositoryView,
+    pub conflict: bool,
+}
+
 /// Merge de `source` dans `receiving` (la branche courante), toujours avec un commit de merge, sans dialogue : même
-/// garde d'identité que `cherry_pick_checked`, rien n'est créé en cas de refus. « Already up to date. » et un conflit
-/// (annulé, dépôt inchangé) sont des refus ; l'erreur est la sortie de Git, sa première ligne en est la raison.
+/// garde d'identité que `cherry_pick_checked`, rien n'est créé en cas de refus. « Already up to date. » est un refus ;
+/// un conflit ne l'est pas : le merge reste en cours (`conflict`). L'erreur est la sortie de Git, sa première ligne
+/// en est la raison.
 pub fn merge_checked(
     store: &Store,
     home: &Path,
     path: &Path,
     source: &str,
     receiving: &str,
-) -> Result<CommittedView, String> {
+) -> Result<MergeView, String> {
     crate::attach::ensure_conform(store, path, home)?;
-    let tree = octogit_git::merge(path, source, receiving).map_err(|e| e.to_string())?;
-    committed(path, tree)
+    let outcome = octogit_git::merge(path, source, receiving).map_err(|e| e.to_string())?;
+    let view = committed(path, outcome.tree)?;
+    Ok(MergeView {
+        tree: view.tree,
+        repository: view.repository,
+        conflict: outcome.conflict,
+    })
 }
 
 /// Rebase de `receiving` (la branche courante) sur `onto`, sans dialogue : mêmes garde et refus que `merge_checked`.

@@ -41,6 +41,7 @@
     toggleSelection,
     type RefSelection,
   } from "./lib/integrate";
+  import ConflictResolver from "./lib/screens/ConflictResolver.svelte";
   import DiffView from "./lib/screens/DiffView.svelte";
   import History from "./lib/screens/History.svelte";
   import ProfileSettings from "./lib/screens/ProfileSettings.svelte";
@@ -67,6 +68,24 @@
     files: FileChangeView[];
     start: number;
   } | null = $state.raw(null);
+
+  /**
+   * `ConflictResolver` ouvert par un merge arrêté sur un conflit, par-dessus `History` qui reste monté dessous (même
+   * patron que `diff`). Aucune sortie avant S-39 : le merge se termine ou s'abandonne au terminal. `null` : fermé.
+   */
+  let conflict: { path: string; source: string; oursLane: number; theirsLane: number } | null =
+    $state.raw(null);
+
+  /** Lane (0 à 5) de la branche `name` : celle du commit qu'elle désigne dans le graphe. */
+  function laneOf(repository: RepositoryView, name: string): number {
+    const target = repository.refs.find((r) => r.name === name && r.kind !== "tag")?.target;
+    return (repository.commits.find((c) => c.id === target)?.lane ?? 0) % 6;
+  }
+
+  function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error: string }): T {
+    if (result.status !== "ok") throw result.error;
+    return result.data;
+  }
 
   // `ProfileSettings` remplace `History` (démonté) : le diff ouvert dessous n'a plus d'écran où revenir.
   $effect(() => {
@@ -736,12 +755,23 @@
   async function integrate(kind: "merge" | "rebase", source: string, receivingName: string) {
     const path = openPath;
     if (path === null || screen?.screen !== "history") return;
+    let stopped = false;
     try {
-      await runStash((p) =>
-        kind === "merge"
-          ? commands.mergeBranch(p, source, receivingName)
-          : commands.rebaseBranch(p, source, receivingName),
-      );
+      await runStash(async (p) => {
+        if (kind === "rebase") return commands.rebaseBranch(p, source, receivingName);
+        const result = await commands.mergeBranch(p, source, receivingName);
+        stopped = result.status === "ok" && result.data.conflict;
+        return result;
+      });
+      // Merge arrêté sur un conflit : il reste en cours, `ConflictResolver` s'ouvre par-dessus `History`.
+      if (stopped && openPath === path && screen?.screen === "history") {
+        conflict = {
+          path,
+          source,
+          oursLane: laneOf(screen.repository, receivingName),
+          theirsLane: laneOf(screen.repository, source),
+        };
+      }
     } catch (e) {
       checkoutNotice = {
         path,
@@ -1398,7 +1428,7 @@
   />
 {:else if screen?.screen === "history"}
   <!-- `inert` sous DiffView : rien de History ne prend le focus ni les touches, mais son état reste. -->
-  <div class="stage" inert={diff !== null}>
+  <div class="stage" inert={diff !== null || conflict?.path === openPath}>
     <History
       repository={screen.repository}
       {recent}
@@ -1478,6 +1508,22 @@
       onrevert={(commit) => pickFromTarget(commit, true)}
     />
   </div>
+  {#if conflict !== null && conflict.path === openPath}
+    {@const merging = conflict}
+    <div class="diff-layer">
+      <ConflictResolver
+        oursLane={merging.oursLane}
+        theirsLane={merging.theirsLane}
+        loadList={async (seen) =>
+          unwrap(await commands.listConflicts(merging.path, merging.source, seen))}
+        loadFile={async (file) => unwrap(await commands.readConflictFile(merging.path, file))}
+        resolve={async (file, content, seen) =>
+          unwrap(
+            await commands.resolveConflictFile(merging.path, file, content, merging.source, seen),
+          )}
+      />
+    </div>
+  {/if}
   {#if diff !== null}
     <div class="diff-layer">
       <DiffView

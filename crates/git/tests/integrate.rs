@@ -154,7 +154,9 @@ fn integrer_une_branche_ca_6_merge_creates_a_merge_commit_with_both_parents_and_
     let old_tip = fx.head();
     let develop = fx.rev("develop");
 
-    let tree = merge(fx.path(), "develop", "feature/profiles").unwrap();
+    let outcome = merge(fx.path(), "develop", "feature/profiles").unwrap();
+    assert!(!outcome.conflict);
+    let tree = outcome.tree;
 
     assert_eq!(
         fx.git(&["log", "-1", "--format=%P"]).trim(),
@@ -341,20 +343,38 @@ fn integrer_une_branche_ca_16_nothing_is_pushed_and_no_other_ref_moves() {
 }
 
 #[test]
-fn decision_1_a_merge_conflict_is_aborted_and_the_repository_is_unchanged() {
+fn integrer_une_branche_ca_13_a_merge_conflict_stays_in_progress_without_a_merge_commit() {
     let fx = Fixture::new();
     fx.git(&["checkout", "-q", "clash-a"]);
-    let refs = fx.refs();
-    let state = fx.state();
+    let head = fx.head();
+    let clash_b = fx.rev("clash-b");
 
-    let error = merge(fx.path(), "clash-b", "clash-a")
+    let outcome = merge(fx.path(), "clash-b", "clash-a").unwrap();
+
+    assert!(outcome.conflict);
+    assert_eq!(fx.rev("MERGE_HEAD"), clash_b);
+    assert_eq!(fx.head(), head);
+    assert_eq!(fx.git(&["rev-list", "--count", "HEAD"]).trim(), "2");
+    assert!(outcome
+        .tree
+        .unstaged
+        .iter()
+        .any(|f| f.path == "file.txt" && f.status == octogit_git::ChangeStatus::Conflicted));
+    assert!(fx.git(&["status", "--porcelain"]).contains("UU file.txt"));
+}
+
+#[test]
+fn a_merge_already_in_progress_is_refused_and_not_aborted() {
+    let fx = Fixture::new();
+    fx.git(&["checkout", "-q", "clash-a"]);
+    merge(fx.path(), "clash-b", "clash-a").unwrap();
+
+    let error = merge(fx.path(), "develop", "clash-a")
         .unwrap_err()
         .to_string();
 
-    assert!(error.contains("conflict"), "{error}");
-    assert!(!fx.root.join(".git/MERGE_HEAD").exists());
-    assert_eq!(fx.refs(), refs);
-    assert_eq!(fx.state(), state);
+    assert!(!error.is_empty());
+    assert!(fx.root.join(".git/MERGE_HEAD").exists());
 }
 
 #[test]

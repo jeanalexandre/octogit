@@ -129,6 +129,20 @@ struct PickArgs {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConflictArgs {
+    path: String,
+    #[serde(default)]
+    theirs_name: String,
+    #[serde(default)]
+    seen: Vec<String>,
+    #[serde(default)]
+    file: String,
+    #[serde(default)]
+    content: String,
+}
+
+#[derive(Deserialize)]
 struct IntegrateArgs {
     path: String,
     #[serde(default)]
@@ -648,26 +662,65 @@ fn main() {
             let store = octogit_store::Store::new(octogit_app::data_dir());
             let home = octogit_app::home_dir();
             let path = std::path::Path::new(&args.path);
-            let result = if command == "merge_branch" {
+            if command == "merge_branch" {
                 let source = args.source.as_deref().expect("argument source");
-                octogit_app::working_tree::merge_checked(
+                match octogit_app::working_tree::merge_checked(
                     &store,
                     &home,
                     path,
                     source,
                     &args.receiving,
-                )
+                ) {
+                    Ok(view) => (serde_json::to_string(&view), 0),
+                    Err(error) => (serde_json::to_string(&error), 3),
+                }
             } else {
                 let onto = args.onto.as_deref().expect("argument onto");
-                octogit_app::working_tree::rebase_checked(
+                match octogit_app::working_tree::rebase_checked(
                     &store,
                     &home,
                     path,
                     onto,
                     &args.receiving,
-                )
-            };
-            match result {
+                ) {
+                    Ok(view) => (serde_json::to_string(&view), 0),
+                    Err(error) => (serde_json::to_string(&error), 3),
+                }
+            }
+        }
+        "list_conflicts" => {
+            let args: ConflictArgs =
+                serde_json::from_str(&input).expect("arguments { path, theirsName, seen }");
+            match octogit_app::conflict::list_conflicts(
+                std::path::Path::new(&args.path),
+                &args.theirs_name,
+                &args.seen,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "read_conflict_file" => {
+            let args: ConflictArgs =
+                serde_json::from_str(&input).expect("arguments { path, file }");
+            match octogit_app::conflict::read_conflict_file(
+                std::path::Path::new(&args.path),
+                &args.file,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "resolve_conflict_file" => {
+            let args: ConflictArgs = serde_json::from_str(&input)
+                .expect("arguments { path, file, content, theirsName, seen }");
+            match octogit_app::conflict::resolve_conflict_file(
+                std::path::Path::new(&args.path),
+                &args.file,
+                &args.content,
+                &args.theirs_name,
+                &args.seen,
+            ) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

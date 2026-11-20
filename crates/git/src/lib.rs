@@ -4,6 +4,7 @@ mod branch;
 mod checkout;
 mod cherry_pick;
 mod clone;
+mod conflict;
 mod diff;
 mod fetch;
 mod force_push;
@@ -29,13 +30,17 @@ pub use cherry_pick::{cherry_pick, cherry_pick_with_home, revert, revert_with_ho
 pub use clone::{
     clone, clone_with, github_ssh_url, parse_progress, CloneError, CloneProgress, CLONE_TIMEOUT,
 };
+pub use conflict::{
+    list_conflicts, read_conflict_file, resolve_conflict_file, ConflictContent, ConflictEntry,
+    ConflictGroup, ConflictList, ConflictSide,
+};
 pub use diff::{
     read_file_diff, read_working_diff, DiffLine, DiffLineKind, FileDiff, FileDiffContent,
 };
 pub use fetch::{fetch, fetch_all, FetchError, FETCH_TIMEOUT};
 pub use force_push::{force_push, read_rewrite, ForcePushError, OverwrittenCommit, Rewrite};
 pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};
-pub use integrate::{merge, merge_with_home, rebase, rebase_with_home};
+pub use integrate::{merge, merge_with_home, rebase, rebase_with_home, MergeOutcome};
 pub use pull::{pull, PullError, PullMode};
 pub use push::{push, PushError};
 pub use reset::{reset_branch, reset_hard, reset_hard_loss, LostCommit, ResetLoss, ResetMode};

@@ -8,6 +8,7 @@ use tauri::Manager;
 
 use crate::attach::{self, ProfileBadgeView};
 use crate::clone::{self, CloneError};
+use crate::conflict::{self, ConflictContentView, ConflictListView};
 use crate::data_dir;
 use crate::detail::{self, CommitDetailView};
 use crate::fetch;
@@ -17,7 +18,7 @@ use crate::preferences::{self, Column, SectionLayoutView, SyncAction};
 use crate::profiles::{self, ProfileView};
 use crate::propagate::{self, SavedProfileView};
 use crate::ssh_keys::{self, ConnectionTestView, SshKeyView};
-use crate::working_tree::{self, CommittedView, WorkingTreeView};
+use crate::working_tree::{self, CommittedView, MergeView, WorkingTreeView};
 
 #[tauri::command]
 #[specta::specta]
@@ -561,14 +562,15 @@ pub async fn revert(path: String, commit: String) -> Result<CommittedView, Strin
 
 /// Merge de `source` (branche ou `origin/…`) dans `receiving`, la branche courante, sans dialogue : toujours un
 /// commit de merge au message par défaut de Git, auteur et committer du `.git/config` local. Rend l'arbre de
-/// travail et le dépôt relus. Rien n'est poussé, aucune autre ref ne bouge.
+/// travail et le dépôt relus, et si le merge reste en cours sur un conflit. Rien n'est poussé, aucune autre ref
+/// ne bouge.
 #[tauri::command]
 #[specta::specta]
 pub async fn merge_branch(
     path: String,
     source: String,
     receiving: String,
-) -> Result<CommittedView, String> {
+) -> Result<MergeView, String> {
     tauri::async_runtime::spawn_blocking(move || {
         working_tree::merge_checked(
             &Store::new(data_dir()),
@@ -580,6 +582,50 @@ pub async fn merge_branch(
     })
     .await
     .map_err(|_| "The merge was interrupted.".to_string())?
+}
+
+/// Fichiers du merge en cours par groupe (Conflicted, Resolved, Auto-merged) ; `theirs_name` : branche fusionnée,
+/// `seen` : fichiers vus en conflit à l'ouverture de `ConflictResolver`.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_conflicts(
+    path: String,
+    theirs_name: String,
+    seen: Vec<String>,
+) -> Result<ConflictListView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        conflict::list_conflicts(Path::new(&path), &theirs_name, &seen)
+    })
+    .await
+    .map_err(|_| "The conflicts could not be read.".to_string())?
+}
+
+/// Versions Ours et Theirs d'un fichier en conflit, et l'arbre de travail avec ses marqueurs.
+#[tauri::command]
+#[specta::specta]
+pub async fn read_conflict_file(path: String, file: String) -> Result<ConflictContentView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        conflict::read_conflict_file(Path::new(&path), &file)
+    })
+    .await
+    .map_err(|_| "The file could not be read.".to_string())?
+}
+
+/// Mark as resolved : `content` est écrit dans le fichier octet pour octet puis indexé ; rend la liste relue.
+#[tauri::command]
+#[specta::specta]
+pub async fn resolve_conflict_file(
+    path: String,
+    file: String,
+    content: String,
+    theirs_name: String,
+    seen: Vec<String>,
+) -> Result<ConflictListView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        conflict::resolve_conflict_file(Path::new(&path), &file, &content, &theirs_name, &seen)
+    })
+    .await
+    .map_err(|_| "The file could not be marked as resolved.".to_string())?
 }
 
 /// Rebase de `receiving`, la branche courante, sur `onto` (branche, `origin/…` ou SHA de commit), sans dialogue :

@@ -1,8 +1,9 @@
 //! Merge et Rebase de la branche courante : écritures par le binaire `git`, sans dialogue. L'identité du committer
 //! et la signature viennent du `.git/config` local, lues par `git`. Le merge crée toujours un commit de merge
 //! (jamais de fast-forward), le rebase rejoue les commits en gardant leurs auteurs. Aucune ref distante n'est écrite,
-//! rien n'est poussé. Un conflit n'est pas résolu ici (S-39, S-40) : l'opération est annulée par `--abort`, le dépôt
-//! revient comme avant et la sortie brute de Git suit la raison.
+//! rien n'est poussé. Un conflit de merge reste en cours (`MergeOutcome::conflict`, S-38) ; un conflit de rebase
+//! n'est pas résolu ici (S-40) : il est annulé par `--abort`, le dépôt revient comme avant et la sortie brute de Git
+//! suit la raison.
 
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -37,16 +38,25 @@ fn run(path: &Path, args: &[&str], home: Option<&Path>) -> Result<(bool, String)
     Ok((output.status.success(), raw.trim().to_string()))
 }
 
+/// Issue d'un merge lancé : l'arbre relu, et si le merge s'est arrêté sur un conflit. Un conflit n'est pas un refus :
+/// le merge reste en cours (`MERGE_HEAD`, aucun commit de merge) et `ConflictResolver` prend le relais.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MergeOutcome {
+    pub tree: WorkingTree,
+    pub conflict: bool,
+}
+
 /// Merge de `source` (branche locale ou `origin/…`) dans `receiving`, qui doit être la branche courante : toujours
-/// un commit de merge, message par défaut de Git. Rend le nouvel état de l'arbre.
-pub fn merge(path: &Path, source: &str, receiving: &str) -> Result<WorkingTree, GitError> {
-    apply(path, Kind::Merge, source, receiving, None)
+/// un commit de merge, message par défaut de Git. Rend le nouvel état de l'arbre ; un conflit laisse le merge en cours.
+pub fn merge(path: &Path, source: &str, receiving: &str) -> Result<MergeOutcome, GitError> {
+    let (tree, conflict) = apply(path, Kind::Merge, source, receiving, None)?;
+    Ok(MergeOutcome { tree, conflict })
 }
 
 /// Rebase de `receiving` (la branche courante) sur `onto` (branche locale, `origin/…` ou SHA de commit) : ses commits
 /// sont rejoués au-dessus. Rend le nouvel état de l'arbre.
 pub fn rebase(path: &Path, onto: &str, receiving: &str) -> Result<WorkingTree, GitError> {
-    apply(path, Kind::Rebase, onto, receiving, None)
+    apply(path, Kind::Rebase, onto, receiving, None).map(|(tree, _)| tree)
 }
 
 /// Comme `merge`, avec le `HOME` des sous-processus fixé (tests : un `~/.gitconfig` factice).
@@ -55,8 +65,9 @@ pub fn merge_with_home(
     source: &str,
     receiving: &str,
     home: &Path,
-) -> Result<WorkingTree, GitError> {
-    apply(path, Kind::Merge, source, receiving, Some(home))
+) -> Result<MergeOutcome, GitError> {
+    let (tree, conflict) = apply(path, Kind::Merge, source, receiving, Some(home))?;
+    Ok(MergeOutcome { tree, conflict })
 }
 
 /// Comme `rebase`, avec le `HOME` des sous-processus fixé (tests : un `~/.gitconfig` factice).
@@ -66,7 +77,7 @@ pub fn rebase_with_home(
     receiving: &str,
     home: &Path,
 ) -> Result<WorkingTree, GitError> {
-    apply(path, Kind::Rebase, onto, receiving, Some(home))
+    apply(path, Kind::Rebase, onto, receiving, Some(home)).map(|(tree, _)| tree)
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -97,7 +108,7 @@ fn apply(
     other: &str,
     receiving: &str,
     home: Option<&Path>,
-) -> Result<WorkingTree, GitError> {
+) -> Result<(WorkingTree, bool), GitError> {
     if other.is_empty() || other.starts_with('-') {
         return Err(GitError::Read(format!("{other} is not a commit")));
     }
@@ -128,14 +139,15 @@ fn apply(
         if busy {
             return Err(GitError::Read(raw));
         }
-        // Conflit : l'opération reste en cours, on l'annule, le dépôt revient comme avant.
         if in_progress(path, kind, home)? {
-            let abort = if kind == Kind::Merge {
-                ["merge", "--abort"]
-            } else {
-                ["rebase", "--abort"]
-            };
-            run(path, &abort, home)?;
+            // Merge en conflit : il reste en cours, `ConflictResolver` prend le relais (S-38).
+            if kind == Kind::Merge {
+                let tree = read_working_tree(path)?;
+                remember(path, &tree);
+                return Ok((tree, true));
+            }
+            // Rebase en conflit : annulé, le dépôt revient comme avant (S-40).
+            run(path, &["rebase", "--abort"], home)?;
             return Err(GitError::Read(format!(
                 "{other} conflicts with {receiving}. Nothing was changed.\n{raw}"
             )));
@@ -144,5 +156,5 @@ fn apply(
     }
     let tree = read_working_tree(path)?;
     remember(path, &tree);
-    Ok(tree)
+    Ok((tree, false))
 }

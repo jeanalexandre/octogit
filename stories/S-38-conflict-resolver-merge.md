@@ -26,6 +26,23 @@ Périmètre de la story : le conflit d'un **merge** lancé dans Octogit. Les con
 1. Sortie de `ConflictResolver` avant S-39 : 1a, aucune sortie dans l'application, le merge se termine ou s'abandonne au terminal jusqu'à S-39
 2. Fichier non fusionnable avant S-41 : 2a, listé dans Conflicted avec « Not mergeable yet. », sans Result, Mark as resolved indisponible
 
+### Passage 1 (question en attente)
+- Q1 : Take this block en boutons (Take ours / theirs / both, implémenté par `dev`) ou en cases à cocher comme la maquette et CA-3 ? Réponse : a, garder les boutons ; la maquette et CA-3 sont à corriger par `/ksm:ux`
+
+### Après la revue 1
+- Q1 : réponse a (boutons gardés) appliquée ; correction de la maquette et de CA-3 à faire par `/ksm:ux`, pas par `dev`.
+- Mineur 4 (fins de ligne mêlées) : traiter (d'office), passage 2.
+- Mineur 5 (disposition de la maquette) : traiter (d'office), passage 2.
+
+### Après la revue 2
+- Mineur 1 (« Conflict 0 / n ») : traiter (d'office), passage 3.
+- Mineur 2 (décompte à l'envers après édition manuelle) : traiter (d'office), passage 3.
+- `refs-column` CA-18 en échec dans le dépôt, absent d'un export propre : pris en compte (pour information), hors story.
+
+### Après la revue 3
+- Mineur 1 (`remainingRanks` sans test unitaire) : traiter (d'office), passage 4.
+- Installation de paquets dans `node_modules` par le reviewer, remise au lockfile : pris en compte (pour information).
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test aux vraies commandes du crate `app`, dépôts d'exemple dont un merge en conflit, données dans un dossier temporaire) ; jamais `npx playwright` ni `cargo run`
@@ -87,3 +104,11 @@ Périmètre de la story : le conflit d'un **merge** lancé dans Octogit. Les con
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé, vérifications vertes (pnpm e2e complet non relancé après correction, integrate.spec relancé seul : 17 passés). Écarts : Take this block rendu par 3 boutons (Take ours / theirs / both) au lieu des cases à cocher de la maquette `ux/maquettes/conflict-resolver.html` et de CA-3 ; `seen` repart vide si ConflictResolver est remonté ; « Conflict i / n » parcourt les blocs restants de Result ; fins de ligne CRLF reconverties à l'écriture par ConflictPane. Revue en attente de la réponse à la question 1. | — |
+| 2 | dev | terminé, tests, lint, build verts ; `pnpm e2e` 360 passés, 1 échec `refs-column.spec.ts:189` (voir revue 2 : ne vient pas de la story) ; 3 bloquants levés, mineurs 4 et 5 traités | — |
+| 2 | reviewer (opus) | `stories/S-38-revue-2.md` : 2 mineurs (« Conflict 0 / n », décompte à l'envers après édition manuelle) | validé |
+| 3 | dev | terminé, vérifications vertes (e2e : seul échec connu `refs-column.spec.ts:189`) ; mineurs de la revue 2 traités | — |
+| 3 | reviewer | `stories/S-38-revue-3.md` : 1 mineur (`remainingRanks` sans test unitaire) | validé |
+| 4 | dev | terminé, 5 tests unitaires de `remainingRanks` ajoutés (sans rouge : code existant), vérifications vertes hors échec connu `refs-column` | — |
+| 4 | reviewer | `stories/S-38-revue-4.md` : aucun problème | validé |
+| 1 | reviewer (opus) | `stories/S-38-revue-1.md` : 3 bloquants (lien symbolique lu et écrit hors du dépôt, « Conflict i / n » faux après un bloc pris, chemin du fichier absent de la barre), 2 mineurs | à corriger |

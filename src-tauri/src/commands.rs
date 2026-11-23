@@ -669,6 +669,98 @@ pub async fn resolve_conflict_file(
     .map_err(|_| "The file could not be marked as resolved.".to_string())?
 }
 
+/// Fichiers d'un Pop ou d'un Apply en conflit par groupe ; `stash` : `stash@{n}` (Theirs), `seen` : fichiers vus.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_stash_conflicts(
+    path: String,
+    stash: String,
+    seen: Vec<String>,
+) -> Result<ConflictListView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        conflict::list_stash_conflicts(Path::new(&path), &stash, &seen)
+    })
+    .await
+    .map_err(|_| "The conflicts could not be read.".to_string())?
+}
+
+/// Mark as resolved d'un fichier d'un Pop ou d'un Apply en conflit ; rend la liste relue.
+#[tauri::command]
+#[specta::specta]
+pub async fn resolve_stash_conflict_file(
+    path: String,
+    file: String,
+    content: String,
+    stash: String,
+    seen: Vec<String>,
+) -> Result<ConflictListView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        conflict::resolve_stash_conflict_file(Path::new(&path), &file, &content, &stash, &seen)
+    })
+    .await
+    .map_err(|_| "The file could not be marked as resolved.".to_string())?
+}
+
+/// Keep ours, Keep theirs ou Delete sur un fichier non fusionnable (binaire, supprimé d'un côté, renommé) : le
+/// fichier entier est écrit ou supprimé selon le choix, puis indexé ; rend la liste relue (celle du Pop ou de
+/// l'Apply de `stash` s'il est donné, sinon celle de l'opération en cours, avec `theirs_name`).
+#[tauri::command]
+#[specta::specta]
+pub async fn resolve_unmergeable(
+    path: String,
+    file: String,
+    keep: conflict::KeepView,
+    theirs_name: String,
+    stash: Option<String>,
+    seen: Vec<String>,
+) -> Result<ConflictListView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        conflict::resolve_unmergeable(
+            Path::new(&path),
+            &file,
+            keep,
+            &theirs_name,
+            stash.as_deref(),
+            &seen,
+        )
+    })
+    .await
+    .map_err(|_| "The file could not be resolved.".to_string())?
+}
+
+/// Done d'un Pop ou d'un Apply en conflit : les fichiers résolus sont désindexés, le stash reste dans la liste.
+#[tauri::command]
+#[specta::specta]
+pub async fn finish_stash_conflict(path: String) -> Result<CommittedView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        working_tree::finish_stash_conflict(Path::new(&path))
+    })
+    .await
+    .map_err(|_| "Done was interrupted.".to_string())?
+}
+
+/// Abort d'un Pop ou d'un Apply en conflit : les fichiers touchés reviennent à leur état d'avant, le stash reste.
+#[tauri::command]
+#[specta::specta]
+pub async fn abort_stash_conflict(path: String, stash: String) -> Result<CommittedView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        working_tree::abort_stash_conflict(Path::new(&path), &stash)
+    })
+    .await
+    .map_err(|_| "The abort was interrupted.".to_string())?
+}
+
+/// Open in external editor : ouvre un fichier du dépôt dans l'application par défaut de macOS pour son type.
+#[tauri::command]
+#[specta::specta]
+pub fn open_file_in_default_app(
+    app: tauri::AppHandle,
+    path: String,
+    file: String,
+) -> Result<(), String> {
+    octogit_platform::open_in_default_app(&app, Path::new(&path), &file)
+}
+
 /// Rebase de `receiving`, la branche courante, sur `onto` (branche, `origin/…` ou SHA de commit), sans dialogue :
 /// les commits sont rejoués et gardent leur auteur. Rend l'arbre de travail et le dépôt relus, et si le rebase reste
 /// en cours sur un conflit.

@@ -162,11 +162,27 @@ export const commands = {
 	 *  Fichiers du merge en cours par groupe (Conflicted, Resolved, Auto-merged) ; `theirs_name` : branche fusionnée,
 	 *  `seen` : fichiers vus en conflit à l'ouverture de `ConflictResolver`.
 	 */
-	listConflicts: (path: string, theirsName: string, seen: string[]) => typedError<ConflictListView, string>(__TAURI_INVOKE("list_conflicts", { path, theirsName, seen })),
+	listConflicts: (path: string, theirsName: string, seen: string[]) => typedError<ConflictListView_Serialize, string>(__TAURI_INVOKE("list_conflicts", { path, theirsName, seen })),
 	/**  Versions Ours et Theirs d'un fichier en conflit, et l'arbre de travail avec ses marqueurs. */
 	readConflictFile: (path: string, file: string) => typedError<ConflictContentView, string>(__TAURI_INVOKE("read_conflict_file", { path, file })),
 	/**  Mark as resolved : `content` est écrit dans le fichier octet pour octet puis indexé ; rend la liste relue. */
-	resolveConflictFile: (path: string, file: string, content: string, theirsName: string, seen: string[]) => typedError<ConflictListView, string>(__TAURI_INVOKE("resolve_conflict_file", { path, file, content, theirsName, seen })),
+	resolveConflictFile: (path: string, file: string, content: string, theirsName: string, seen: string[]) => typedError<ConflictListView_Serialize, string>(__TAURI_INVOKE("resolve_conflict_file", { path, file, content, theirsName, seen })),
+	/**  Fichiers d'un Pop ou d'un Apply en conflit par groupe ; `stash` : `stash@{n}` (Theirs), `seen` : fichiers vus. */
+	listStashConflicts: (path: string, stash: string, seen: string[]) => typedError<ConflictListView_Serialize, string>(__TAURI_INVOKE("list_stash_conflicts", { path, stash, seen })),
+	/**  Mark as resolved d'un fichier d'un Pop ou d'un Apply en conflit ; rend la liste relue. */
+	resolveStashConflictFile: (path: string, file: string, content: string, stash: string, seen: string[]) => typedError<ConflictListView_Serialize, string>(__TAURI_INVOKE("resolve_stash_conflict_file", { path, file, content, stash, seen })),
+	/**
+	 *  Keep ours, Keep theirs ou Delete sur un fichier non fusionnable (binaire, supprimé d'un côté, renommé) : le
+	 *  fichier entier est écrit ou supprimé selon le choix, puis indexé ; rend la liste relue (celle du Pop ou de
+	 *  l'Apply de `stash` s'il est donné, sinon celle de l'opération en cours, avec `theirs_name`).
+	 */
+	resolveUnmergeable: (path: string, file: string, keep: KeepView, theirsName: string, stash: string | null, seen: string[]) => typedError<ConflictListView_Serialize, string>(__TAURI_INVOKE("resolve_unmergeable", { path, file, keep, theirsName, stash, seen })),
+	/**  Done d'un Pop ou d'un Apply en conflit : les fichiers résolus sont désindexés, le stash reste dans la liste. */
+	finishStashConflict: (path: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("finish_stash_conflict", { path })),
+	/**  Abort d'un Pop ou d'un Apply en conflit : les fichiers touchés reviennent à leur état d'avant, le stash reste. */
+	abortStashConflict: (path: string, stash: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("abort_stash_conflict", { path, stash })),
+	/**  Open in external editor : ouvre un fichier du dépôt dans l'application par défaut de macOS pour son type. */
+	openFileInDefaultApp: (path: string, file: string) => typedError<null, string>(__TAURI_INVOKE("open_file_in_default_app", { path, file })),
 	/**
 	 *  Revert de `commit` sur la branche courante, sans dialogue : message par défaut de Git, auteur et committer
 	 *  du `.git/config` local. Rend l'arbre de travail et le dépôt relus, et si le revert reste en cours sur un conflit.
@@ -435,17 +451,38 @@ export type ConflictContentView = {
 	result: string,
 };
 
-export type ConflictEntryView = {
+export type ConflictEntryView = ConflictEntryView_Serialize | ConflictEntryView_Deserialize;
+
+export type ConflictEntryView_Deserialize = {
 	path: string,
 	group: ConflictGroupView,
-	/**  Faux : « Not mergeable yet. », sans Result. */
+	/**  Faux : sans Result, seuls des choix sur le fichier entier. */
 	mergeable: boolean,
+	/**  Le type du fichier non fusionnable ; `null` s'il est fusionnable. */
+	kind?: NonMergeableView | null,
+};
+
+export type ConflictEntryView_Serialize = {
+	path: string,
+	group: ConflictGroupView,
+	/**  Faux : sans Result, seuls des choix sur le fichier entier. */
+	mergeable: boolean,
+	/**  Le type du fichier non fusionnable ; `null` s'il est fusionnable. */
+	kind: NonMergeableView | null,
 };
 
 export type ConflictGroupView = "conflicted" | "resolved" | "autoMerged";
 
-export type ConflictListView = {
-	files: ConflictEntryView[],
+export type ConflictListView = ConflictListView_Serialize | ConflictListView_Deserialize;
+
+export type ConflictListView_Deserialize = {
+	files: ConflictEntryView_Deserialize[],
+	ours: ConflictSideView,
+	theirs: ConflictSideView,
+};
+
+export type ConflictListView_Serialize = {
+	files: ConflictEntryView_Serialize[],
 	ours: ConflictSideView,
 	theirs: ConflictSideView,
 };
@@ -587,6 +624,9 @@ export type ForcePushView = {
 	commits: OverwrittenCommitView[],
 };
 
+/**  Choix sur un fichier non fusionnable entier. */
+export type KeepView = "ours" | "theirs" | "delete";
+
 export type LaunchState = LaunchState_Serialize | LaunchState_Deserialize;
 
 export type LaunchState_Deserialize = { screen: "history"; repository: RepositoryView_Deserialize } | { screen: "welcome" };
@@ -624,6 +664,9 @@ export type MismatchView_Serialize = {
 	origin: OriginView,
 	rows: SettingRowView_Serialize[],
 };
+
+/**  Pourquoi un fichier en conflit n'a pas de Result éditable (« binary file », « deleted on one side », « renamed »). */
+export type NonMergeableView = "binary" | "deletedOnOneSide" | "renamed";
 
 export type OpenError = 
 /**  Le dossier n'est pas un dépôt Git lisible ; `name` est le nom du dossier. */

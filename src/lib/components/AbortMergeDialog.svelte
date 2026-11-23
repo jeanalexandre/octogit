@@ -4,8 +4,7 @@
    * Échap) ne change rien. Le parent garde l'état et fait l'action.
    */
   import X from "@lucide/svelte/icons/x";
-  import type { OperationKindView } from "../bindings";
-  import { OPERATION_NAME } from "../operation";
+  import { OPERATION_NAME, type OperationKind } from "../operation";
 
   let {
     kind = "merge",
@@ -15,7 +14,7 @@
     oncancel,
   }: {
     /** Seul le nom de l'opération varie : « Abort rebase? », « Abort cherry-pick? »… */
-    kind?: OperationKindView;
+    kind?: OperationKind;
     /** Fichiers du groupe Resolved (les Auto-merged ne comptent pas). */
     resolved: number;
     busy?: boolean;

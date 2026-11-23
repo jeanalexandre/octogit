@@ -9,7 +9,6 @@
     type Column,
     type FileChangeView,
     type ConflictListView,
-    type OperationKindView,
     type OperationStateView,
     type OperationStepView,
     type ForcePushView,
@@ -47,6 +46,7 @@
   } from "./lib/integrate";
   import ConflictResolver from "./lib/screens/ConflictResolver.svelte";
   import OperationBanner from "./lib/components/OperationBanner.svelte";
+  import { isStashOperation, type OperationKind } from "./lib/operation";
   import AbortMergeDialog from "./lib/components/AbortMergeDialog.svelte";
   import DiffView from "./lib/screens/DiffView.svelte";
   import History from "./lib/screens/History.svelte";
@@ -84,7 +84,8 @@
    */
   let operation: {
     path: string;
-    kind: OperationKindView;
+    /** `pop` et `apply` : conflit d'un Pop ou d'un Apply, tenu ici seulement (Git ne laisse aucun marqueur). */
+    kind: OperationKind;
     receiving: string;
     other: string;
     step: OperationStepView | null;
@@ -132,7 +133,10 @@
   async function endOperation(
     run: (
       path: string,
-    ) => ReturnType<typeof commands.continueOperation> | ReturnType<typeof commands.abortOperation>,
+    ) =>
+      | ReturnType<typeof commands.continueOperation>
+      | ReturnType<typeof commands.abortOperation>
+      | ReturnType<typeof commands.finishStashConflict>,
     failure: string,
   ) {
     const op = operation;
@@ -157,16 +161,57 @@
     }
   }
 
+  /** Continue d'un merge, d'un rebase, d'un cherry-pick ou d'un revert ; Done d'un Pop ou d'un Apply en conflit. */
   function continueOperation() {
-    if (operation === null || operation.left !== 0 || continueReason !== null) return;
-    void endOperation((p) => commands.continueOperation(p), "Continue failed.");
+    if (operation === null || operation.left !== 0) return;
+    if (isStashOperation(operation.kind)) {
+      // Aucun commit : ni identité ni profil n'entrent en jeu. Fichiers désindexés, stash gardé.
+      void endOperation((p) => commands.finishStashConflict(p), "Done failed.");
+    } else if (continueReason === null) {
+      void endOperation((p) => commands.continueOperation(p), "Continue failed.");
+    }
+  }
+
+  /** Abort de l'opération en cours ; celui d'un Pop ou d'un Apply remet les fichiers touchés, le stash reste. */
+  function runAbort(): Promise<unknown> {
+    const op = operation;
+    if (op !== null && isStashOperation(op.kind)) {
+      return endOperation((p) => commands.abortStashConflict(p, op.other), "Abort failed.");
+    }
+    return endOperation((p) => commands.abortOperation(p), "Abort failed.");
   }
 
   /** Abort : confirmé si un fichier est déjà résolu, sinon sans confirmation. */
   function abortOperation() {
     if (operation === null || operationBusy) return;
     if (operation.resolved > 0) abortAsk = true;
-    else void endOperation((p) => commands.abortOperation(p), "Abort failed.");
+    else void runAbort();
+  }
+
+  /**
+   * Un Pop ou un Apply qui rend des fichiers en conflit : le stash reste dans la liste, `ConflictResolver` s'ouvre
+   * par-dessus `History` avec `OperationBanner` (Abort, Done). L'état est tenu en mémoire : Git ne laisse aucun
+   * marqueur, un redémarrage le perd et les fichiers restent « Conflict » dans `WorkingChanges`.
+   */
+  function startStashConflict(path: string, stash: string, kind: "pop" | "apply") {
+    if (screen?.screen !== "history" || openPath !== path) return;
+    const repository = screen.repository;
+    const branch = repository.refs.find((r) => r.kind === "branch" && r.current)?.name ?? "HEAD";
+    const oursLane = laneOf(repository, branch);
+    operation = {
+      path,
+      kind,
+      receiving: branch,
+      other: stash,
+      step: null,
+      oursLane,
+      theirsLane: (oursLane + 1) % 6,
+      seen: [],
+      left: null,
+      resolved: 0,
+    };
+    operationError = null;
+    resolverOpen = true;
   }
 
   /**
@@ -178,6 +223,11 @@
   async function syncOperation(path: string, open = false) {
     // Seule la dernière lecture compte : une réponse plus ancienne (lancée avant le conflit) ne défait pas la plus
     // récente. Son `open` n'est pas perdu : `resolverWanted` est honoré par la lecture qui s'applique.
+    // Un Pop ou un Apply en conflit n'a aucun marqueur dans `.git` : la lecture ne le retire ni ne le remplace.
+    if (operation !== null && operation.path === path && isStashOperation(operation.kind)) {
+      resolverWanted = false;
+      return;
+    }
     const mine = ++syncSeq;
     if (open) resolverWanted = true;
     let found: OperationStateView | null;
@@ -1046,13 +1096,33 @@
 
   const stashStart = (message: string | null) =>
     runStash((path) => commands.stashChanges(path, message));
-  const popStash = (name: string | null) => runStash((path) => commands.popStash(path, name));
+  /**
+   * Pop (`name` : `stash@{n}`, sinon le dernier) ou Apply. Un conflit n'est pas un refus : le stash reste et
+   * `ConflictResolver` s'ouvre avec Abort et Done.
+   */
+  async function restoreStash(kind: "pop" | "apply", name: string | null) {
+    const path = openPath;
+    if (path === null) return;
+    const stash = name ?? "stash@{0}";
+    let conflicted = false;
+    await runStash(async (p) => {
+      const result = await (kind === "pop"
+        ? commands.popStash(p, name)
+        : commands.applyStash(p, stash));
+      conflicted =
+        result.status === "ok" && result.data.tree.unstaged.some((f) => f.status === "conflicted");
+      return result;
+    });
+    if (conflicted) startStashConflict(path, stash, kind);
+  }
+
+  const popStash = (name: string | null) => restoreStash("pop", name);
 
   /** Apply ou Pop du clic droit : un refus s'affiche en une ligne près de l'en-tête, comme un checkout refusé. */
-  async function stashFromMenu(run: (path: string) => ReturnType<typeof commands.stashChanges>) {
+  async function stashFromMenu(act: () => Promise<void>) {
     const path = openPath;
     try {
-      await runStash(run);
+      await act();
     } catch (e) {
       if (path !== null)
         checkoutNotice = {
@@ -1634,7 +1704,7 @@
     receiving={operation.receiving}
     step={operation.step}
     left={operation.left}
-    reason={continueReason}
+    reason={isStashOperation(operation.kind) ? null : continueReason}
     busy={operationBusy}
     error={operationError}
     onresolve={resolverShown && diff === null ? undefined : resolveAgain}
@@ -1749,10 +1819,32 @@
           oursLane={op.oursLane}
           theirsLane={op.theirsLane}
           initialSeen={op.seen}
-          loadList={async (seen) => unwrap(await commands.listConflicts(op.path, op.other, seen))}
+          loadList={async (seen) =>
+            unwrap(
+              isStashOperation(op.kind)
+                ? await commands.listStashConflicts(op.path, op.other, seen)
+                : await commands.listConflicts(op.path, op.other, seen),
+            )}
           loadFile={async (file) => unwrap(await commands.readConflictFile(op.path, file))}
           resolve={async (file, content, seen) =>
-            unwrap(await commands.resolveConflictFile(op.path, file, content, op.other, seen))}
+            unwrap(
+              isStashOperation(op.kind)
+                ? await commands.resolveStashConflictFile(op.path, file, content, op.other, seen)
+                : await commands.resolveConflictFile(op.path, file, content, op.other, seen),
+            )}
+          keep={async (file, choice, seen) =>
+            unwrap(
+              await commands.resolveUnmergeable(
+                op.path,
+                file,
+                choice,
+                op.other,
+                isStashOperation(op.kind) ? op.other : null,
+                seen,
+              ),
+            )}
+          openFile={async (file) => unwrap(await commands.openFileInDefaultApp(op.path, file))}
+          ondone={isStashOperation(op.kind) ? continueOperation : undefined}
           onlist={reportList}
           onback={backToGraph}
         />
@@ -1791,7 +1883,7 @@
     kind={operation.kind}
     resolved={operation.resolved}
     busy={operationBusy}
-    onabort={() => endOperation((p) => commands.abortOperation(p), "Abort failed.")}
+    onabort={runAbort}
     oncancel={() => (abortAsk = false)}
   />
 {/if}
@@ -1870,8 +1962,8 @@
     onrebase={(onto, into) => integrateFromMenu("rebase", onto, into)}
     oncherrypick={(target) => pickFromMenu(target, false)}
     onrevert={(target) => pickFromMenu(target, true)}
-    onapplystash={(name) => stashFromMenu((path) => commands.applyStash(path, name))}
-    onpopstash={(name) => stashFromMenu((path) => commands.popStash(path, name))}
+    onapplystash={(name) => stashFromMenu(() => restoreStash("apply", name))}
+    onpopstash={(name) => stashFromMenu(() => restoreStash("pop", name))}
     ondropstash={askDropStash}
     confirm={checkoutConfirm !== null && checkoutConfirm.path === openPath ? checkoutConfirm : null}
     oncheckout={(name) => checkout(name)}

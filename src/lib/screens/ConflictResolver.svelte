@@ -1,11 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import Check from "@lucide/svelte/icons/check";
+  import ExternalLink from "@lucide/svelte/icons/external-link";
   import ConflictPane from "../components/ConflictPane.svelte";
   import type {
     ConflictContentView,
     ConflictEntryView,
     ConflictGroupView,
     ConflictListView,
+    KeepView,
   } from "../bindings";
 
   let {
@@ -14,10 +17,19 @@
     loadList,
     loadFile,
     resolve,
+    keep,
+    openFile,
+    ondone,
     initialSeen = [],
     onlist,
     onback,
   }: {
+    /** Keep ours, Keep theirs ou Delete sur un fichier non fusionnable : le fichier entier, la liste relue. */
+    keep?: (file: string, choice: KeepView, seen: string[]) => Promise<ConflictListView>;
+    /** Open in external editor : ouvre le fichier dans l'application par défaut de macOS. */
+    openFile?: (file: string) => Promise<unknown>;
+    /** Pop ou Apply en conflit : Done, actif quand aucun fichier n'est dans Conflicted. Absent pour un merge. */
+    ondone?: () => void;
     /** Fichiers déjà vus en conflit (écran rouvert par Resolve) : ceux qui n'y sont plus sont dans Resolved. */
     initialSeen?: string[];
     /** Liste relue (ouverture, Mark as resolved) et fichiers vus en conflit : le parent garde ses comptes. */
@@ -80,23 +92,83 @@
     }
   });
 
-  async function markResolved(result: string) {
+  /** Done : la liste est lue et plus aucun fichier n'est dans Conflicted. Aucun clic ne passe tant qu'il est désactivé. */
+  const doneReady = $derived(list !== null && conflicted.length === 0 && !busy);
+  function doneNow() {
+    if (doneReady) ondone?.();
+  }
+
+  /** Un geste sur le fichier choisi qui rend la liste relue : le fichier suivant à résoudre est montré. */
+  async function settle(run: (file: string) => Promise<ConflictListView>, failure: string) {
     if (selected === null || busy) return;
     const file = selected;
     const before = conflicted.map((f) => f.path);
     busy = true;
     error = null;
     try {
-      const next = await resolve(file, result, seen);
+      const next = await run(file);
       list = next;
       onlist?.(next, seen);
       const left = next.files.filter((f) => f.group === "conflicted").map((f) => f.path);
       const after = before.slice(before.indexOf(file) + 1).find((p) => left.includes(p));
       await select(after ?? left[0] ?? null);
     } catch (e) {
-      error = typeof e === "string" ? e : "The file could not be marked as resolved.";
+      error = typeof e === "string" ? e : failure;
     } finally {
       busy = false;
+    }
+  }
+
+  const markResolved = (result: string) =>
+    settle((file) => resolve(file, result, seen), "The file could not be marked as resolved.");
+
+  const keepVersion = (choice: KeepView) =>
+    keep
+      ? settle((file) => keep(file, choice, seen), "The file could not be resolved.")
+      : undefined;
+
+  /** Open in external editor : le fichier s'ouvre dans l'application par défaut de macOS ; l'écran ne change pas. */
+  async function openExternal() {
+    if (selected === null) return;
+    error = null;
+    try {
+      await openFile?.(selected);
+    } catch (e) {
+      error = typeof e === "string" ? e : "The file could not be opened.";
+    }
+  }
+
+  /** Change à chaque relecture qui modifie le fichier montré : Result repart du contenu du disque. */
+  let version = $state(0);
+
+  /**
+   * Retour de la fenêtre dans Octogit : la liste et le fichier choisi se relisent du dépôt. Un fichier résolu au
+   * terminal passe dans Resolved ; Result est remplacé seulement si le fichier a changé (les saisies non enregistrées
+   * sont alors perdues).
+   */
+  async function refresh() {
+    if (list === null || busy) return;
+    const mine = token;
+    try {
+      const next = await loadList(seen);
+      const found = next.files.filter((f) => f.group === "conflicted").map((f) => f.path);
+      if (busy || mine !== token) return;
+      seen = [...new Set([...seen, ...found])];
+      list = next;
+      onlist?.(next, seen);
+      if (selected !== null && !found.includes(selected)) {
+        await select(found[0] ?? null);
+      } else if (selected !== null) {
+        const file = selected;
+        const loaded = await loadFile(file);
+        if (mine !== token || selected !== file || busy) return;
+        if (JSON.stringify(loaded) !== JSON.stringify(content)) {
+          content = loaded;
+          version += 1;
+        }
+      }
+    } catch {
+      // Le prochain retour dans la fenêtre relira ; l'écran garde ce qu'il montre.
     }
   }
 
@@ -109,11 +181,23 @@
   }
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window {onkeydown} onfocus={refresh} />
 
 <section class="resolver" aria-label="Resolve conflicts">
   <header>
     <h1>Conflicts</h1>
+    <div class="actions">
+      {#if selected !== null}
+        <button type="button" class="control" onclick={openExternal}>
+          <ExternalLink size={16} strokeWidth={1.8} aria-hidden="true" />Open in external editor
+        </button>
+      {/if}
+      {#if ondone}
+        <button type="button" class="control primary" disabled={!doneReady} onclick={doneNow}>
+          <Check size={16} strokeWidth={1.8} aria-hidden="true" />Done
+        </button>
+      {/if}
+    </div>
   </header>
   {#if error !== null}
     <p class="error" role="alert">{error.split("\n")[0]}</p>
@@ -158,16 +242,18 @@
           ✓ {filesOf("resolved").length} resolved · {filesOf("autoMerged").length} auto-merged
         </p>
       {:else if list !== null && content !== null && selected !== null}
-        {#key selected}
+        {#key `${selected}:${version}`}
           <ConflictPane
             file={selected}
             {content}
+            kind={list.files.find((f) => f.path === selected)?.kind ?? null}
             ours={list.ours}
             theirs={list.theirs}
             {oursLane}
             {theirsLane}
             {busy}
             onresolve={markResolved}
+            onkeep={keepVersion}
           />
         {/key}
       {/if}
@@ -197,6 +283,42 @@
     margin: 0;
     font-size: 13px;
     font-weight: 600;
+  }
+
+  .actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .control {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .control.primary:not(:disabled) {
+    border-color: var(--brand);
+    background: var(--brand);
+    color: var(--on-brand);
+    font-weight: 600;
+  }
+
+  .control:disabled {
+    color: var(--muted);
+    cursor: default;
+  }
+
+  .control:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
 
   .error {

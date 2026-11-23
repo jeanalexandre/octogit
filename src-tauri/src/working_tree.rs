@@ -155,6 +155,18 @@ pub fn apply_stash(path: &Path, stash: &str) -> Result<CommittedView, String> {
     committed(path, tree)
 }
 
+/// Done d'un Pop ou d'un Apply en conflit : fichiers désindexés, stash gardé. Aucun commit : pas de contrôle d'identité.
+pub fn finish_stash_conflict(path: &Path) -> Result<CommittedView, String> {
+    let tree = octogit_git::stash_conflict_done(path).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
+/// Abort d'un Pop ou d'un Apply en conflit : fichiers touchés remis comme avant, stash gardé.
+pub fn abort_stash_conflict(path: &Path, stash: &str) -> Result<CommittedView, String> {
+    let tree = octogit_git::stash_conflict_abort(path, stash).map_err(|e| e.to_string())?;
+    committed(path, tree)
+}
+
 /// Mode d'un reset qui garde l'arbre de travail (Hard : autre geste, avec confirmation).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize, Type)]
 #[serde(rename_all = "camelCase")]

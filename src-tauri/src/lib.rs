@@ -121,6 +121,12 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::list_conflicts,
             commands::read_conflict_file,
             commands::resolve_conflict_file,
+            commands::list_stash_conflicts,
+            commands::resolve_stash_conflict_file,
+            commands::resolve_unmergeable,
+            commands::finish_stash_conflict,
+            commands::abort_stash_conflict,
+            commands::open_file_in_default_app,
             commands::revert,
             commands::amend_message,
             commands::get_commit_email,
@@ -166,6 +172,7 @@ pub fn run() {
         })
         .plugin(octogit_platform::dialog_plugin())
         .plugin(octogit_platform::clipboard_plugin())
+        .plugin(octogit_platform::opener_plugin())
         .invoke_handler(builder.invoke_handler())
         .run(tauri::generate_context!())
         .expect("error while running Octogit");

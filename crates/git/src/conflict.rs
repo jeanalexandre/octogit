@@ -8,6 +8,7 @@ use std::collections::BTreeSet;
 use std::path::{Component, Path};
 use std::process::{Command, Stdio};
 
+use crate::stash::check_stash;
 use crate::{read_operation, GitError, OperationKind};
 
 /// Groupe d'un fichier du merge en cours.
@@ -21,12 +22,36 @@ pub enum ConflictGroup {
     AutoMerged,
 }
 
+/// Pourquoi un fichier en conflit n'a pas de Result éditable : seuls des choix sur le fichier entier sont proposés.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NonMergeable {
+    /// Binaire (ou lien symbolique) modifié des deux côtés.
+    Binary,
+    /// Supprimé d'un côté et modifié de l'autre : Delete est proposé.
+    DeletedOnOneSide,
+    /// Renommé : le chemin n'existe que d'un côté (ou des deux côtés sous un autre nom).
+    Renamed,
+}
+
+/// Choix sur un fichier non fusionnable entier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Keep {
+    /// Version de l'arbre courant (étape 2).
+    Ours,
+    /// Version reprise : branche fusionnée ou stash (étape 3).
+    Theirs,
+    /// Supprimer le fichier, seulement si un côté l'a supprimé.
+    Delete,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConflictEntry {
     pub path: String,
     pub group: ConflictGroup,
     /// Faux pour un fichier qui n'est pas du texte UTF-8 ou dont un côté manque (suppression) : jamais de Result.
     pub mergeable: bool,
+    /// Le type du fichier non fusionnable ; `None` si `mergeable`.
+    pub kind: Option<NonMergeable>,
 }
 
 /// Une branche du merge : son nom et son SHA abrégé (7 caractères).
@@ -54,7 +79,7 @@ pub struct ConflictContent {
     pub result: String,
 }
 
-fn git(path: &Path, args: &[&str]) -> Result<(bool, Vec<u8>), GitError> {
+pub(crate) fn git(path: &Path, args: &[&str]) -> Result<(bool, Vec<u8>), GitError> {
     let output = Command::new("git")
         .arg("-C")
         .arg(path)
@@ -72,7 +97,7 @@ fn text(bytes: Vec<u8>) -> String {
 }
 
 /// Chemin du dépôt, jamais hors de lui ni pris pour une option.
-fn check_path(file: &str) -> Result<(), GitError> {
+pub(crate) fn check_path(file: &str) -> Result<(), GitError> {
     let path = Path::new(file);
     let inside = !file.is_empty()
         && !file.starts_with('-')
@@ -126,7 +151,7 @@ fn unmerged(path: &Path) -> Result<Vec<Unmerged>, GitError> {
 
 /// Le chemin, et chacun de ses dossiers parents, est-il autre chose qu'un lien symbolique dans l'arbre de travail ?
 /// Un lien est suivi par `read` et `write` : jamais lu ni écrit à travers lui, même vers l'intérieur du dépôt.
-fn no_symlink(path: &Path, file: &str) -> bool {
+pub(crate) fn no_symlink(path: &Path, file: &str) -> bool {
     let mut current = path.to_path_buf();
     for part in Path::new(file).components() {
         current.push(part);
@@ -189,18 +214,70 @@ pub fn list_conflicts(
     };
     let ours = side(path, ours_name, "HEAD")?;
     let theirs = side(path, theirs_name, theirs_rev)?;
+    Ok(ConflictList {
+        files: grouped_files(path, seen)?,
+        ours,
+        theirs,
+    })
+}
 
+/// Fichiers d'un Pop ou d'un Apply en conflit par groupe. Git ne laisse aucun marqueur d'opération : l'appelant
+/// garde l'état. Ours = l'arbre courant (branche et SHA de `HEAD`), Theirs = le stash (`stash@{n}` et son SHA).
+pub fn list_stash_conflicts(
+    path: &Path,
+    stash: &str,
+    seen: &[String],
+) -> Result<ConflictList, GitError> {
+    check_stash(stash)?;
+    let (_, branch) = git(path, &["symbolic-ref", "--short", "-q", "HEAD"])?;
+    let branch = text(branch);
+    let ours = side(
+        path,
+        if branch.is_empty() {
+            "HEAD".into()
+        } else {
+            branch
+        },
+        "HEAD",
+    )?;
+    let theirs = side(path, stash.to_string(), stash)?;
+    Ok(ConflictList {
+        files: grouped_files(path, seen)?,
+        ours,
+        theirs,
+    })
+}
+
+/// Le type d'un fichier non fusionnable, `None` s'il se fusionne à la main : les deux versions existent et le
+/// fichier est du texte.
+fn non_mergeable(path: &Path, u: &Unmerged) -> Option<NonMergeable> {
+    let has = |n: u8| u.stages.contains(&n);
+    if has(2) && has(3) {
+        if u.link || working_text(path, &u.file).is_none() {
+            Some(NonMergeable::Binary)
+        } else {
+            None
+        }
+    } else if has(1) && (has(2) || has(3)) {
+        Some(NonMergeable::DeletedOnOneSide)
+    } else {
+        Some(NonMergeable::Renamed)
+    }
+}
+
+fn grouped_files(path: &Path, seen: &[String]) -> Result<Vec<ConflictEntry>, GitError> {
     let conflicted = unmerged(path)?;
     let conflicted_paths: BTreeSet<&str> = conflicted.iter().map(|u| u.file.as_str()).collect();
     let mut files: Vec<ConflictEntry> = conflicted
         .iter()
-        .map(|u| ConflictEntry {
-            path: u.file.clone(),
-            group: ConflictGroup::Conflicted,
-            mergeable: !u.link
-                && u.stages.contains(&2)
-                && u.stages.contains(&3)
-                && working_text(path, &u.file).is_some(),
+        .map(|u| {
+            let kind = non_mergeable(path, u);
+            ConflictEntry {
+                path: u.file.clone(),
+                group: ConflictGroup::Conflicted,
+                mergeable: kind.is_none(),
+                kind,
+            }
         })
         .collect();
 
@@ -214,6 +291,7 @@ pub fn list_conflicts(
         path: (*p).clone(),
         group: ConflictGroup::Resolved,
         mergeable: true,
+        kind: None,
     }));
 
     let (_, changed) = git(path, &["diff", "--cached", "--name-only", "-z"])?;
@@ -228,13 +306,9 @@ pub fn list_conflicts(
         path: p,
         group: ConflictGroup::AutoMerged,
         mergeable: true,
+        kind: None,
     }));
-
-    Ok(ConflictList {
-        files,
-        ours,
-        theirs,
-    })
+    Ok(files)
 }
 
 /// Versions Ours (`:2:`) et Theirs (`:3:`) d'un fichier en conflit, et l'arbre de travail avec ses marqueurs.
@@ -273,6 +347,51 @@ pub fn read_conflict_file(path: &Path, file: &str) -> Result<ConflictContent, Gi
             theirs: String::new(),
             result: String::new(),
         }),
+    }
+}
+
+/// Chemins encore non fusionnés dans l'index.
+pub(crate) fn unmerged_files(path: &Path) -> Result<Vec<String>, GitError> {
+    Ok(unmerged(path)?.into_iter().map(|u| u.file).collect())
+}
+
+/// Keep ours, Keep theirs ou Delete sur un fichier non fusionnable : le fichier entier est écrit (ou supprimé) selon
+/// le choix, puis indexé. Un côté qui n'a pas le fichier (renommé) donne sa suppression. Delete n'est accepté que si
+/// un côté a supprimé le fichier. Refusé hors dépôt, pour une option, pour un fichier fusionnable ou pas en conflit.
+pub fn resolve_unmergeable(path: &Path, file: &str, keep: Keep) -> Result<(), GitError> {
+    check_path(file)?;
+    let entry = unmerged(path)?
+        .into_iter()
+        .find(|u| u.file == file)
+        .ok_or_else(|| GitError::Read(format!("{file} is not in conflict")))?;
+    let kind = non_mergeable(path, &entry)
+        .ok_or_else(|| GitError::Read(format!("{file} can be merged by hand.")))?;
+    if let Some(parent) = Path::new(file).parent().and_then(|p| p.to_str()) {
+        if !parent.is_empty() && !no_symlink(path, parent) {
+            return Err(GitError::Read(format!(
+                "{file} is not a file of the repository"
+            )));
+        }
+    }
+    let side = match keep {
+        Keep::Ours => Some((2, "--ours")),
+        Keep::Theirs => Some((3, "--theirs")),
+        Keep::Delete if kind == NonMergeable::DeletedOnOneSide => None,
+        Keep::Delete => {
+            return Err(GitError::Read(format!("No side deleted {file}.")));
+        }
+    };
+    let taken = match side {
+        Some((stage, flag)) if entry.stages.contains(&stage) => {
+            let (ok, _) = git(path, &["checkout", flag, "--", file])?;
+            ok && git(path, &["add", "--", file])?.0
+        }
+        _ => git(path, &["rm", "-q", "-f", "--", file])?.0,
+    };
+    if taken {
+        Ok(())
+    } else {
+        Err(GitError::Read(format!("cannot resolve {file}")))
     }
 }
 

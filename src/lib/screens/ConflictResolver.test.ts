@@ -19,11 +19,30 @@ const list = (
       path,
       group: "conflicted" as const,
       mergeable: !notMergeable.includes(path),
+      kind: notMergeable.includes(path) ? kindOf(path) : null,
     })),
-    ...resolved.map((path) => ({ path, group: "resolved" as const, mergeable: true })),
-    ...auto.map((path) => ({ path, group: "autoMerged" as const, mergeable: true })),
+    ...resolved.map((path) => ({
+      path,
+      group: "resolved" as const,
+      mergeable: true,
+      kind: null,
+    })),
+    ...auto.map((path) => ({
+      path,
+      group: "autoMerged" as const,
+      mergeable: true,
+      kind: null,
+    })),
   ],
 });
+
+/** Type d'un fichier non fusionnable du test : `gone.txt` est supprimé d'un côté, `moved.txt` renommé. */
+const kindOf = (path: string) =>
+  path === "gone.txt"
+    ? ("deletedOnOneSide" as const)
+    : path === "moved.txt"
+      ? ("renamed" as const)
+      : ("binary" as const);
 
 const content = (name: string): ConflictContentView => ({
   mergeable: true,
@@ -185,12 +204,120 @@ describe("resoudre-les-conflits CA-14 : Back to graph", () => {
   });
 });
 
-describe("decision 2 : un fichier non fusionnable", () => {
-  it("is listed in Conflicted with Not mergeable yet. and no Result", async () => {
+describe("resoudre-les-conflits CA-20 : un fichier non fusionnable", () => {
+  it("is listed in Conflicted with its kind and no Result", async () => {
     open(list(["bin.dat"], [], [], ["bin.dat"]), ["bin.dat"]);
 
-    expect(await screen.findByText("Not mergeable yet.")).toBeTruthy();
+    expect(await screen.findByText("binary file")).toBeTruthy();
     expect(screen.getByText("Conflicted · 1")).toBeTruthy();
     expect(screen.queryByRole("textbox", { name: "Result" })).toBeNull();
+  });
+
+  it("moves to Resolved after Keep theirs, and the next conflicted file is shown", async () => {
+    const keep = vi.fn(async () => list(["b.txt"], ["bin.dat"], []));
+    open(list(["bin.dat", "b.txt"], [], [], ["bin.dat"]), ["bin.dat"], undefined, { keep });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Keep theirs" }));
+
+    expect(keep).toHaveBeenCalledWith("bin.dat", "theirs", ["bin.dat", "b.txt"]);
+    await waitFor(() => expect(screen.getByText("Resolved · 1")).toBeTruthy());
+    expect(await screen.findByRole("textbox", { name: "Result" })).toBeTruthy();
+  });
+});
+
+describe("resoudre-les-conflits CA-17 : Done", () => {
+  it("is disabled while a file is in Conflicted, enabled after, and calls ondone", async () => {
+    const ondone = vi.fn();
+    open(list(["a.txt"], [], []), [], undefined, { ondone });
+    const done = () => screen.getByRole("button", { name: "Done" }) as HTMLButtonElement;
+
+    await screen.findByText("Conflicted · 1");
+    expect(done().disabled).toBe(true);
+    await fireEvent.click(done());
+    expect(ondone).not.toHaveBeenCalled();
+  });
+
+  it("is enabled once nothing is in Conflicted", async () => {
+    const ondone = vi.fn();
+    open(list([], ["a.txt"], []), [], undefined, { ondone });
+
+    await screen.findByText("Resolved · 1");
+    const done = screen.getByRole("button", { name: "Done" }) as HTMLButtonElement;
+    expect(done.disabled).toBe(false);
+    await fireEvent.click(done);
+    expect(ondone).toHaveBeenCalledTimes(1);
+  });
+
+  it("is absent for a merge", async () => {
+    open(list(["a.txt"], [], []));
+
+    await screen.findByText("Conflicted · 1");
+    expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
+  });
+});
+
+describe("resoudre-les-conflits CA-6 : Open in external editor", () => {
+  it("asks to open the selected file and does nothing else", async () => {
+    const openFile = vi.fn(async () => undefined);
+    const { loadFile } = open(list(["a.txt"], [], []), [], undefined, { openFile });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Open in external editor" }));
+
+    expect(openFile).toHaveBeenCalledWith("a.txt");
+    expect(loadFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads Result again when the window gets the focus back, only if the file changed", async () => {
+    const edited = "edited in the editor\n";
+    let current = content("a.txt");
+    const loadList = vi.fn(async () => list(["a.txt"], [], []));
+    const loadFile = vi.fn(async () => current);
+    render(ConflictResolver, {
+      oursLane: 0,
+      theirsLane: 1,
+      loadList,
+      loadFile,
+      resolve: vi.fn(),
+      onback: vi.fn(),
+      openFile: vi.fn(),
+    });
+    const box = async () =>
+      (await screen.findByRole("textbox", { name: "Result" })) as HTMLTextAreaElement;
+    await fireEvent.input(await box(), { target: { value: "unsaved typing\n" } });
+
+    // Rien n'a changé sur le disque : les saisies restent.
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() => expect(loadFile).toHaveBeenCalledTimes(2));
+    expect((await box()).value).toBe("unsaved typing\n");
+
+    current = { ...current, result: edited };
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() => expect(loadFile).toHaveBeenCalledTimes(3));
+    await waitFor(async () => expect((await box()).value).toBe(edited));
+  });
+
+  it("moves a file resolved at the terminal to Resolved when the window gets the focus back", async () => {
+    let after = false;
+    const loadList = vi.fn(async () =>
+      after ? list(["b.txt"], ["a.txt"], []) : list(["a.txt", "b.txt"], [], []),
+    );
+    const loadFile = vi.fn(async (file: string) => content(file));
+    render(ConflictResolver, {
+      oursLane: 0,
+      theirsLane: 1,
+      loadList,
+      loadFile,
+      resolve: vi.fn(),
+      onback: vi.fn(),
+    });
+    await screen.findByText("Conflicted · 2");
+
+    after = true;
+    window.dispatchEvent(new Event("focus"));
+
+    await waitFor(() => expect(screen.getByText("Resolved · 1")).toBeTruthy());
+    expect(within(group(/^Resolved/)).getByText("a.txt")).toBeTruthy();
+    expect(loadList).toHaveBeenLastCalledWith(["a.txt", "b.txt"]);
+    await waitFor(() => expect(loadFile).toHaveBeenLastCalledWith("b.txt"));
   });
 });

@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use octogit_git::{
-    read_working_tree, stash_apply, stash_drop, stash_pop, stash_push, ChangeStatus, FileChange,
+    list_stash_conflicts, read_working_tree, resolve_conflict_file, stash_apply,
+    stash_conflict_abort, stash_conflict_done, stash_drop, stash_pop, stash_push, ChangeStatus,
+    ConflictGroup, FileChange,
 };
 
 struct Fixture(PathBuf);
@@ -237,4 +239,125 @@ fn preparer_un_commit_ca_21_a_pop_refused_without_a_conflict_is_an_error_with_th
     let error = stash_pop(&fx.0, None).unwrap_err().to_string();
     assert!(error.contains("file.txt"), "{error}");
     assert_eq!(fx.stashes().len(), 1);
+}
+
+fn status(fx: &Fixture) -> String {
+    fx.git(&["status", "--porcelain"])
+}
+
+#[test]
+fn resoudre_les_conflits_ca_17_a_conflicting_pop_or_apply_lists_its_files_by_group_with_the_stash_as_theirs(
+) {
+    for pop in [true, false] {
+        let fx = conflicting();
+        if pop {
+            stash_pop(&fx.0, None).unwrap();
+        } else {
+            stash_apply(&fx.0, "stash@{0}").unwrap();
+        }
+        let list = list_stash_conflicts(&fx.0, "stash@{0}", &[]).unwrap();
+        let in_group = |g: ConflictGroup| -> Vec<&str> {
+            list.files
+                .iter()
+                .filter(|f| f.group == g)
+                .map(|f| f.path.as_str())
+                .collect()
+        };
+        assert_eq!(in_group(ConflictGroup::Conflicted), ["file.txt"]);
+        assert_eq!(list.theirs.name, "stash@{0}");
+        assert_eq!(list.theirs.sha.len(), 7);
+        assert_eq!(
+            list.ours.sha,
+            fx.git(&["rev-parse", "--short=7", "HEAD"]).trim()
+        );
+        let seen = ["file.txt".to_string()];
+        resolve_conflict_file(&fx.0, "file.txt", "resolved\n").unwrap();
+        let list = list_stash_conflicts(&fx.0, "stash@{0}", &seen).unwrap();
+        assert!(list
+            .files
+            .iter()
+            .any(|f| f.path == "file.txt" && f.group == ConflictGroup::Resolved));
+    }
+}
+
+#[test]
+fn resoudre_les_conflits_ca_17_done_unstages_every_file_like_a_pop_without_conflict_and_keeps_the_stash(
+) {
+    let fx = conflicting();
+    stash_pop(&fx.0, None).unwrap();
+    // Un fichier encore en conflit : Done est refusé, rien ne change.
+    assert!(stash_conflict_done(&fx.0).is_err());
+    assert!(fx.git(&["ls-files", "-u"]).contains("file.txt"));
+
+    resolve_conflict_file(&fx.0, "file.txt", "resolved\n").unwrap();
+    let tree = stash_conflict_done(&fx.0).unwrap();
+
+    assert!(tree.staged.is_empty(), "{tree:?}");
+    let porcelain = status(&fx);
+    assert!(porcelain.contains(" M file.txt"), "{porcelain}");
+    assert!(porcelain.contains(" M keep.txt"), "{porcelain}");
+    assert!(porcelain.contains("?? notes.txt"), "{porcelain}");
+    assert_eq!(fx.read("file.txt"), "resolved\n");
+    assert_eq!(fx.stashes().len(), 1, "the stash stays in the list");
+}
+
+#[test]
+fn resoudre_les_conflits_ca_17_abort_puts_the_touched_files_back_tracked_and_untracked_and_keeps_the_stash(
+) {
+    for pop in [true, false] {
+        let fx = conflicting();
+        if pop {
+            stash_pop(&fx.0, None).unwrap();
+        } else {
+            stash_apply(&fx.0, "stash@{0}").unwrap();
+        }
+        assert!(fx.0.join("notes.txt").exists());
+        let head_file = fx.git(&["show", "HEAD:file.txt"]);
+
+        let tree = stash_conflict_abort(&fx.0, "stash@{0}").unwrap();
+
+        assert_eq!(status(&fx), "", "clean as before the pop");
+        assert!(
+            tree.staged.is_empty() && tree.unstaged.is_empty(),
+            "{tree:?}"
+        );
+        assert!(
+            !fx.0.join("notes.txt").exists(),
+            "untracked file created by the stash removed"
+        );
+        assert_eq!(fx.read("file.txt"), head_file);
+        assert_eq!(fx.read("keep.txt"), "one\n");
+        assert_eq!(fx.stashes().len(), 1);
+    }
+}
+
+#[test]
+fn resoudre_les_conflits_ca_17_abort_keeps_an_indexed_file_unrelated_to_the_stash() {
+    for pop in [true, false] {
+        let fx = conflicting();
+        std::fs::write(fx.0.join("other.txt"), "mine\n").unwrap();
+        fx.git(&["add", "other.txt"]);
+        if pop {
+            stash_pop(&fx.0, None).unwrap();
+        } else {
+            stash_apply(&fx.0, "stash@{0}").unwrap();
+        }
+
+        stash_conflict_abort(&fx.0, "stash@{0}").unwrap();
+
+        assert_eq!(fx.read("other.txt"), "mine\n", "pop={pop}");
+        assert_eq!(status(&fx), "A  other.txt\n", "pop={pop}");
+        assert_eq!(fx.stashes().len(), 1);
+    }
+}
+
+#[test]
+fn resoudre_les_conflits_ca_17_abort_and_done_refuse_anything_but_a_stash_name() {
+    let fx = conflicting();
+    stash_pop(&fx.0, None).unwrap();
+    for bad in ["--all", "HEAD", "stash@{x}"] {
+        assert!(stash_conflict_abort(&fx.0, bad).is_err(), "{bad}");
+        assert!(list_stash_conflicts(&fx.0, bad, &[]).is_err(), "{bad}");
+    }
+    assert!(fx.git(&["ls-files", "-u"]).contains("file.txt"));
 }

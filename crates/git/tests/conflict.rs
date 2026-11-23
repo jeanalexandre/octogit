@@ -6,7 +6,8 @@ use std::process::Command;
 
 use octogit_git::{
     abort_merge, continue_merge, continue_merge_with_home, list_conflicts, merge,
-    read_conflict_file, resolve_conflict_file, ConflictGroup,
+    read_conflict_file, resolve_conflict_file, resolve_unmergeable, ConflictGroup, Keep,
+    NonMergeable,
 };
 
 struct Fixture {
@@ -480,4 +481,165 @@ fn resoudre_les_conflits_ca_21_commit_and_amend_are_refused_during_a_merge() {
     }
     assert_eq!(fx.git(&["rev-parse", "HEAD"]), head);
     assert!(fx.root.join(".git/MERGE_HEAD").exists());
+}
+
+fn kind_of(fx: &Fixture, file: &str) -> Option<NonMergeable> {
+    list_conflicts(fx.path(), "feature/profiles", &[])
+        .unwrap()
+        .files
+        .into_iter()
+        .find(|f| f.path == file)
+        .unwrap_or_else(|| panic!("{file} is listed"))
+        .kind
+}
+
+fn group_of(fx: &Fixture, file: &str, seen: &[&str]) -> ConflictGroup {
+    let seen: Vec<String> = seen.iter().map(|s| s.to_string()).collect();
+    list_conflicts(fx.path(), "feature/profiles", &seen)
+        .unwrap()
+        .files
+        .into_iter()
+        .find(|f| f.path == file)
+        .unwrap_or_else(|| panic!("{file} is listed"))
+        .group
+}
+
+/// `d.txt` supprimé côté `feature/profiles` et modifié côté `develop` (courante) ; `r.txt` renommé des deux côtés
+/// vers des noms différents. Le merge de `feature/profiles` reste en cours.
+fn unmergeable_merge() -> Fixture {
+    let fx = Fixture::empty();
+    fx.write("d.txt", b"d1\nd2\nd3\n");
+    fx.write("r.txt", b"r1\nr2\nr3\nr4\nr5\n");
+    fx.commit("Base");
+    fx.git(&["checkout", "-q", "-b", "feature/profiles"]);
+    fx.git(&["rm", "-q", "d.txt"]);
+    fx.git(&["mv", "r.txt", "theirs-name.txt"]);
+    fx.git(&["commit", "-q", "-m", "Feature"]);
+    fx.git(&["checkout", "-q", "develop"]);
+    fx.write("d.txt", b"d1\nd2 ours\nd3\n");
+    fx.git(&["mv", "r.txt", "ours-name.txt"]);
+    fx.commit("Develop");
+    assert!(
+        merge(fx.path(), "feature/profiles", "develop")
+            .unwrap()
+            .conflict
+    );
+    fx
+}
+
+fn renamed(fx: &Fixture) -> Vec<String> {
+    list_conflicts(fx.path(), "feature/profiles", &[])
+        .unwrap()
+        .files
+        .into_iter()
+        .filter(|f| f.kind == Some(NonMergeable::Renamed))
+        .map(|f| f.path)
+        .collect()
+}
+
+#[test]
+fn resoudre_les_conflits_ca_20_each_unmergeable_file_gets_its_kind() {
+    let fx = Fixture::new();
+    assert_eq!(kind_of(&fx, "bin.dat"), Some(NonMergeable::Binary));
+    assert_eq!(kind_of(&fx, "a.txt"), None);
+
+    let fx = unmergeable_merge();
+    assert_eq!(kind_of(&fx, "d.txt"), Some(NonMergeable::DeletedOnOneSide));
+    assert!(!renamed(&fx).is_empty());
+}
+
+#[test]
+fn resoudre_les_conflits_ca_20_keep_ours_and_keep_theirs_write_the_whole_file_and_stage_it() {
+    let fx = Fixture::new();
+    resolve_unmergeable(fx.path(), "bin.dat", Keep::Theirs).unwrap();
+    assert_eq!(
+        std::fs::read(fx.root.join("bin.dat")).unwrap(),
+        b"\x00theirs\n"
+    );
+    assert_eq!(fx.git(&["ls-files", "-u", "bin.dat"]), "", "indexed");
+    assert_eq!(
+        group_of(&fx, "bin.dat", &["bin.dat"]),
+        ConflictGroup::Resolved
+    );
+
+    let fx = Fixture::new();
+    resolve_unmergeable(fx.path(), "bin.dat", Keep::Ours).unwrap();
+    assert_eq!(
+        std::fs::read(fx.root.join("bin.dat")).unwrap(),
+        b"\x00ours\n"
+    );
+    assert_eq!(fx.git(&["ls-files", "-u", "bin.dat"]), "");
+    assert_eq!(
+        group_of(&fx, "bin.dat", &["bin.dat"]),
+        ConflictGroup::Resolved
+    );
+}
+
+#[test]
+fn resoudre_les_conflits_ca_20_delete_removes_a_file_deleted_on_one_side_and_only_then() {
+    let fx = Fixture::new();
+    assert!(resolve_unmergeable(fx.path(), "bin.dat", Keep::Delete).is_err());
+    assert!(fx.root.join("bin.dat").exists());
+    assert!(
+        resolve_unmergeable(fx.path(), "a.txt", Keep::Ours).is_err(),
+        "a mergeable file"
+    );
+
+    let fx = unmergeable_merge();
+    resolve_unmergeable(fx.path(), "d.txt", Keep::Delete).unwrap();
+    assert!(!fx.root.join("d.txt").exists());
+    assert_eq!(fx.git(&["ls-files", "d.txt"]), "");
+    assert_eq!(group_of(&fx, "d.txt", &["d.txt"]), ConflictGroup::Resolved);
+
+    let fx = unmergeable_merge();
+    resolve_unmergeable(fx.path(), "d.txt", Keep::Ours).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(fx.root.join("d.txt")).unwrap(),
+        "d1\nd2 ours\nd3\n"
+    );
+    assert_eq!(fx.git(&["ls-files", "-u", "d.txt"]), "");
+}
+
+#[test]
+fn resoudre_les_conflits_ca_20_a_renamed_file_is_resolved_by_keeping_a_side_and_never_deleted() {
+    let fx = unmergeable_merge();
+    let files = renamed(&fx);
+    for file in &files {
+        assert!(
+            resolve_unmergeable(fx.path(), file, Keep::Delete).is_err(),
+            "{file}"
+        );
+    }
+    for file in &files {
+        resolve_unmergeable(fx.path(), file, Keep::Ours).unwrap();
+    }
+    assert!(renamed(&fx).is_empty());
+}
+
+#[test]
+fn resoudre_les_conflits_ca_20_a_path_outside_the_repository_is_refused() {
+    let fx = Fixture::new();
+    for bad in ["../x", "-x", "/etc/passwd", ""] {
+        assert!(
+            resolve_unmergeable(fx.path(), bad, Keep::Ours).is_err(),
+            "{bad}"
+        );
+    }
+}
+
+#[test]
+fn resoudre_les_conflits_ca_6_a_file_resolved_at_the_terminal_moves_to_resolved_without_another_gesture(
+) {
+    let fx = Fixture::new();
+    let seen = ["a.txt", "b.txt", "bin.dat"];
+    assert_eq!(group_of(&fx, "a.txt", &seen), ConflictGroup::Conflicted);
+    fx.write("a.txt", b"fixed in an editor\n");
+    // Enregistré dans l'éditeur : la lecture suivante rend le nouveau contenu.
+    assert_eq!(
+        read_conflict_file(fx.path(), "a.txt").unwrap().result,
+        "fixed in an editor\n"
+    );
+    fx.git(&["add", "a.txt"]);
+    assert_eq!(group_of(&fx, "a.txt", &seen), ConflictGroup::Resolved);
+    assert_eq!(group_of(&fx, "b.txt", &seen), ConflictGroup::Conflicted);
 }

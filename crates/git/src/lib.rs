@@ -32,8 +32,9 @@ pub use clone::{
     clone, clone_with, github_ssh_url, parse_progress, CloneError, CloneProgress, CLONE_TIMEOUT,
 };
 pub use conflict::{
-    list_conflicts, read_conflict_file, resolve_conflict_file, ConflictContent, ConflictEntry,
-    ConflictGroup, ConflictList, ConflictSide,
+    list_conflicts, list_stash_conflicts, read_conflict_file, resolve_conflict_file,
+    resolve_unmergeable, ConflictContent, ConflictEntry, ConflictGroup, ConflictList, ConflictSide,
+    Keep, NonMergeable,
 };
 pub use diff::{
     read_file_diff, read_working_diff, DiffLine, DiffLineKind, FileDiff, FileDiffContent,
@@ -54,7 +55,9 @@ pub use push::{push, PushError};
 pub use reset::{reset_branch, reset_hard, reset_hard_loss, LostCommit, ResetLoss, ResetMode};
 pub use rewrite::{rewrite_identity, RewriteError, RewriteTarget};
 pub use stage::{discard_file, stage_file, stage_lines, unstage_file, unstage_lines};
-pub use stash::{stash_apply, stash_drop, stash_pop, stash_push};
+pub use stash::{
+    stash_apply, stash_conflict_abort, stash_conflict_done, stash_drop, stash_pop, stash_push,
+};
 pub use unpushed::{read_unpushed, UnpushedCommit};
 pub use working_tree::{
     amend_message, amend_message_with_home, commit, commit_with_home, read_working_tree, stage_all,

@@ -263,14 +263,45 @@ describe("resoudre-les-conflits CA-5 : Mark as resolved sends Result", () => {
   });
 });
 
-describe("decision 2 : a file that is not mergeable", () => {
-  it("says so, shows no Result and leaves Mark as resolved unavailable", () => {
-    open({ content: { mergeable: false, ours: "", theirs: "", result: "" } });
+describe("resoudre-les-conflits CA-20 : a file that is not mergeable", () => {
+  const unmergeable = { mergeable: false, ours: "", theirs: "", result: "" };
+  const choices = () =>
+    screen
+      .getAllByRole("button")
+      .map((b) => b.textContent?.trim())
+      .filter((t) => t?.startsWith("Keep") || t === "Delete");
 
-    expect(screen.getByText("Not mergeable yet.")).toBeTruthy();
+  it("shows no Result and no Mark as resolved, only whole-file choices", () => {
+    open({ content: unmergeable, kind: "binary" });
+
     expect(screen.queryByRole("textbox", { name: "Result" })).toBeNull();
-    expect(
-      (screen.getByRole("button", { name: "Mark as resolved" }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "Mark as resolved" })).toBeNull();
+    expect(screen.getByText("binary file")).toBeTruthy();
+    expect(choices()).toEqual(["Keep ours", "Keep theirs"]);
+  });
+
+  it("offers Delete only when one side deleted the file", () => {
+    open({ content: unmergeable, kind: "deletedOnOneSide" });
+
+    expect(screen.getByText("deleted on one side")).toBeTruthy();
+    expect(choices()).toEqual(["Keep ours", "Keep theirs", "Delete"]);
+  });
+
+  it("a renamed file gets Keep ours and Keep theirs without Result", () => {
+    open({ content: unmergeable, kind: "renamed" });
+
+    expect(screen.getByText("renamed")).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: "Result" })).toBeNull();
+    expect(choices()).toEqual(["Keep ours", "Keep theirs"]);
+  });
+
+  it("gives the choice to the parent", async () => {
+    const onkeep = vi.fn();
+    open({ content: unmergeable, kind: "deletedOnOneSide", onkeep });
+
+    await fireEvent.click(screen.getByRole("button", { name: "Keep ours" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(onkeep.mock.calls).toEqual([["ours"], ["delete"]]);
   });
 });

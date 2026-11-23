@@ -693,3 +693,205 @@ test("resoudre-les-conflits CA-15 : un cherry-pick et un revert lancés au termi
   await backInOctogit(page);
   await expect(banner(page)).toHaveCount(0);
 });
+
+const stashRow = (page: Page, name: string) =>
+  page.getByRole("navigation", { name: "Branches" }).getByRole("button", { name });
+const stashList = (repo: string) => ws.git(repo, "stash", "list", "--format=%gd %s").trim();
+
+/** Fixture `conflict-stash` : `stash@{0}` entre en conflit sur `main` ; le Pop ou l'Apply est lancé par le menu. */
+async function openAndRestore(page: Page, action: "Pop" | "Apply") {
+  const repo = ws.repo("conflict-stash");
+  ws.attachWork(repo, FIXTURE_IDENTITY);
+  ws.rememberRecent([repo]);
+  await page.goto(ws.urlWithFetchInterval(3_600_000));
+  await expect(stashRow(page, "stash@{0}")).toBeVisible();
+  await stashRow(page, "stash@{0}").click({ button: "right" });
+  await page.getByRole("menuitem", { name: action, exact: true }).click();
+  await expect(resolver(page)).toBeVisible();
+  return repo;
+}
+
+/** Résout les quatre fichiers (binaire, texte, supprimé d'un côté, texte) dans l'ordre où l'écran les propose. */
+async function resolveStashFiles(page: Page) {
+  await button(page, "Keep theirs").click();
+  await expect(resolver(page).getByText("Resolved · 1")).toBeVisible();
+  await button(page, "Take all theirs").click();
+  await button(page, "Mark as resolved").click();
+  await expect(resolver(page).getByText("Resolved · 2")).toBeVisible();
+  await button(page, "Delete").click();
+  await expect(resolver(page).getByText("Resolved · 3")).toBeVisible();
+  await button(page, "Take all theirs").click();
+  await button(page, "Mark as resolved").click();
+  await expect(resolver(page).getByText("Resolved · 4")).toBeVisible();
+}
+
+for (const size of sizes) {
+  test(`resoudre-les-conflits CA-17 : un Pop en conflit ouvre ConflictResolver avec Abort et Done, Done reste désactivé tant qu'un fichier est en conflit, puis désindexe et garde le stash (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const repo = await openAndRestore(page, "Pop");
+
+    await expect(banner(page)).toContainText(
+      "Pop in progress · stash@{0} into main · 4 files left",
+    );
+    await expect(resolver(page).getByText("Conflicted · 4")).toBeVisible();
+    await expect(resolver(page).getByText("Resolved · 0")).toBeVisible();
+    await expect(resolver(page).getByText(/^Auto-merged · [1-9]/)).toBeVisible();
+    await expect(bannerButton(page, "Abort pop")).toBeEnabled();
+    await expect(bannerButton(page, "Done")).toBeDisabled();
+    await expect(button(page, "Done")).toBeDisabled();
+    await expect(banner(page).getByRole("button", { name: /Continue/ })).toHaveCount(0);
+    expect(stashList(repo)).toContain("park the wip");
+
+    await resolveStashFiles(page);
+    await expect(banner(page)).toContainText("0 files left");
+    await expect(bannerButton(page, "Done")).toBeEnabled();
+    await expect(button(page, "Done")).toBeEnabled();
+    await bannerButton(page, "Done").click();
+
+    await expect(banner(page)).toHaveCount(0);
+    await expect(resolver(page)).toHaveCount(0);
+    const status = ws.git(repo, "status", "--porcelain");
+    // Tout revient non indexé, comme après un Pop sans conflit (`ws.git` rogne l'espace de la première ligne).
+    expect(ws.git(repo, "diff", "--cached", "--name-only")).toBe("");
+    expect(ws.git(repo, "ls-files", "-u")).toBe("");
+    for (const line of [
+      "M settings.txt",
+      "M notes.txt",
+      "M logo.bin",
+      " D old.txt",
+      "?? scratch.txt",
+    ])
+      expect(status).toContain(line);
+    expect(readFileSync(join(repo, "settings.txt"), "utf8")).toContain("first stash");
+    expect(stashList(repo)).toContain("park the wip");
+    await expect(stashRow(page, "stash@{0}")).toBeVisible();
+  });
+
+  test(`resoudre-les-conflits CA-17, CA-19 : Abort d'un Apply avec un fichier résolu demande « Abort apply? », confirmer remet les fichiers touchés et garde le stash (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const repo = await openAndRestore(page, "Apply");
+    await expect(banner(page)).toContainText("Apply in progress · stash@{0} into main");
+    await button(page, "Keep theirs").click();
+    await expect(resolver(page).getByText("Resolved · 1")).toBeVisible();
+
+    await bannerButton(page, "Abort apply").click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Abort apply?" })).toBeVisible();
+    await expect(dialog).toContainText("1 resolved file will be lost.");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(banner(page)).toBeVisible();
+    expect(ws.git(repo, "status", "--porcelain")).toContain("UU settings.txt");
+
+    await bannerButton(page, "Abort apply").click();
+    await dialog.getByRole("button", { name: "Abort apply" }).click();
+
+    await expect(banner(page)).toHaveCount(0);
+    await expect(resolver(page)).toHaveCount(0);
+    expect(ws.git(repo, "status", "--porcelain")).toBe("");
+    expect(existsSync(join(repo, "scratch.txt"))).toBe(false);
+    expect(stashList(repo)).toContain("park the wip");
+  });
+
+  test(`resoudre-les-conflits CA-17, CA-19 : Abort d'un Pop sans fichier résolu agit sans confirmation, les fichiers touchés reviennent et le stash reste (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const repo = await openAndRestore(page, "Pop");
+
+    await bannerButton(page, "Abort pop").click();
+
+    await expect(banner(page)).toHaveCount(0);
+    await expect(resolver(page)).toHaveCount(0);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(ws.git(repo, "status", "--porcelain")).toBe("");
+    expect(existsSync(join(repo, "scratch.txt"))).toBe(false);
+    expect(readFileSync(join(repo, "old.txt"), "utf8")).toBe("old main\n");
+    expect(stashList(repo)).toContain("park the wip");
+  });
+
+  test(`resoudre-les-conflits CA-20 : un binaire n'a que Keep ours et Keep theirs, un fichier supprimé d'un côté a aussi Delete, aucun n'a de Result (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const repo = await openAndRestore(page, "Pop");
+
+    // `logo.bin` est le premier fichier de la liste.
+    await expect(fileButton(page, "logo.bin")).toHaveAttribute("aria-current", "true");
+    await expect(resolver(page).getByText("binary file")).toBeVisible();
+    await expect(resultBox(page)).toHaveCount(0);
+    await expect(button(page, "Keep ours")).toBeVisible();
+    await expect(button(page, "Keep theirs")).toBeVisible();
+    await expect(button(page, "Delete")).toHaveCount(0);
+
+    await fileButton(page, "old.txt").click();
+    await expect(resolver(page).getByText("deleted on one side")).toBeVisible();
+    await expect(resultBox(page)).toHaveCount(0);
+    await expect(button(page, "Delete")).toBeVisible();
+
+    await button(page, "Delete").click();
+    await expect(resolver(page).getByText("Resolved · 1")).toBeVisible();
+    expect(existsSync(join(repo, "old.txt"))).toBe(false);
+    expect(ws.git(repo, "ls-files", "old.txt")).toBe("");
+
+    await fileButton(page, "logo.bin").click();
+    await button(page, "Keep ours").click();
+    await expect(resolver(page).getByText("Resolved · 2")).toBeVisible();
+    expect(readFileSync(join(repo, "logo.bin"))).toEqual(Buffer.from("\u0000main\n"));
+    expect(ws.git(repo, "ls-files", "-u", "logo.bin")).toBe("");
+  });
+}
+
+test("resoudre-les-conflits CA-6 : Open in external editor demande l'ouverture du fichier, Result suit le fichier enregistré au retour, un fichier résolu au terminal passe dans Resolved", async ({
+  page,
+}) => {
+  const repo = await openAndRestore(page, "Pop");
+  await fileButton(page, "settings.txt").click();
+  await expect(resultBox(page)).toBeVisible();
+
+  await button(page, "Open in external editor").click();
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { __octogitOpened?: string[] }).__octogitOpened),
+    )
+    .toEqual([expect.stringMatching(/\/settings\.txt$/)]);
+
+  // Saisie non enregistrée, puis fichier enregistré dans l'éditeur : au retour Result affiche le disque.
+  await resultBox(page).fill("typing that is not saved\n");
+  writeFileSync(join(repo, "settings.txt"), "saved in the editor\n");
+  await backInOctogit(page);
+  await expect(resultBox(page)).toHaveValue("saved in the editor\n");
+
+  // Résolu au terminal (`git add`) : Resolved, sans autre geste.
+  writeFileSync(join(repo, "notes.txt"), "note resolved\n");
+  ws.terminal(repo, "add", "notes.txt");
+  await backInOctogit(page);
+  await expect(resolver(page).getByText("Resolved · 1")).toBeVisible();
+  await expect(resolver(page).getByText("Conflicted · 3")).toBeVisible();
+  await expect(banner(page)).toContainText("3 files left");
+});
+
+test("resoudre-les-conflits décision 1 : un Pop en conflit n'est tenu qu'en mémoire, après un rechargement le bandeau a disparu et les fichiers restent « Conflict »", async ({
+  page,
+}) => {
+  const repo = await openAndRestore(page, "Pop");
+  await expect(banner(page)).toBeVisible();
+
+  await page.reload();
+
+  await expect(stashRow(page, "stash@{0}")).toBeVisible();
+  await expect(banner(page)).toHaveCount(0);
+  await expect(resolver(page)).toHaveCount(0);
+  const unstaged = page
+    .getByRole("region", { name: "Working changes" })
+    .getByRole("list", { name: "Unstaged" });
+  await expect(unstaged).toContainText("Conflict");
+  expect(ws.git(repo, "ls-files", "-u")).toContain("settings.txt");
+  expect(stashList(repo)).toContain("park the wip");
+});

@@ -9,8 +9,9 @@
   import GitMerge from "@lucide/svelte/icons/git-merge";
   import Play from "@lucide/svelte/icons/play";
   import X from "@lucide/svelte/icons/x";
-  import type { OperationKindView, OperationStepView } from "../bindings";
-  import { OPERATION_NAME } from "../operation";
+  import Check from "@lucide/svelte/icons/check";
+  import type { OperationStepView } from "../bindings";
+  import { isStashOperation, OPERATION_NAME, type OperationKind } from "../operation";
 
   let {
     kind = "merge",
@@ -27,8 +28,8 @@
     onabort,
   }: {
     /** Merge, rebase, cherry-pick ou revert, lancé dans Octogit ou au terminal. */
-    kind?: OperationKindView;
-    /** Merge : branche fusionnée ; rebase : base ; cherry-pick et revert : SHA abrégé du commit. */
+    kind?: OperationKind;
+    /** Merge : branche fusionnée ; rebase : base ; cherry-pick et revert : SHA abrégé du commit ; Pop, Apply : le stash. */
     other: string;
     /** Branche qui reçoit (la courante, ou la branche rejouée d'un rebase). */
     receiving: string;
@@ -56,7 +57,10 @@
     if (ready) oncontinue();
   }
   const name = $derived(OPERATION_NAME[kind]);
+  /** Pop ou Apply en conflit : Done à la place de Continue. */
+  const stash = $derived(isStashOperation(kind));
   const what = $derived.by(() => {
+    if (stash) return `${other} into ${receiving}`;
     if (kind === "rebase") return `${receiving} onto ${other}`;
     if (kind === "cherryPick") return `${other} onto ${receiving}`;
     if (kind === "revert") return `${other} on ${receiving}`;
@@ -93,7 +97,11 @@
     <X size={16} strokeWidth={1.8} aria-hidden="true" />Abort {name}
   </button>
   <button type="button" class="primary" disabled={!ready} onclick={continueNow}>
-    <Play size={16} strokeWidth={1.8} aria-hidden="true" />Continue {name}
+    {#if stash}
+      <Check size={16} strokeWidth={1.8} aria-hidden="true" />Done
+    {:else}
+      <Play size={16} strokeWidth={1.8} aria-hidden="true" />Continue {name}
+    {/if}
   </button>
 </div>
 

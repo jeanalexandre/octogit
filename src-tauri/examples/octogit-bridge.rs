@@ -140,6 +140,10 @@ struct ConflictArgs {
     file: String,
     #[serde(default)]
     content: String,
+    #[serde(default)]
+    stash: Option<String>,
+    #[serde(default)]
+    keep: Option<octogit_app::conflict::KeepView>,
 }
 
 #[derive(Deserialize)]
@@ -747,6 +751,76 @@ fn main() {
                 &args.seen,
             ) {
                 Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "list_stash_conflicts" => {
+            let args: ConflictArgs =
+                serde_json::from_str(&input).expect("arguments { path, stash, seen }");
+            match octogit_app::conflict::list_stash_conflicts(
+                std::path::Path::new(&args.path),
+                &args.stash.expect("argument stash"),
+                &args.seen,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "resolve_stash_conflict_file" => {
+            let args: ConflictArgs = serde_json::from_str(&input)
+                .expect("arguments { path, file, content, stash, seen }");
+            match octogit_app::conflict::resolve_stash_conflict_file(
+                std::path::Path::new(&args.path),
+                &args.file,
+                &args.content,
+                &args.stash.expect("argument stash"),
+                &args.seen,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "resolve_unmergeable" => {
+            let args: ConflictArgs = serde_json::from_str(&input)
+                .expect("arguments { path, file, keep, theirsName, stash, seen }");
+            match octogit_app::conflict::resolve_unmergeable(
+                std::path::Path::new(&args.path),
+                &args.file,
+                args.keep.expect("argument keep"),
+                &args.theirs_name,
+                args.stash.as_deref(),
+                &args.seen,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "finish_stash_conflict" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            match octogit_app::working_tree::finish_stash_conflict(std::path::Path::new(&args.path))
+            {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "abort_stash_conflict" => {
+            let args: ConflictArgs =
+                serde_json::from_str(&input).expect("arguments { path, stash }");
+            match octogit_app::working_tree::abort_stash_conflict(
+                std::path::Path::new(&args.path),
+                &args.stash.expect("argument stash"),
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        // `open_file_in_default_app` : aucune application ne s'ouvre dans le navigateur ; le pont du navigateur
+        // demande ici le chemin complet validé (comme la commande réelle) et le range dans `window.__octogitOpened`.
+        "openable_path" => {
+            let args: ConflictArgs =
+                serde_json::from_str(&input).expect("arguments { path, file }");
+            match octogit_platform::openable_path(std::path::Path::new(&args.path), &args.file) {
+                Ok(full) => (serde_json::to_string(&full.to_string_lossy()), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }
         }

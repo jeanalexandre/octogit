@@ -7,7 +7,13 @@
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import Merge from "@lucide/svelte/icons/merge";
   import { untrack } from "svelte";
-  import type { ConflictContentView, ConflictSideView } from "../bindings";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import type {
+    ConflictContentView,
+    ConflictSideView,
+    KeepView,
+    NonMergeableView,
+  } from "../bindings";
   import {
     blockCounter,
     conflictLines,
@@ -28,10 +34,16 @@
     oursLane,
     theirsLane,
     busy = false,
+    kind = null,
     onresolve,
+    onkeep,
   }: {
     file: string;
     content: ConflictContentView;
+    /** Pourquoi le fichier n'est pas fusionnable (sans Result) ; `null` s'il l'est. */
+    kind?: NonMergeableView | null;
+    /** Keep ours, Keep theirs ou Delete : le fichier entier, pour un fichier non fusionnable. */
+    onkeep?: (keep: KeepView) => void;
     /** Branche courante : nom et SHA abrégé. */
     ours: ConflictSideView;
     /** Branche fusionnée : nom et SHA abrégé. */
@@ -112,18 +124,34 @@
     }
   }
 
+  /** Libellés lisibles sans la couleur. */
+  const KIND_LABEL: Record<NonMergeableView, string> = {
+    binary: "binary file",
+    deletedOnOneSide: "deleted on one side",
+    renamed: "renamed",
+  };
   const resolvable = $derived(content.mergeable && !markers && !busy);
 </script>
 
 <section class="pane" aria-label={file}>
   {#if !content.mergeable}
-    <p class="notice">Not mergeable yet.</p>
     <div class="bar">
       <span class="path">{file}</span>
-      <span class="grow"></span>
-      <button type="button" class="control primary" disabled>
-        <Check size={16} strokeWidth={1.8} aria-hidden="true" />Mark as resolved
-      </button>
+      <span class="kind">{KIND_LABEL[kind ?? "binary"]}</span>
+    </div>
+    <p class="notice">No Result to edit : keep one version of the whole file.</p>
+    <div class="bar" role="group" aria-label="Keep a version of the whole file">
+      <button type="button" class="control" disabled={busy} onclick={() => onkeep?.("ours")}
+        ><ArrowLeft size={16} strokeWidth={1.8} aria-hidden="true" />Keep ours</button
+      >
+      <button type="button" class="control" disabled={busy} onclick={() => onkeep?.("theirs")}
+        ><ArrowRight size={16} strokeWidth={1.8} aria-hidden="true" />Keep theirs</button
+      >
+      {#if kind === "deletedOnOneSide"}
+        <button type="button" class="control" disabled={busy} onclick={() => onkeep?.("delete")}
+          ><Trash2 size={16} strokeWidth={1.8} aria-hidden="true" />Delete</button
+        >
+      {/if}
     </div>
   {:else}
     <div class="bar">
@@ -256,6 +284,13 @@
     font-family: ui-monospace, "SF Mono", monospace;
     font-size: 12px;
     font-weight: 600;
+  }
+
+  .kind {
+    padding: 1px 8px;
+    border: 1px solid var(--warning);
+    border-radius: 7px;
+    font-size: 12px;
   }
 
   .band {

@@ -7,7 +7,8 @@
  * Le sélecteur de dossier natif n'existe pas dans le navigateur : `choose_folder` rend le dossier
  * posé par le test dans `window.__octogitChosenFolder` (`null` : sélecteur annulé) ; de même
  * `choose_ssh_key` rend le fichier posé dans `window.__octogitChosenFile`.
- * `copy_public_key` range la clé publique dans `window.__octogitClipboard` au lieu du presse-papiers.
+ * `copy_public_key` range la clé publique dans `window.__octogitClipboard` au lieu du presse-papiers ;
+ * `open_file_in_default_app` range le chemin complet demandé dans `window.__octogitOpened` (aucune application ne s'ouvre).
  */
 const params = new URLSearchParams(window.location.search);
 const dataDir = params.get("data_dir");
@@ -36,6 +37,7 @@ declare global {
     __octogitChosenFolder?: string | null;
     __octogitChosenFile?: string | null;
     __octogitClipboard?: string;
+    __octogitOpened?: string[];
   }
 }
 
@@ -160,6 +162,12 @@ async function call(command: string, args?: unknown): Promise<unknown> {
     if (command === "choose_ssh_key") return window.__octogitChosenFile ?? null;
     if (command === "copy_public_key") {
       window.__octogitClipboard = (await call("read_public_key", args)) as string;
+      return null;
+    }
+    if (command === "open_file_in_default_app") {
+      // Chromium n'ouvre aucune application : le chemin complet validé est rangé, le test le vérifie.
+      const full = (await call("openable_path", args)) as string;
+      (window.__octogitOpened ??= []).push(full);
       return null;
     }
     return call(command, args);

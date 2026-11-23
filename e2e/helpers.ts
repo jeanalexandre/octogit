@@ -47,6 +47,7 @@ export class Workspace {
       | "layout"
       | "conflict"
       | "conflict-merge"
+      | "conflict-stash"
       | "conflict-rebase"
       | "conflict-pick"
       | "identity"

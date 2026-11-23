@@ -24,6 +24,13 @@ Rappel, repris de CA-19 (S-39) : l'Abort d'un Pop ou d'un Apply avec au moins un
 1. Pop / Apply en conflit après fermeture d'Octogit ou changement de dépôt : 1a, état tenu en mémoire seulement, bandeau disparu au redémarrage, fichiers toujours « Conflict » dans `WorkingChanges`
 2. Open in external editor et Result non enregistré : 2a, fichier ouvert tel que sur disque, Result remplacé au retour seulement si le fichier a changé, saisies non enregistrées perdues
 
+### Après la revue 1
+- Done désindexe aussi des fichiers sans lien avec le stash : pris en compte (pour information)
+- Rename/rename en merge classé « deleted on one side » : pris en compte (pour information)
+
+### Après la revue 2
+- Done désindexe tout l'index : déjà consigné, pris en compte (pour information)
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test aux vraies commandes du crate `app`, dépôts d'exemple, données dans un dossier temporaire) ; jamais `npx playwright` ni `cargo run`
@@ -78,7 +85,11 @@ Rappel, repris de CA-19 (S-39) : l'Abort d'un Pop ou d'un Apply avec au moins un
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `296e29f`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; tests, lint, build, e2e verts ; écarts mineurs (champ `kind` sur `ConflictEntry` prévu par la fiche, pas de permission `opener` côté front) | — |
+| 2 | reviewer | 1 bloquant : Abort de Pop/Apply efface du travail indexé sans lien avec le stash (`stash_conflict_abort`) ; 2 pour information (`stories/S-41-revue-1.md`) | à corriger |
+| 3 | dev | passage 2 : bloquant corrigé (`stash_conflict_abort`), test ajouté avec rouge constaté ; tests, lint, build, e2e verts | — |
+| 4 | reviewer | bloquant levé, aucun problème (`stories/S-41-revue-2.md`) | validé |

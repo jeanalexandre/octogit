@@ -8,6 +8,7 @@ use tauri::plugin::TauriPlugin;
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 
 /// Plugin `dialog` de Tauri, à enregistrer au démarrage de l'application.
 pub fn dialog_plugin<R: Runtime>() -> TauriPlugin<R> {
@@ -17,6 +18,45 @@ pub fn dialog_plugin<R: Runtime>() -> TauriPlugin<R> {
 /// Plugin `clipboard-manager` de Tauri, à enregistrer au démarrage de l'application.
 pub fn clipboard_plugin<R: Runtime>() -> TauriPlugin<R> {
     tauri_plugin_clipboard_manager::init()
+}
+
+/// Plugin `opener` de Tauri, à enregistrer au démarrage de l'application.
+pub fn opener_plugin<R: Runtime>() -> impl tauri::plugin::Plugin<R> {
+    tauri_plugin_opener::init()
+}
+
+/// Chemin complet d'un fichier existant du dépôt `repo` ; refusé s'il sort du dépôt (`..`, chemin absolu, lien
+/// symbolique vers l'extérieur), commence par `-`, n'existe pas ou n'est pas un fichier.
+pub fn openable_path(repo: &Path, file: &str) -> Result<PathBuf, String> {
+    let refused = || format!("{file} is not a file of the repository.");
+    let relative = Path::new(file);
+    let plain = !file.is_empty()
+        && !file.starts_with('-')
+        && relative
+            .components()
+            .all(|c| matches!(c, std::path::Component::Normal(_)));
+    if !plain {
+        return Err(refused());
+    }
+    let root = repo.canonicalize().map_err(|_| refused())?;
+    let full = root.join(relative).canonicalize().map_err(|_| refused())?;
+    if full.starts_with(&root) && full.is_file() {
+        Ok(full)
+    } else {
+        Err(refused())
+    }
+}
+
+/// Ouvre un fichier du dépôt dans l'application par défaut de macOS pour son type. Erreur d'une ligne sinon.
+pub fn open_in_default_app<R: Runtime>(
+    app: &AppHandle<R>,
+    repo: &Path,
+    file: &str,
+) -> Result<(), String> {
+    let full = openable_path(repo, file)?;
+    app.opener()
+        .open_path(full.to_string_lossy(), None::<&str>)
+        .map_err(|_| format!("{file} could not be opened."))
 }
 
 /// Sélecteur de dossier natif ; `None` si l'utilisateur annule. Bloque le fil appelant :
@@ -106,6 +146,41 @@ impl PassphraseStore for MemoryPassphraseStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("octogit-platform-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("repo/sub")).unwrap();
+        std::fs::write(dir.join("repo/sub/a.txt"), "a\n").unwrap();
+        std::fs::write(dir.join("secret.txt"), "secret\n").unwrap();
+        dir
+    }
+
+    #[test]
+    fn resoudre_les_conflits_ca_6_only_an_existing_file_inside_the_repository_can_be_opened() {
+        let dir = scratch("open");
+        let repo = dir.join("repo");
+        let ok = openable_path(&repo, "sub/a.txt").unwrap();
+        assert!(ok.ends_with("sub/a.txt"));
+        for bad in [
+            "../secret.txt",
+            "/etc/passwd",
+            "-x",
+            "",
+            "sub/missing.txt",
+            "sub",
+            "sub/../../secret.txt",
+        ] {
+            assert!(openable_path(&repo, bad).is_err(), "{bad}");
+        }
+        std::os::unix::fs::symlink(dir.join("secret.txt"), repo.join("link.txt")).unwrap();
+        assert!(
+            openable_path(&repo, "link.txt").is_err(),
+            "a link out of the repository"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn the_memory_store_returns_what_was_set_per_key() {

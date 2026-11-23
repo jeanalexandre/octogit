@@ -5,6 +5,7 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+use crate::conflict::{check_path, git, no_symlink, unmerged_files};
 use crate::working_tree::{read_working_tree, remember};
 use crate::{ChangeStatus, GitError, WorkingTree};
 
@@ -27,7 +28,7 @@ fn run(path: &Path, args: &[&str]) -> Result<(bool, String), GitError> {
 }
 
 /// Seul `stash@{n}` désigne un stash : rien d'autre n'est passé à `git` (pas d'option déguisée).
-fn check_stash(name: &str) -> Result<(), GitError> {
+pub(crate) fn check_stash(name: &str) -> Result<(), GitError> {
     let digits = name
         .strip_prefix("stash@{")
         .and_then(|rest| rest.strip_suffix('}'));
@@ -86,6 +87,86 @@ fn restore(path: &Path, args: &[&str]) -> Result<WorkingTree, GitError> {
         Ok(tree)
     } else {
         Err(GitError::Read(raw))
+    }
+}
+
+/// Done d'un Pop ou d'un Apply en conflit : les fichiers résolus sont désindexés, comme après un Pop sans conflit
+/// (tout revient non indexé). Le stash reste dans la liste. Refusé tant qu'un fichier est en conflit.
+pub fn stash_conflict_done(path: &Path) -> Result<WorkingTree, GitError> {
+    if !unmerged_files(path)?.is_empty() {
+        return Err(GitError::Read("Files are still in conflict.".into()));
+    }
+    let (ok, raw) = run(path, &["reset", "-q"])?;
+    if !ok {
+        return Err(GitError::Read(raw));
+    }
+    done(path)
+}
+
+/// Noms séparés par NUL rendus par `git`, sans entrée vide.
+fn names(path: &Path, args: &[&str]) -> Vec<String> {
+    match git(path, args) {
+        Ok((true, out)) => out
+            .split(|b| *b == 0)
+            .filter(|e| !e.is_empty())
+            .map(|e| String::from_utf8_lossy(e).into_owned())
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Abort d'un Pop ou d'un Apply en conflit : les fichiers touchés par le stash (suivis, non suivis, en conflit)
+/// reviennent à leur état d'avant : fichiers suivis à `HEAD` dans l'index et l'arbre, fichiers que le stash a créés
+/// supprimés. Le stash reste dans la liste. Git refuse un Pop sur des fichiers modifiés qu'il écraserait : les
+/// fichiers touchés étaient propres.
+pub fn stash_conflict_abort(path: &Path, stash: &str) -> Result<WorkingTree, GitError> {
+    check_stash(stash)?;
+    let base = format!("{stash}^1");
+    let untracked = format!("{stash}^3");
+    let mut touched = names(path, &["diff", "--name-only", "-z", &base, stash]);
+    touched.extend(names(
+        path,
+        &["ls-tree", "-r", "--name-only", "-z", &untracked],
+    ));
+    touched.extend(unmerged_files(path)?);
+    touched.sort();
+    touched.dedup();
+    for file in &touched {
+        if check_path(file).is_err() {
+            continue;
+        }
+        let in_head = git(path, &["cat-file", "-e", &format!("HEAD:{file}")])?.0;
+        if in_head {
+            let (ok, raw) = run(path, &["checkout", "HEAD", "--", file])?;
+            if !ok {
+                return Err(GitError::Read(raw));
+            }
+        } else {
+            git(
+                path,
+                &["rm", "-q", "-f", "--cached", "--ignore-unmatch", "--", file],
+            )?;
+            remove_created(path, file);
+        }
+    }
+    done(path)
+}
+
+/// Supprime un fichier créé par le stash, puis ses dossiers devenus vides ; jamais à travers un lien symbolique.
+fn remove_created(path: &Path, file: &str) {
+    if !no_symlink(path, file) {
+        return;
+    }
+    let full = path.join(file);
+    if full.is_file() && std::fs::remove_file(&full).is_err() {
+        return;
+    }
+    let mut dir = full.parent().map(Path::to_path_buf);
+    while let Some(current) = dir {
+        if current == path || std::fs::remove_dir(&current).is_err() {
+            break;
+        }
+        dir = current.parent().map(Path::to_path_buf);
     }
 }
 

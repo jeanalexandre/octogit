@@ -21,6 +21,34 @@ function open(props: Record<string, unknown> = {}) {
 
 const continueButton = () => screen.getByRole("button", { name: "Continue merge" });
 
+describe("OperationBanner : conflit de Pop ou d'Apply", () => {
+  it("resoudre-les-conflits CA-17: a Pop names the stash and has Abort and Done, not Continue", () => {
+    open({ kind: "pop", other: "stash@{0}", receiving: "main", left: 2 });
+
+    expect(screen.getByText("Pop in progress · stash@{0} into main · 2 files left")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Abort pop" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Done" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Continue/ })).toBeNull();
+  });
+
+  it("resoudre-les-conflits CA-17: Done is disabled until no file is left in conflict", async () => {
+    const { oncontinue } = open({ kind: "apply", other: "stash@{1}", receiving: "main", left: 1 });
+    const done = screen.getByRole("button", { name: "Done" }) as HTMLButtonElement;
+    expect(done.disabled).toBe(true);
+    await fireEvent.click(done);
+    expect(oncontinue).not.toHaveBeenCalled();
+    expect(screen.getByText(/^Apply in progress/)).toBeTruthy();
+  });
+
+  it("resoudre-les-conflits CA-17: Done calls the parent once everything is resolved", async () => {
+    const { oncontinue } = open({ kind: "pop", other: "stash@{0}", receiving: "main", left: 0 });
+
+    await fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(oncontinue).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("OperationBanner", () => {
   it("resoudre-les-conflits CA-13: names the operation, both branches and the files left", () => {
     open();

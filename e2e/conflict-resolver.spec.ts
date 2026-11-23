@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { FIXTURE_IDENTITY, Workspace } from "./helpers";
 
@@ -368,3 +368,328 @@ for (const size of sizes) {
     expect(existsSync(join(repo, ".git", "MERGE_HEAD"))).toBe(true);
   });
 }
+
+const REBASING = "Rebase in progress · feature/profiles onto develop";
+
+/** Fixture `conflict-rebase` rattachée à Work : `feature/profiles` (courante) est rebasée sur `develop`, en conflit. */
+async function openAndRebase(page: Page) {
+  const repo = ws.repo("conflict-rebase");
+  ws.attachWork(repo, FIXTURE_IDENTITY);
+  ws.rememberRecent([repo]);
+  await page.goto(ws.urlWithFetchInterval(3_600_000));
+  await expect(graphRow(page, "Develop edits")).toBeVisible();
+  const head = ws.git(repo, "rev-parse", "HEAD");
+  await section(page, 0).getByRole("button", { name: "develop" }).click({ button: "right" });
+  await page
+    .getByRole("menuitem", { name: "Rebase feature/profiles onto develop", exact: true })
+    .click();
+  await expect(resolver(page)).toBeVisible();
+  return { repo, head };
+}
+
+/** Résout le seul fichier en conflit de l'étape (Take all theirs, Mark as resolved). */
+async function resolveStep(page: Page) {
+  await button(page, "Take all theirs").click();
+  await button(page, "Mark as resolved").click();
+  await expect(resolver(page).getByText("Resolved · 1")).toBeVisible();
+}
+
+/** Fixture `conflict-pick` rattachée à Work, `develop` courante. */
+async function openPick(page: Page) {
+  const repo = ws.repo("conflict-pick");
+  ws.attachWork(repo, FIXTURE_IDENTITY);
+  ws.rememberRecent([repo]);
+  await page.goto(ws.urlWithFetchInterval(3_600_000));
+  await expect(graphRow(page, "Develop edit two")).toBeVisible();
+  return repo;
+}
+
+/** Retour dans la fenêtre d'Octogit après un geste du terminal. */
+const backInOctogit = (page: Page) => page.evaluate(() => window.dispatchEvent(new Event("focus")));
+
+for (const size of sizes) {
+  test(`resoudre-les-conflits CA-1, CA-13, CA-9 : un rebase de 5 commits arrêté à l'étape 2 ouvre ConflictResolver, Continue rejoue le commit avec son auteur, « 3 / 5 », puis fin (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const { repo } = await openAndRebase(page);
+
+    await expect(banner(page)).toContainText(`${REBASING} · 2 / 5 · 1 file left`);
+    await expect(resolver(page).getByText("Conflicted · 1")).toBeVisible();
+    await expect(resolver(page).getByText("Resolved · 0")).toBeVisible();
+    await expect(resolver(page).getByText("Auto-merged · 0")).toBeVisible();
+    await expect(bannerButton(page, "Continue rebase")).toBeDisabled();
+    await expect(bannerButton(page, "Abort rebase")).toBeEnabled();
+    await fileButton(page, "settings.txt").click();
+    // Git donne Ours = la base rejouée (develop), Theirs = le commit rejoué, de la branche rejouée.
+    await expect(resolver(page).getByRole("region", { name: "Ours" })).toContainText(
+      `develop · ${sha7(repo, "HEAD")}`,
+    );
+    await expect(resolver(page).getByRole("region", { name: "Theirs" })).toContainText(
+      `feature/profiles · ${sha7(repo, "REBASE_HEAD")}`,
+    );
+    expect(existsSync(join(repo, ".git", "rebase-merge"))).toBe(true);
+    expect(ws.git(repo, "status")).toMatch(/rebas/i);
+    expect(ws.git(repo, "status", "--porcelain")).toContain("UU settings.txt");
+
+    await resolveStep(page);
+    await expect(banner(page)).toContainText("0 files left");
+    await expect(bannerButton(page, "Continue rebase")).toBeEnabled();
+    await bannerButton(page, "Continue rebase").click();
+
+    // Le commit 2 est rejoué avec son message et son auteur ; le commit 3 entre en conflit.
+    await expect(banner(page)).toContainText(`${REBASING} · 3 / 5 · 1 file left`);
+    await expect(resolver(page)).toBeVisible();
+    await expect(resolver(page).getByText("Conflicted · 1")).toBeVisible();
+    await expect(fileButton(page, "notes.txt")).toBeVisible();
+    await expect(fileButton(page, "settings.txt")).toHaveCount(0);
+    expect(ws.git(repo, "log", "-1", "--format=%an <%ae>|%cn|%s")).toBe(
+      "Carol Dev <carol@example.com>|Alice Martin|Profiles settings",
+    );
+
+    await resolveStep(page);
+    await bannerButton(page, "Continue rebase").click();
+
+    await expect(banner(page)).toHaveCount(0);
+    await expect(resolver(page)).toHaveCount(0);
+    await expect(graphRow(page, "Add five")).toBeVisible();
+    expect(existsSync(join(repo, ".git", "rebase-merge"))).toBe(false);
+    expect(ws.git(repo, "branch", "--show-current")).toBe("feature/profiles");
+    expect(ws.git(repo, "rev-list", "--count", "develop..feature/profiles")).toBe("5");
+    expect(ws.git(repo, "status", "--porcelain")).toBe("");
+    expect(ws.git(repo, "status")).not.toMatch(/rebas/i);
+  });
+
+  test(`resoudre-les-conflits CA-21 : pendant un rebase en conflit, Commit n'affiche pas « Merge in progress » (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    await openAndRebase(page);
+    await page.keyboard.press("Escape");
+    const changes = page.getByRole("region", { name: "Working changes" });
+
+    await expect(changes).toBeVisible();
+    await expect(banner(page)).toContainText(REBASING);
+    await expect(changes.getByText("Merge in progress")).toHaveCount(0);
+  });
+
+  test(`resoudre-les-conflits CA-11, CA-19 : Abort d'un rebase, avec un fichier résolu la confirmation nomme « Abort rebase? », sans fichier résolu aucune confirmation (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const { repo, head } = await openAndRebase(page);
+
+    await resolveStep(page);
+    await bannerButton(page, "Abort rebase").click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Abort rebase?" })).toBeVisible();
+    await expect(dialog).toContainText("1 resolved file will be lost.");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(existsSync(join(repo, ".git", "rebase-merge"))).toBe(true);
+
+    await bannerButton(page, "Abort rebase").click();
+    await dialog.getByRole("button", { name: "Abort rebase" }).click();
+
+    await expect(banner(page)).toHaveCount(0);
+    await expect(resolver(page)).toHaveCount(0);
+    expect(ws.git(repo, "rev-parse", "HEAD")).toBe(head);
+    expect(ws.git(repo, "branch", "--show-current")).toBe("feature/profiles");
+    expect(ws.git(repo, "status", "--porcelain")).toBe("");
+    expect(existsSync(join(repo, ".git", "rebase-merge"))).toBe(false);
+  });
+
+  test(`resoudre-les-conflits CA-11, CA-19 : Abort d'un rebase sans fichier résolu agit sans confirmation (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const { repo, head } = await openAndRebase(page);
+
+    await bannerButton(page, "Abort rebase").click();
+
+    await expect(banner(page)).toHaveCount(0);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(ws.git(repo, "rev-parse", "HEAD")).toBe(head);
+    expect(ws.git(repo, "status", "--porcelain")).toBe("");
+    expect(existsSync(join(repo, ".git", "rebase-merge"))).toBe(false);
+  });
+
+  test(`resoudre-les-conflits CA-13 : identité non conforme, Continue d'un rebase désactivé avec la raison, Abort reste actif (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const { repo } = await openAndRebase(page);
+    await resolveStep(page);
+    await expect(bannerButton(page, "Continue rebase")).toBeEnabled();
+
+    ws.setLocalConfig(repo, "user.email", "perso@example.org");
+
+    await expect(banner(page)).toContainText("Identity does not match profile Work.");
+    await expect(bannerButton(page, "Continue rebase")).toBeDisabled();
+    await expect(bannerButton(page, "Abort rebase")).toBeEnabled();
+    expect(existsSync(join(repo, ".git", "rebase-merge"))).toBe(true);
+  });
+
+  test(`resoudre-les-conflits CA-10, revenir-en-arriere CA-5 : un cherry-pick en conflit ouvre ConflictResolver, Continue crée le commit au message de Git (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const repo = await openPick(page);
+    const head = ws.git(repo, "rev-parse", "HEAD");
+    const picked = sha7(repo, "feature/profiles");
+
+    await graphRow(page, "Profiles settings").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Cherry-pick", exact: true }).click();
+
+    await expect(resolver(page)).toBeVisible();
+    await expect(banner(page)).toContainText(
+      `Cherry-pick in progress · ${picked} onto develop · 1 file left`,
+    );
+    await expect(resolver(page).getByRole("region", { name: "Ours" })).toContainText(
+      `develop · ${sha7(repo, "HEAD")}`,
+    );
+    await expect(resolver(page).getByRole("region", { name: "Theirs" })).toContainText(
+      `${picked} · ${picked}`,
+    );
+    expect(ws.git(repo, "rev-parse", "HEAD")).toBe(head);
+    expect(existsSync(join(repo, ".git", "CHERRY_PICK_HEAD"))).toBe(true);
+    expect(ws.git(repo, "status")).toMatch(/cherry/i);
+
+    await resolveStep(page);
+    await bannerButton(page, "Continue cherry-pick").click();
+
+    await expect(banner(page)).toHaveCount(0);
+    await expect(resolver(page)).toHaveCount(0);
+    expect(existsSync(join(repo, ".git", "CHERRY_PICK_HEAD"))).toBe(false);
+    expect(ws.git(repo, "rev-parse", "HEAD~1")).toBe(head);
+    expect(ws.git(repo, "log", "-1", "--format=%an|%cn|%B")).toBe(
+      "Carol Dev|Alice Martin|Profiles settings",
+    );
+    expect(ws.git(repo, "status", "--porcelain")).toBe("");
+  });
+
+  test(`resoudre-les-conflits CA-10, CA-11, CA-19 : un revert en conflit, Abort confirmé nomme « Abort revert? », Continue crée le commit de revert (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const repo = await openPick(page);
+    const head = ws.git(repo, "rev-parse", "HEAD");
+    const target = sha7(repo, "HEAD~1");
+
+    await graphRow(page, "Develop edit one").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Revert", exact: true }).click();
+
+    await expect(resolver(page)).toBeVisible();
+    await expect(banner(page)).toContainText(
+      `Revert in progress · ${target} on develop · 1 file left`,
+    );
+    expect(ws.git(repo, "rev-parse", "HEAD")).toBe(head);
+    expect(existsSync(join(repo, ".git", "REVERT_HEAD"))).toBe(true);
+    expect(ws.git(repo, "status")).toMatch(/revert/i);
+
+    await resolveStep(page);
+    await bannerButton(page, "Abort revert").click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Abort revert?" })).toBeVisible();
+    await expect(dialog).toContainText("1 resolved file will be lost.");
+    await dialog.getByRole("button", { name: "Abort revert" }).click();
+    await expect(banner(page)).toHaveCount(0);
+    expect(ws.git(repo, "rev-parse", "HEAD")).toBe(head);
+    expect(ws.git(repo, "status", "--porcelain")).toBe("");
+    expect(existsSync(join(repo, ".git", "REVERT_HEAD"))).toBe(false);
+
+    await graphRow(page, "Develop edit one").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Revert", exact: true }).click();
+    await expect(resolver(page)).toBeVisible();
+    await resolveStep(page);
+    await bannerButton(page, "Continue revert").click();
+
+    await expect(banner(page)).toHaveCount(0);
+    expect(existsSync(join(repo, ".git", "REVERT_HEAD"))).toBe(false);
+    expect(ws.git(repo, "rev-parse", "HEAD~1")).toBe(head);
+    expect(ws.git(repo, "log", "-1", "--format=%s")).toBe('Revert "Develop edit one"');
+  });
+}
+
+test("resoudre-les-conflits CA-15 : un rebase lancé au terminal est affiché à l'ouverture avec Resolve, sans ouvrir ConflictResolver, et disparaît quand il est abandonné au terminal", async ({
+  page,
+}) => {
+  const repo = ws.repo("conflict-rebase");
+  ws.attachWork(repo, FIXTURE_IDENTITY);
+  ws.terminal(repo, "rebase", "develop");
+  expect(existsSync(join(repo, ".git", "rebase-merge"))).toBe(true);
+  ws.rememberRecent([repo]);
+
+  await page.goto(ws.urlWithFetchInterval(3_600_000));
+
+  await expect(banner(page)).toContainText(`${REBASING} · 2 / 5 · 1 file left`);
+  await expect(resolver(page)).toHaveCount(0);
+  await expect(bannerButton(page, "Resolve")).toBeVisible();
+  await expect(bannerButton(page, "Continue rebase")).toBeDisabled();
+
+  await bannerButton(page, "Resolve").click();
+  await expect(resolver(page)).toBeVisible();
+  await expect(resolver(page).getByText("Conflicted · 1")).toBeVisible();
+  await bannerButton(page, "Back to graph").click();
+
+  // Le rebase avance au terminal (« 3 / 5 »), puis il y est abandonné : le bandeau suit au retour dans Octogit.
+  writeFileSync(join(repo, "settings.txt"), "header\nfirst resolved\nfooter\n");
+  ws.terminal(repo, "add", "settings.txt");
+  ws.terminal(repo, "rebase", "--continue");
+  await backInOctogit(page);
+  await expect(banner(page)).toContainText(`${REBASING} · 3 / 5`);
+  ws.terminal(repo, "rebase", "--abort");
+  await backInOctogit(page);
+  await expect(banner(page)).toHaveCount(0);
+  expect(existsSync(join(repo, ".git", "rebase-merge"))).toBe(false);
+});
+
+test("resoudre-les-conflits CA-15 : un merge lancé au terminal apparaît au retour dans Octogit, sans autre geste, et disparaît quand il y est abandonné", async ({
+  page,
+}) => {
+  const repo = ws.repo("conflict-merge");
+  ws.attachWork(repo, FIXTURE_IDENTITY);
+  ws.rememberRecent([repo]);
+  await page.goto(ws.urlWithFetchInterval(3_600_000));
+  await expect(graphRow(page, "Develop settings")).toBeVisible();
+  await expect(banner(page)).toHaveCount(0);
+
+  ws.terminal(repo, "merge", "develop");
+  await backInOctogit(page);
+
+  await expect(banner(page)).toContainText(
+    "Merge in progress · develop into feature/profiles · 2 files left",
+  );
+  await expect(resolver(page)).toHaveCount(0);
+  await expect(bannerButton(page, "Resolve")).toBeVisible();
+
+  ws.terminal(repo, "merge", "--abort");
+  await backInOctogit(page);
+  await expect(banner(page)).toHaveCount(0);
+});
+
+test("resoudre-les-conflits CA-15 : un cherry-pick et un revert lancés au terminal sont affichés, puis disparaissent quand ils y sont terminés", async ({
+  page,
+}) => {
+  const repo = await openPick(page);
+  const picked = sha7(repo, "feature/profiles");
+
+  ws.terminal(repo, "cherry-pick", "feature/profiles");
+  await backInOctogit(page);
+  await expect(banner(page)).toContainText(`Cherry-pick in progress · ${picked} onto develop`);
+  await expect(resolver(page)).toHaveCount(0);
+
+  ws.terminal(repo, "cherry-pick", "--abort");
+  await backInOctogit(page);
+  await expect(banner(page)).toHaveCount(0);
+
+  const target = sha7(repo, "HEAD~1");
+  ws.terminal(repo, "revert", "--no-edit", "HEAD~1");
+  await backInOctogit(page);
+  await expect(banner(page)).toContainText(`Revert in progress · ${target} on develop`);
+
+  ws.terminal(repo, "revert", "--abort");
+  await backInOctogit(page);
+  await expect(banner(page)).toHaveCount(0);
+});

@@ -3,15 +3,19 @@
    * Confirmation d'Abort d'un merge qui a des fichiers déjà résolus : elle nomme ce qui sera perdu. Cancel (focalisé,
    * Échap) ne change rien. Le parent garde l'état et fait l'action.
    */
-  import GitMerge from "@lucide/svelte/icons/git-merge";
   import X from "@lucide/svelte/icons/x";
+  import type { OperationKindView } from "../bindings";
+  import { OPERATION_NAME } from "../operation";
 
   let {
+    kind = "merge",
     resolved,
     busy = false,
     onabort,
     oncancel,
   }: {
+    /** Seul le nom de l'opération varie : « Abort rebase? », « Abort cherry-pick? »… */
+    kind?: OperationKindView;
     /** Fichiers du groupe Resolved (les Auto-merged ne comptent pas). */
     resolved: number;
     busy?: boolean;
@@ -20,6 +24,7 @@
     oncancel: () => void;
   } = $props();
 
+  const name = $derived(OPERATION_NAME[kind]);
   let dialog: HTMLElement | undefined = $state();
 
   function focusOnMount(node: HTMLElement) {
@@ -56,14 +61,14 @@
     aria-modal="true"
     aria-labelledby="abort-merge-title"
   >
-    <h2 id="abort-merge-title">Abort merge?</h2>
+    <h2 id="abort-merge-title">Abort {name}?</h2>
     <p>{resolved} resolved {resolved === 1 ? "file" : "files"} will be lost.</p>
     <div class="choices">
       <button type="button" use:focusOnMount onclick={oncancel}>
         <X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel
       </button>
       <button type="button" class="danger" aria-disabled={busy} aria-busy={busy} onclick={abort}>
-        <GitMerge size={16} strokeWidth={1.8} aria-hidden="true" />Abort merge
+        <X size={16} strokeWidth={1.8} aria-hidden="true" />Abort {name}
       </button>
     </div>
   </div>

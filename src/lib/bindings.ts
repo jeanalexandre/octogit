@@ -124,32 +124,40 @@ export const commands = {
 	/**
 	 *  Cherry-pick de `commit` (SHA, branche ou `origin/…`) sur la branche courante, sans dialogue : le commit créé
 	 *  garde l'auteur d'origine, le committer et la signature sont ceux du `.git/config` local. Rend l'arbre de
-	 *  travail et le dépôt relus. Rien n'est poussé, aucune autre ref ne bouge.
+	 *  travail et le dépôt relus, et si le cherry-pick reste en cours sur un conflit. Rien n'est poussé, aucune autre
+	 *  ref ne bouge.
 	 */
-	cherryPick: (path: string, commit: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("cherry_pick", { path, commit })),
+	cherryPick: (path: string, commit: string) => typedError<OperationOutcomeView_Serialize, string>(__TAURI_INVOKE("cherry_pick", { path, commit })),
 	/**
 	 *  Merge de `source` (branche ou `origin/…`) dans `receiving`, la branche courante, sans dialogue : toujours un
 	 *  commit de merge au message par défaut de Git, auteur et committer du `.git/config` local. Rend l'arbre de
 	 *  travail et le dépôt relus, et si le merge reste en cours sur un conflit. Rien n'est poussé, aucune autre ref
 	 *  ne bouge.
 	 */
-	mergeBranch: (path: string, source: string, receiving: string) => typedError<MergeView_Serialize, string>(__TAURI_INVOKE("merge_branch", { path, source, receiving })),
+	mergeBranch: (path: string, source: string, receiving: string) => typedError<OperationOutcomeView_Serialize, string>(__TAURI_INVOKE("merge_branch", { path, source, receiving })),
 	/**
 	 *  Rebase de `receiving`, la branche courante, sur `onto` (branche, `origin/…` ou SHA de commit), sans dialogue :
-	 *  les commits sont rejoués et gardent leur auteur. Rend l'arbre de travail et le dépôt relus.
+	 *  les commits sont rejoués et gardent leur auteur. Rend l'arbre de travail et le dépôt relus, et si le rebase reste
+	 *  en cours sur un conflit.
 	 */
-	rebaseBranch: (path: string, onto: string, receiving: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("rebase_branch", { path, onto, receiving })),
+	rebaseBranch: (path: string, onto: string, receiving: string) => typedError<OperationOutcomeView_Serialize, string>(__TAURI_INVOKE("rebase_branch", { path, onto, receiving })),
 	/**
-	 *  Continue du merge en conflit : commit de merge au message par défaut de Git, auteur et committer du
-	 *  `.git/config` local ; refusé si l'identité ne correspond pas au profil ou si un fichier est encore en conflit
-	 *  (le merge reste en cours). Rend l'arbre de travail et le dépôt relus.
+	 *  Continue de l'opération en cours (merge, rebase, cherry-pick, revert) : commit au message que Git propose, auteur
+	 *  d'origine gardé, committer du `.git/config` local ; refusé si l'identité ne correspond pas au profil ou si un
+	 *  fichier est encore en conflit (l'opération reste en cours). Rend l'arbre de travail et le dépôt relus, et si un
+	 *  rebase s'est arrêté de nouveau sur un conflit.
 	 */
-	continueMerge: (path: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("continue_merge", { path })),
+	continueOperation: (path: string) => typedError<OperationOutcomeView_Serialize, string>(__TAURI_INVOKE("continue_operation", { path })),
 	/**
-	 *  Abort du merge en cours : la branche, l'index et l'arbre de travail reviennent comme avant. Rend l'arbre de
+	 *  Abort de l'opération en cours : la branche, l'index et l'arbre de travail reviennent comme avant. Rend l'arbre de
 	 *  travail et le dépôt relus.
 	 */
-	abortMerge: (path: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("abort_merge", { path })),
+	abortOperation: (path: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("abort_operation", { path })),
+	/**
+	 *  L'opération en cours du dépôt (merge, rebase avec son étape, cherry-pick, revert), lue de `.git` : lancée par
+	 *  Octogit ou au terminal, ou `None`.
+	 */
+	readOperation: (path: string) => typedError<OperationStateView_Serialize | null, string>(__TAURI_INVOKE("read_operation", { path })),
 	/**
 	 *  Fichiers du merge en cours par groupe (Conflicted, Resolved, Auto-merged) ; `theirs_name` : branche fusionnée,
 	 *  `seen` : fichiers vus en conflit à l'ouverture de `ConflictResolver`.
@@ -161,9 +169,9 @@ export const commands = {
 	resolveConflictFile: (path: string, file: string, content: string, theirsName: string, seen: string[]) => typedError<ConflictListView, string>(__TAURI_INVOKE("resolve_conflict_file", { path, file, content, theirsName, seen })),
 	/**
 	 *  Revert de `commit` sur la branche courante, sans dialogue : message par défaut de Git, auteur et committer
-	 *  du `.git/config` local. Rend l'arbre de travail et le dépôt relus.
+	 *  du `.git/config` local. Rend l'arbre de travail et le dépôt relus, et si le revert reste en cours sur un conflit.
 	 */
-	revert: (path: string, commit: string) => typedError<CommittedView_Serialize, string>(__TAURI_INVOKE("revert", { path, commit })),
+	revert: (path: string, commit: string) => typedError<OperationOutcomeView_Serialize, string>(__TAURI_INVOKE("revert", { path, commit })),
 	/**
 	 *  Amend du seul message du dernier commit (`CommitDetail`) : index et arbre de travail intacts, identité
 	 *  du `.git/config` local contrôlée comme pour `commit` ; rend l'arbre de travail et le dépôt relus.
@@ -194,9 +202,10 @@ export const commands = {
 	fetchAllRepository: (path: string) => typedError<RepositoryView_Serialize | null, string>(__TAURI_INVOKE("fetch_all_repository", { path })),
 	/**
 	 *  Pull de `SyncButton` (`rebase` : Pull (rebase), sinon Pull (fast-forward only)) en tâche de fond, puis
-	 *  relecture du dépôt. L'erreur est un message d'une ligne (divergence, branche non publiée, conflit abandonné…).
+	 *  relecture du dépôt, et si le Pull (rebase) est resté en cours sur un conflit. L'erreur est un message d'une
+	 *  ligne (divergence, branche non publiée…).
 	 */
-	pullRepository: (path: string, rebase: boolean) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("pull_repository", { path, rebase })),
+	pullRepository: (path: string, rebase: boolean) => typedError<PullView_Serialize, string>(__TAURI_INVOKE("pull_repository", { path, rebase })),
 	/**
 	 *  Checkout d'une branche locale ou d'une `origin/…` (double-clic, sélecteur de `Toolbar`, `RefContextMenu`) en
 	 *  tâche de fond, puis relecture du dépôt. Sans `choice`, une locale de même nom sur un autre commit rend la valeur
@@ -597,32 +606,6 @@ export type LostCommitView = {
 	summary: string,
 };
 
-/**
- *  Issue d'un merge lancé : l'arbre et le dépôt relus, et `conflict` vrai si le merge s'est arrêté sur un conflit
- *  (il reste en cours : `ConflictResolver` s'ouvre, ce n'est pas un refus).
- */
-export type MergeView = MergeView_Serialize | MergeView_Deserialize;
-
-/**
- *  Issue d'un merge lancé : l'arbre et le dépôt relus, et `conflict` vrai si le merge s'est arrêté sur un conflit
- *  (il reste en cours : `ConflictResolver` s'ouvre, ce n'est pas un refus).
- */
-export type MergeView_Deserialize = {
-	tree: WorkingTreeView,
-	repository: RepositoryView_Deserialize,
-	conflict: boolean,
-};
-
-/**
- *  Issue d'un merge lancé : l'arbre et le dépôt relus, et `conflict` vrai si le merge s'est arrêté sur un conflit
- *  (il reste en cours : `ConflictResolver` s'ouvre, ce n'est pas un refus).
- */
-export type MergeView_Serialize = {
-	tree: WorkingTreeView,
-	repository: RepositoryView_Serialize,
-	conflict: boolean,
-};
-
 /**  Écart entre le `.git/config` local et le profil rattaché : rien n'a été écrit. */
 export type MismatchView = MismatchView_Serialize | MismatchView_Deserialize;
 
@@ -645,6 +628,66 @@ export type MismatchView_Serialize = {
 export type OpenError = 
 /**  Le dossier n'est pas un dépôt Git lisible ; `name` est le nom du dossier. */
 { kind: "notARepository"; name: string };
+
+export type OperationKindView = "merge" | "rebase" | "cherryPick" | "revert";
+
+/**
+ *  Issue d'une opération lancée ou continuée (merge, rebase, cherry-pick, revert) : l'arbre et le dépôt relus, et
+ *  `conflict` vrai si elle s'est arrêtée sur un conflit (elle reste en cours : `ConflictResolver` s'ouvre, ce n'est
+ *  pas un refus).
+ */
+export type OperationOutcomeView = OperationOutcomeView_Serialize | OperationOutcomeView_Deserialize;
+
+/**
+ *  Issue d'une opération lancée ou continuée (merge, rebase, cherry-pick, revert) : l'arbre et le dépôt relus, et
+ *  `conflict` vrai si elle s'est arrêtée sur un conflit (elle reste en cours : `ConflictResolver` s'ouvre, ce n'est
+ *  pas un refus).
+ */
+export type OperationOutcomeView_Deserialize = {
+	tree: WorkingTreeView,
+	repository: RepositoryView_Deserialize,
+	conflict: boolean,
+};
+
+/**
+ *  Issue d'une opération lancée ou continuée (merge, rebase, cherry-pick, revert) : l'arbre et le dépôt relus, et
+ *  `conflict` vrai si elle s'est arrêtée sur un conflit (elle reste en cours : `ConflictResolver` s'ouvre, ce n'est
+ *  pas un refus).
+ */
+export type OperationOutcomeView_Serialize = {
+	tree: WorkingTreeView,
+	repository: RepositoryView_Serialize,
+	conflict: boolean,
+};
+
+/**  Opération laissée en cours dans le dépôt, lue de `.git` (lancée par Octogit ou au terminal). */
+export type OperationStateView = OperationStateView_Serialize | OperationStateView_Deserialize;
+
+/**  Opération laissée en cours dans le dépôt, lue de `.git` (lancée par Octogit ou au terminal). */
+export type OperationStateView_Deserialize = {
+	kind: OperationKindView,
+	/**  Branche qui reçoit (courante, ou branche rejouée d'un rebase). */
+	receiving: string,
+	/**  Merge : branche fusionnée ; rebase : base ; cherry-pick et revert : SHA abrégé du commit. */
+	other: string,
+	step?: OperationStepView | null,
+};
+
+/**  Opération laissée en cours dans le dépôt, lue de `.git` (lancée par Octogit ou au terminal). */
+export type OperationStateView_Serialize = {
+	kind: OperationKindView,
+	/**  Branche qui reçoit (courante, ou branche rejouée d'un rebase). */
+	receiving: string,
+	/**  Merge : branche fusionnée ; rebase : base ; cherry-pick et revert : SHA abrégé du commit. */
+	other: string,
+	step: OperationStepView | null,
+};
+
+/**  Étape d'un rebase (« 2 / 5 »). */
+export type OperationStepView = {
+	current: number,
+	total: number,
+};
 
 /**  Qui a désigné le profil : la règle (son motif), ou un choix manuel mémorisé. */
 export type OriginView = { kind: "rule"; pattern: string } | { kind: "manual" };
@@ -677,6 +720,30 @@ export type ProfileView = {
 	signCommits: boolean,
 	sshKeyPath: string,
 	rules: RuleView[],
+};
+
+/**
+ *  Issue d'un Pull : le dépôt relu, et `conflict` vrai si le Pull (rebase) s'est arrêté sur un conflit (le rebase
+ *  reste en cours : `ConflictResolver` s'ouvre, ce n'est pas un refus).
+ */
+export type PullView = PullView_Serialize | PullView_Deserialize;
+
+/**
+ *  Issue d'un Pull : le dépôt relu, et `conflict` vrai si le Pull (rebase) s'est arrêté sur un conflit (le rebase
+ *  reste en cours : `ConflictResolver` s'ouvre, ce n'est pas un refus).
+ */
+export type PullView_Deserialize = {
+	repository: RepositoryView_Deserialize,
+	conflict: boolean,
+};
+
+/**
+ *  Issue d'un Pull : le dépôt relu, et `conflict` vrai si le Pull (rebase) s'est arrêté sur un conflit (le rebase
+ *  reste en cours : `ConflictResolver` s'ouvre, ce n'est pas un refus).
+ */
+export type PullView_Serialize = {
+	repository: RepositoryView_Serialize,
+	conflict: boolean,
 };
 
 /**

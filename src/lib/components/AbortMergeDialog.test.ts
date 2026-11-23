@@ -1,11 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
+import type { OperationKindView } from "../bindings";
 import AbortMergeDialog from "./AbortMergeDialog.svelte";
 
-function open(resolved: number) {
+function open(resolved: number, kind?: OperationKindView) {
   const onabort = vi.fn();
   const oncancel = vi.fn();
-  render(AbortMergeDialog, { resolved, onabort, oncancel });
+  render(AbortMergeDialog, { resolved, kind, onabort, oncancel });
   return { onabort, oncancel };
 }
 
@@ -38,6 +39,21 @@ describe("AbortMergeDialog", () => {
     expect(oncancel).toHaveBeenCalledTimes(1);
     expect(onabort).not.toHaveBeenCalled();
   });
+
+  it.each<[OperationKindView, string, string]>([
+    ["rebase", "Abort rebase?", "Abort rebase"],
+    ["cherryPick", "Abort cherry-pick?", "Abort cherry-pick"],
+    ["revert", "Abort revert?", "Abort revert"],
+  ])(
+    "resoudre-les-conflits CA-19: names the operation (%s) in the title and the confirm button",
+    async (kind, title, button) => {
+      const { onabort } = open(2, kind);
+      expect(screen.getByRole("heading", { name: title })).toBeTruthy();
+      expect(screen.getByText("2 resolved files will be lost.")).toBeTruthy();
+      await fireEvent.click(screen.getByRole("button", { name: button }));
+      expect(onabort).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("resoudre-les-conflits CA-11: Abort merge confirms", async () => {
     const { onabort } = open(2);

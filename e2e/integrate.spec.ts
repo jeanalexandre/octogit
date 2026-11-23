@@ -208,7 +208,7 @@ for (const size of sizes) {
     expect(ws.git(repo, "for-each-ref", "refs/heads")).toBe(heads);
   });
 
-  test(`décision 1 : un conflit de rebase est annulé, le dépôt reste inchangé, refus en une ligne (${size.width}x${size.height})`, async ({
+  test(`resoudre-les-conflits CA-1 : un conflit de rebase reste en cours et ouvre ConflictResolver, sans refus (${size.width}x${size.height})`, async ({
     page,
   }) => {
     await page.setViewportSize(size);
@@ -219,16 +219,13 @@ for (const size of sizes) {
     ws.rememberRecent([repo]);
     await page.goto(ws.urlWithFetchInterval(3_600_000));
     await expect(graphRow(page, "Clash on develop")).toBeVisible();
-    const heads = ws.git(repo, "for-each-ref", "refs/heads");
 
     await openMenuOfDevelop(page);
     await menuItem(page, rebase).click();
-    await expect(page.getByRole("alert")).toHaveText(
-      "develop conflicts with feature/profiles. Nothing was changed.",
-    );
-    expect(existsSync(join(repo, ".git", "rebase-merge"))).toBe(false);
-    expect(ws.git(repo, "status", "--porcelain")).toBe("");
-    expect(ws.git(repo, "for-each-ref", "refs/heads")).toBe(heads);
+    await expect(page.getByRole("region", { name: "Resolve conflicts" })).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    expect(existsSync(join(repo, ".git", "rebase-merge"))).toBe(true);
+    expect(ws.git(repo, "status", "--porcelain")).toContain("AA clash.txt");
   });
 }
 

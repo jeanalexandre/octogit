@@ -137,7 +137,7 @@ impl Drop for Fixture {
 fn revenir_en_arriere_ca_2_cherry_pick_adds_a_child_of_the_old_tip_with_the_same_message_and_changes(
 ) {
     let fx = Fixture::new();
-    let tree = cherry_pick(fx.path(), &fx.picked).unwrap();
+    let tree = cherry_pick(fx.path(), &fx.picked).unwrap().tree;
     assert_eq!(fx.git(&["rev-parse", "HEAD^"]).trim(), fx.tip);
     assert_eq!(fx.git(&["symbolic-ref", "--short", "HEAD"]).trim(), "main");
     assert_eq!(
@@ -244,7 +244,8 @@ fn revenir_en_arriere_ca_17_no_other_ref_moves_and_nothing_is_pushed() {
 }
 
 #[test]
-fn decision_2_a_conflict_is_aborted_leaving_the_repository_unchanged_with_a_one_line_refusal() {
+fn revenir_en_arriere_ca_5_a_conflict_leaves_the_cherry_pick_or_revert_in_progress_without_a_commit(
+) {
     let fx = Fixture::new();
     // `feature` change `file.txt` d'une façon qui entre en conflit avec `main`.
     fx.git(&["checkout", "-q", "feature"]);
@@ -256,38 +257,28 @@ fn decision_2_a_conflict_is_aborted_leaving_the_repository_unchanged_with_a_one_
     fx.git(&["commit", "-q", "-am", "Main edit"]);
     let before = fx.head();
 
-    let error = cherry_pick(fx.path(), &clash).unwrap_err().to_string();
+    let outcome = cherry_pick(fx.path(), &clash).unwrap();
 
-    assert!(
-        error
-            .lines()
-            .next()
-            .unwrap()
-            .contains("Nothing was changed"),
-        "{error}"
-    );
+    assert!(outcome.conflict);
     assert_eq!(fx.head(), before);
-    assert_eq!(fx.git(&["status", "--porcelain"]), "");
-    assert_eq!(
-        std::fs::read_to_string(fx.root.join("file.txt")).unwrap(),
-        "main side\n"
-    );
-    assert!(!fx.root.join(".git/CHERRY_PICK_HEAD").exists());
+    assert!(fx.root.join(".git/CHERRY_PICK_HEAD").exists());
+    assert!(fx.git(&["status", "--porcelain"]).contains("UU file.txt"));
+    assert!(outcome
+        .tree
+        .unstaged
+        .iter()
+        .any(|f| f.path == "file.txt" && f.status == octogit_git::ChangeStatus::Conflicted));
+    fx.git(&["cherry-pick", "--abort"]);
 
-    // Revert en conflit : même issue.
+    // Revert en conflit : même issue, REVERT_HEAD en place.
     fx.git(&["commit", "-q", "--allow-empty", "-m", "noop"]);
     fx.write("file.txt", "later\n");
     fx.git(&["commit", "-q", "-am", "Later edit"]);
     let before = fx.head();
-    let error = revert(fx.path(), "HEAD~2").unwrap_err().to_string();
-    assert!(error
-        .lines()
-        .next()
-        .unwrap()
-        .contains("Nothing was changed"));
+    let outcome = revert(fx.path(), "HEAD~2").unwrap();
+    assert!(outcome.conflict);
     assert_eq!(fx.head(), before);
-    assert_eq!(fx.git(&["status", "--porcelain"]), "");
-    assert!(!fx.root.join(".git/REVERT_HEAD").exists());
+    assert!(fx.root.join(".git/REVERT_HEAD").exists());
 }
 
 #[test]

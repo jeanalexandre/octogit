@@ -10,6 +10,7 @@ mod fetch;
 mod force_push;
 mod graph;
 mod integrate;
+mod operation;
 mod pull;
 mod push;
 mod reset;
@@ -42,7 +43,11 @@ pub use force_push::{force_push, read_rewrite, ForcePushError, OverwrittenCommit
 pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};
 pub use integrate::{
     abort_merge, continue_merge, continue_merge_with_home, merge, merge_with_home, rebase,
-    rebase_with_home, MergeOutcome,
+    rebase_with_home, MergeOutcome, OperationOutcome,
+};
+pub use operation::{
+    abort_operation, continue_operation, continue_operation_with_home, read_operation,
+    OperationKind, OperationState,
 };
 pub use pull::{pull, PullError, PullMode};
 pub use push::{push, PushError};

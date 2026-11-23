@@ -82,8 +82,22 @@ Rappels de `resoudre-les-conflits` à faire valoir pour ces opérations (déjà 
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `4bd2962`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | bloqué : `pnpm audit:deps` échoue sur `cookie` 0.18.2 (RUSTSEC-2026-0594) et `url` 2.5.8 (RUSTSEC-2026-0592), `Cargo.lock` non touché ; reste vert (tests, lint, format, build) ; e2e complet non terminé sans échec depuis la dernière modif de `App.svelte` (specs `i` à `z` non relancées) | — |
+| 1 (reprise) | dev | terminé : `cookie` 0.18.3, `url` 2.5.9 (+ `form_urlencoded` 1.2.3, `darling_macro` sur `syn` 2.0.119 par `cargo update`), `pnpm audit:deps` vert ; tests, lint, format, e2e 390/390, build verts | — |
+| 1 | reviewer (opus, revue renforcée) | 1 bloquant (Commit et Amend désactivés « Merge in progress » pendant rebase, cherry-pick, revert), 2 mineurs (icône du bouton de confirmation, nom de type au README) : `stories/S-40-revue-1.md` | à corriger |
+| 2 | dev | terminé : bloquant 1 et mineurs 2, 3 corrigés ; rouge constaté du test CA-21 ; e2e : 1 échec instable `graph-width.spec.ts:123`, passe seul | — |
+| 2 | reviewer | aucun problème : `stories/S-40-revue-2.md` | validé |
+
+## Décisions de l'humain
+### Question en attente (passage 1)
+1. `pnpm audit:deps` échoue sur deux avisoirs Rust sans lien avec la story. Option proposée par le runner : a) traiter à part (story ou commande dédiée), la story continue vers la revue avec l'échec consigné ; b) monter `cookie` et `url` dans cette story (nouvelle dépendance : décision humaine). Réponse : b, monter `cookie` et `url` dans cette story (décision de l'humain, 23/11/2026)
+
+### Après la revue 1
+- Mineur 2 (icône du bouton de confirmation d'Abort) : traiter, passage 2 (d'office).
+- Mineur 3 (nom de type `MergeView` au README) : traiter, passage 2 (d'office).
+- Pour information : en-tête de `History` coupé en « identity mismatch » (« Not published »), antérieur à S-40 : pris en compte (pour information).

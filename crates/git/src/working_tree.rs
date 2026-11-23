@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use notify::{RecursiveMode, Watcher};
 
-use crate::{read_error, ChangeStatus, FileChange, GitError};
+use crate::{read_error, read_operation, ChangeStatus, FileChange, GitError};
 
 /// Fichiers modifiés de l'arbre de travail, triés par chemin.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -343,6 +343,7 @@ impl WorkingTreeWatcher {
             let path = path.to_path_buf();
             let git_objects = path.join(".git").join("objects");
             std::thread::spawn(move || {
+                let mut last_operation = read_operation(&path).ok().flatten();
                 let mut burst: Option<(Instant, Instant)> = None;
                 while !stop.load(Ordering::SeqCst) {
                     match rx.recv_timeout(Duration::from_millis(25)) {
@@ -378,7 +379,12 @@ impl WorkingTreeWatcher {
                         }
                         !same
                     });
-                    if changed {
+                    // Une opération qui commence ou finit (`MERGE_HEAD`, `rebase-merge/`, `CHERRY_PICK_HEAD`,
+                    // `REVERT_HEAD`) est rapportée même si l'arbre est le même (S-40, CA-15).
+                    let operation = read_operation(&path).ok().flatten();
+                    let operation_changed = operation != last_operation;
+                    last_operation = operation;
+                    if changed || operation_changed {
                         on_change(tree);
                     }
                 }

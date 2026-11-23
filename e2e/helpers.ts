@@ -47,6 +47,8 @@ export class Workspace {
       | "layout"
       | "conflict"
       | "conflict-merge"
+      | "conflict-rebase"
+      | "conflict-pick"
       | "identity"
       | "wide"
       | "large"
@@ -411,6 +413,27 @@ export class Workspace {
       encoding: "utf8",
       env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
     }).trim();
+  }
+
+  /**
+   * Geste de terminal (`git merge`, `rebase`, `cherry-pick`, `revert`, `--continue`, `--abort`) : un conflit est un
+   * échec de Git, il n'est pas une erreur du test. Éditeur neutralisé.
+   */
+  terminal(repo: string, ...args: string[]): void {
+    try {
+      execFileSync("git", ["-C", repo, ...args], {
+        encoding: "utf8",
+        stdio: "pipe",
+        env: {
+          ...process.env,
+          GIT_CONFIG_GLOBAL: "/dev/null",
+          GIT_CONFIG_NOSYSTEM: "1",
+          GIT_EDITOR: "true",
+        },
+      });
+    } catch {
+      // Arrêté sur un conflit : l'opération reste en cours, c'est le but.
+    }
   }
 
   /** Contenu décodé de `preferences.json` (vide tant que rien n'est écrit). */

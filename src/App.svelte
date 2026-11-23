@@ -9,6 +9,9 @@
     type Column,
     type FileChangeView,
     type ConflictListView,
+    type OperationKindView,
+    type OperationStateView,
+    type OperationStepView,
     type ForcePushView,
     type LaunchState,
     type MismatchView,
@@ -73,14 +76,18 @@
   } | null = $state.raw(null);
 
   /**
-   * Merge lancé dans Octogit et arrêté sur un conflit : il reste en cours (`MERGE_HEAD`) jusqu'à Continue ou Abort,
-   * quel que soit l'écran. `seen` : fichiers vus en conflit (Resolved se relit avec eux) ; `left` et `resolved` :
-   * comptes de la dernière liste lue (`null` : pas encore lue). `null` : aucune opération.
+   * Opération en cours du dépôt (merge, rebase, cherry-pick, revert), lue de `.git` : lancée dans Octogit et arrêtée
+   * sur un conflit, ou trouvée au terminal. Elle reste en cours jusqu'à Continue ou Abort, quel que soit l'écran.
+   * `other` : branche fusionnée (merge), base (rebase), SHA abrégé du commit (cherry-pick, revert) ; `step` : étape
+   * d'un rebase. `seen` : fichiers vus en conflit (Resolved se relit avec eux) ; `left` et `resolved` : comptes de la
+   * dernière liste lue (`null` : pas encore lue). `null` : aucune opération.
    */
   let operation: {
     path: string;
-    source: string;
+    kind: OperationKindView;
     receiving: string;
+    other: string;
+    step: OperationStepView | null;
     oursLane: number;
     theirsLane: number;
     seen: string[];
@@ -117,9 +124,15 @@
     resolverOpen = true;
   }
 
-  /** Continue ou Abort : le dépôt relu remplace l'affichage, `ConflictResolver` et le bandeau disparaissent. */
+  /**
+   * Continue ou Abort : le dépôt relu remplace l'affichage, `ConflictResolver` et le bandeau disparaissent. Un
+   * rebase qui s'arrête de nouveau sur un conflit reste en cours : l'étape avance et `ConflictResolver` reste
+   * ouvert sur les nouveaux fichiers.
+   */
   async function endOperation(
-    run: (path: string) => ReturnType<typeof commands.continueMerge>,
+    run: (
+      path: string,
+    ) => ReturnType<typeof commands.continueOperation> | ReturnType<typeof commands.abortOperation>,
     failure: string,
   ) {
     const op = operation;
@@ -127,10 +140,15 @@
     operationBusy = true;
     operationError = null;
     try {
-      applyCommitted(op.path, await run(op.path));
-      operation = null;
-      resolverOpen = false;
+      const result = await run(op.path);
+      applyCommitted(op.path, result);
+      const again = result.status === "ok" && "conflict" in result.data && result.data.conflict;
       abortAsk = false;
+      if (again) await syncOperation(op.path, true);
+      else {
+        operation = null;
+        resolverOpen = false;
+      }
     } catch (e) {
       abortAsk = false;
       operationError = (typeof e === "string" ? e : failure).split("\n")[0];
@@ -139,16 +157,101 @@
     }
   }
 
-  function continueMerge() {
+  function continueOperation() {
     if (operation === null || operation.left !== 0 || continueReason !== null) return;
-    void endOperation((p) => commands.continueMerge(p), "Continue failed.");
+    void endOperation((p) => commands.continueOperation(p), "Continue failed.");
   }
 
   /** Abort : confirmé si un fichier est déjà résolu, sinon sans confirmation. */
-  function abortMerge() {
+  function abortOperation() {
     if (operation === null || operationBusy) return;
     if (operation.resolved > 0) abortAsk = true;
-    else void endOperation((p) => commands.abortMerge(p), "Abort failed.");
+    else void endOperation((p) => commands.abortOperation(p), "Abort failed.");
+  }
+
+  /**
+   * Relit l'opération en cours de `path` dans `.git` (ouverture, retour dans la fenêtre, surveillance du dépôt) : une
+   * opération lancée ou trouvée au terminal donne le bandeau sans ouvrir `ConflictResolver` (Resolve l'ouvre), une
+   * opération terminée ou abandonnée au terminal le retire. `open` : ouvre `ConflictResolver` (opération lancée
+   * dans Octogit). Une opération inchangée, étape comprise, n'est pas touchée.
+   */
+  async function syncOperation(path: string, open = false) {
+    // Seule la dernière lecture compte : une réponse plus ancienne (lancée avant le conflit) ne défait pas la plus
+    // récente. Son `open` n'est pas perdu : `resolverWanted` est honoré par la lecture qui s'applique.
+    const mine = ++syncSeq;
+    if (open) resolverWanted = true;
+    let found: OperationStateView | null;
+    try {
+      found = unwrap(await commands.readOperation(path));
+    } catch {
+      if (mine === syncSeq) resolverWanted = false;
+      return;
+    }
+    if (mine !== syncSeq) return;
+    if (openPath !== path || screen?.screen !== "history") {
+      resolverWanted = false;
+      return;
+    }
+    const current = operation !== null && operation.path === path ? operation : null;
+    if (found === null) {
+      resolverWanted = false;
+      if (current !== null) {
+        operation = null;
+        resolverOpen = false;
+        abortAsk = false;
+        operationError = null;
+      }
+      return;
+    }
+    const unchanged =
+      current !== null &&
+      current.kind === found.kind &&
+      current.receiving === found.receiving &&
+      current.other === found.other &&
+      current.step?.current === found.step?.current &&
+      current.step?.total === found.step?.total;
+    if (unchanged) {
+      if (resolverWanted) resolverOpen = true;
+      resolverWanted = false;
+      return;
+    }
+    const rebase = found.kind === "rebase";
+    // Ours est la base rejouée d'un rebase, la branche qui reçoit pour les autres.
+    const receivingLane = laneOf(screen.repository, found.receiving);
+    const otherLane = laneOf(screen.repository, found.other);
+    const next = {
+      path,
+      kind: found.kind,
+      receiving: found.receiving,
+      other: found.other,
+      step: found.step ?? null,
+      oursLane: rebase ? otherLane : receivingLane,
+      theirsLane: rebase ? receivingLane : otherLane,
+      seen: [] as string[],
+      left: null as number | null,
+      resolved: 0,
+    };
+    operation = next;
+    operationError = null;
+    if (resolverWanted) resolverOpen = true;
+    else void loadCounts(next);
+    resolverWanted = false;
+  }
+
+  /** Lecture de l'opération la plus récemment lancée, et ouverture de `ConflictResolver` demandée par un lancement. */
+  let syncSeq = 0;
+  let resolverWanted = false;
+
+  /** Comptes du bandeau d'une opération trouvée au terminal : la liste des fichiers lue sans ouvrir `ConflictResolver`. */
+  async function loadCounts(op: NonNullable<typeof operation>) {
+    try {
+      const list = unwrap(await commands.listConflicts(op.path, op.other, op.seen));
+      if (operation !== op) return;
+      const conflicted = list.files.filter((f) => f.group === "conflicted").map((f) => f.path);
+      reportList(list, [...new Set([...op.seen, ...conflicted])]);
+    } catch {
+      // Les comptes restent inconnus : le bandeau n'affiche pas de nombre de fichiers.
+    }
   }
 
   /** Lane (0 à 5) de la branche `name` : celle du commit qu'elle désigne dans le graphe. */
@@ -296,6 +399,8 @@
         if (stale || event.payload.path !== path) return;
         updated = true;
         workingTree = event.payload.tree;
+        // Une opération lancée ou terminée au terminal émet aussi cet événement (CA-15) : `.git` est relu.
+        void syncOperation(path);
       });
       if (stale) return off();
       unlisten = off;
@@ -304,6 +409,8 @@
       await commands.watchWorkingTree(path);
       const read = await commands.getWorkingTree(path);
       if (!stale && !updated && read.status === "ok") workingTree = read.data;
+      // Opération trouvée en cours à l'ouverture du dépôt (lancée au terminal) : le bandeau l'affiche.
+      if (!stale) void syncOperation(path);
     })();
     return () => {
       stale = true;
@@ -474,7 +581,11 @@
     };
     const onFocus = () => {
       refresh();
-      if (!stale) void refreshRepository(path);
+      if (!stale) {
+        void refreshRepository(path);
+        // Retour dans Octogit : une opération lancée ou terminée au terminal entre-temps est relue.
+        void syncOperation(path);
+      }
     };
     void (async () => {
       const off = await events.repoConfigChanged.listen((event) => {
@@ -759,7 +870,7 @@
         screen = {
           screen: "history",
           repository: {
-            ...result.data,
+            ...result.data.repository,
             profile: screen.repository.profile,
             mismatch: screen.repository.mismatch,
           } satisfies RepositoryView,
@@ -767,6 +878,8 @@
         lastFetched = Date.now() / 1000;
         const tree = await commands.getWorkingTree(path);
         if (tree.status === "ok" && openPath === path) workingTree = tree.data;
+        // Pull (rebase) arrêté sur un conflit : le rebase reste en cours, `ConflictResolver` s'ouvre.
+        if (result.data.conflict) await syncOperation(path, true);
       });
     } catch {
       // Échec inattendu : l'affichage garde l'état d'avant.
@@ -848,8 +961,8 @@
   /**
    * Merge (`source` dans `receiving`, toujours avec un commit de merge) ou rebase (`receiving` sur `source`), sans
    * dialogue, la branche qui reçoit étant déjà la courante. Même garde que le stash ; le dépôt et l'arbre relus
-   * remplacent l'affichage, sans changer d'écran ; un refus (« Already up to date. », identité, conflit annulé)
-   * s'affiche en une ligne près de l'en-tête.
+   * remplacent l'affichage, sans changer d'écran ; un refus (« Already up to date. », identité) s'affiche en une
+   * ligne près de l'en-tête.
    */
   async function integrate(kind: "merge" | "rebase", source: string, receivingName: string) {
     const path = openPath;
@@ -857,26 +970,15 @@
     let stopped = false;
     try {
       await runStash(async (p) => {
-        if (kind === "rebase") return commands.rebaseBranch(p, source, receivingName);
-        const result = await commands.mergeBranch(p, source, receivingName);
+        const result =
+          kind === "rebase"
+            ? await commands.rebaseBranch(p, source, receivingName)
+            : await commands.mergeBranch(p, source, receivingName);
         stopped = result.status === "ok" && result.data.conflict;
         return result;
       });
-      // Merge arrêté sur un conflit : il reste en cours, `ConflictResolver` s'ouvre par-dessus `History`.
-      if (stopped && openPath === path && screen?.screen === "history") {
-        operation = {
-          path,
-          source,
-          receiving: receivingName,
-          oursLane: laneOf(screen.repository, receivingName),
-          theirsLane: laneOf(screen.repository, source),
-          seen: [],
-          left: null,
-          resolved: 0,
-        };
-        operationError = null;
-        resolverOpen = true;
-      }
+      // Merge ou rebase arrêté sur un conflit : il reste en cours, `ConflictResolver` s'ouvre par-dessus `History`.
+      if (stopped) await syncOperation(path, true);
     } catch (e) {
       checkoutNotice = {
         path,
@@ -1005,13 +1107,20 @@
   /**
    * Cherry-pick ou Revert du commit désigné (SHA complet, ou ref `origin/…` : le commit vers lequel elle pointe),
    * sans dialogue. Même garde que le stash ; le dépôt et l'arbre relus remplacent l'affichage, sans changer
-   * d'écran ; un refus (identité, conflit, rien à appliquer) s'affiche en une ligne près de l'en-tête.
+   * d'écran ; un refus (identité, rien à appliquer) s'affiche en une ligne près de l'en-tête. Un conflit n'est pas un
+   * refus : l'opération reste en cours et `ConflictResolver` s'ouvre.
    */
   async function pickFromTarget(commit: string, revert: boolean) {
     const path = openPath;
     if (path === null || screen?.screen !== "history") return;
+    let stopped = false;
     try {
-      await runStash((p) => (revert ? commands.revert(p, commit) : commands.cherryPick(p, commit)));
+      await runStash(async (p) => {
+        const result = await (revert ? commands.revert(p, commit) : commands.cherryPick(p, commit));
+        stopped = result.status === "ok" && result.data.conflict;
+        return result;
+      });
+      if (stopped) await syncOperation(path, true);
     } catch (e) {
       checkoutNotice = {
         path,
@@ -1520,16 +1629,18 @@
 
 {#if merging && operation !== null}
   <OperationBanner
-    source={operation.source}
+    kind={operation.kind}
+    other={operation.other}
     receiving={operation.receiving}
+    step={operation.step}
     left={operation.left}
     reason={continueReason}
     busy={operationBusy}
     error={operationError}
     onresolve={resolverShown && diff === null ? undefined : resolveAgain}
     onback={resolverShown && diff === null ? backToGraph : undefined}
-    oncontinue={continueMerge}
-    onabort={abortMerge}
+    oncontinue={continueOperation}
+    onabort={abortOperation}
   />
 {/if}
 
@@ -1579,7 +1690,7 @@
       onamendmessage={amendMessage}
       {commitEmail}
       {blocked}
-      {merging}
+      merging={merging && operation?.kind === "merge"}
       onfixidentity={fixIdentity}
       {profiles}
       {manualProfile}
@@ -1632,17 +1743,20 @@
   {#if merging && resolverOpen && operation !== null}
     {@const op = operation}
     <div class="diff-layer">
-      <ConflictResolver
-        oursLane={op.oursLane}
-        theirsLane={op.theirsLane}
-        initialSeen={op.seen}
-        loadList={async (seen) => unwrap(await commands.listConflicts(op.path, op.source, seen))}
-        loadFile={async (file) => unwrap(await commands.readConflictFile(op.path, file))}
-        resolve={async (file, content, seen) =>
-          unwrap(await commands.resolveConflictFile(op.path, file, content, op.source, seen))}
-        onlist={reportList}
-        onback={backToGraph}
-      />
+      <!-- Une nouvelle étape de rebase a de nouveaux fichiers : l'écran est relu de zéro. -->
+      {#key `${op.kind}:${op.step?.current ?? 0}`}
+        <ConflictResolver
+          oursLane={op.oursLane}
+          theirsLane={op.theirsLane}
+          initialSeen={op.seen}
+          loadList={async (seen) => unwrap(await commands.listConflicts(op.path, op.other, seen))}
+          loadFile={async (file) => unwrap(await commands.readConflictFile(op.path, file))}
+          resolve={async (file, content, seen) =>
+            unwrap(await commands.resolveConflictFile(op.path, file, content, op.other, seen))}
+          onlist={reportList}
+          onback={backToGraph}
+        />
+      {/key}
     </div>
   {/if}
   {#if diff !== null}
@@ -1674,9 +1788,10 @@
 
 {#if abortAsk && operation !== null}
   <AbortMergeDialog
+    kind={operation.kind}
     resolved={operation.resolved}
     busy={operationBusy}
-    onabort={() => endOperation((p) => commands.abortMerge(p), "Abort failed.")}
+    onabort={() => endOperation((p) => commands.abortOperation(p), "Abort failed.")}
     oncancel={() => (abortAsk = false)}
   />
 {/if}

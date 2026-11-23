@@ -688,19 +688,27 @@ fn main() {
                 }
             }
         }
-        "continue_merge" | "abort_merge" => {
+        "continue_operation" => {
             let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
-            let path = std::path::Path::new(&args.path);
-            let result = if command == "continue_merge" {
-                octogit_app::working_tree::continue_merge_checked(
-                    &octogit_store::Store::new(octogit_app::data_dir()),
-                    &octogit_app::home_dir(),
-                    path,
-                )
-            } else {
-                octogit_app::working_tree::abort_merge(path)
-            };
-            match result {
+            match octogit_app::working_tree::continue_operation_checked(
+                &octogit_store::Store::new(octogit_app::data_dir()),
+                &octogit_app::home_dir(),
+                std::path::Path::new(&args.path),
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "abort_operation" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            match octogit_app::working_tree::abort_operation(std::path::Path::new(&args.path)) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "read_operation" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            match octogit_app::working_tree::read_operation(std::path::Path::new(&args.path)) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

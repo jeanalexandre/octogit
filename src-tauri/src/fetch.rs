@@ -18,22 +18,38 @@ pub fn fetch_all_repository(path: &Path) -> Result<Option<RepositoryView>, Strin
     run_and_reread(path, octogit_git::fetch_all)
 }
 
+/// Issue d'un Pull : le dépôt relu, et `conflict` vrai si le Pull (rebase) s'est arrêté sur un conflit (le rebase
+/// reste en cours : `ConflictResolver` s'ouvre, ce n'est pas un refus).
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PullView {
+    pub repository: RepositoryView,
+    pub conflict: bool,
+}
+
 /// Pull de `SyncButton` (fast-forward only, ou rebase) puis relecture du dépôt, toujours rendu : les refs ont
 /// bougé (le pull récupère aussi la distante). L'erreur est le message d'une ligne affiché près du bouton ;
 /// la sortie brute de Git reste dans le crate `git`.
-pub fn pull_repository(path: &Path, rebase: bool) -> Result<RepositoryView, String> {
+pub fn pull_repository(path: &Path, rebase: bool) -> Result<PullView, String> {
     let mode = if rebase {
         octogit_git::PullMode::Rebase
     } else {
         octogit_git::PullMode::FastForwardOnly
     };
-    octogit_git::pull(path, mode, octogit_git::FETCH_TIMEOUT).map_err(|e| match e {
-        octogit_git::PullError::TimedOut { .. } => "Pull timed out.".to_string(),
-        octogit_git::PullError::Failed { .. } => "Pull failed.".to_string(),
-        octogit_git::PullError::Spawn(_) => "Git could not run.".to_string(),
-        refusal => refusal.to_string(),
-    })?;
-    repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
+    let conflict = match octogit_git::pull(path, mode, octogit_git::FETCH_TIMEOUT) {
+        Ok(_) => false,
+        Err(octogit_git::PullError::Conflict) => true,
+        Err(octogit_git::PullError::TimedOut { .. }) => return Err("Pull timed out.".to_string()),
+        Err(octogit_git::PullError::Failed { .. }) => return Err("Pull failed.".to_string()),
+        Err(octogit_git::PullError::Spawn(_)) => return Err("Git could not run.".to_string()),
+        Err(refusal) => return Err(refusal.to_string()),
+    };
+    let repository =
+        repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())?;
+    Ok(PullView {
+        repository,
+        conflict,
+    })
 }
 
 /// Un commit de la locale absent de la distante, listé dans la confirmation du checkout d'une `origin/…`.
@@ -330,6 +346,26 @@ fn run_and_reread(
 mod tests {
     use super::*;
     use std::process::Command;
+
+    #[test]
+    fn synchroniser_ca_8_a_pull_rebase_conflict_is_an_issue_not_a_refusal_and_the_rebase_stays() {
+        let dir = std::env::temp_dir().join(format!("octogit-app-pull-{}", std::process::id()));
+        let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/pull.sh");
+        assert!(Command::new("sh")
+            .arg(script)
+            .arg(dir.join("repo"))
+            .arg("conflict")
+            .status()
+            .unwrap()
+            .success());
+        let repo = dir.join("repo");
+
+        let view = pull_repository(&repo, true).unwrap();
+
+        assert!(view.conflict);
+        assert!(repo.join(".git/rebase-merge").exists() || repo.join(".git/rebase-apply").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn explorer_l_historique_ca_3_fetch_returns_the_view_with_the_branch_pushed_by_another_clone() {

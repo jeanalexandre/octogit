@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 use std::path::{Component, Path};
 use std::process::{Command, Stdio};
 
-use crate::GitError;
+use crate::{read_operation, GitError, OperationKind};
 
 /// Groupe d'un fichier du merge en cours.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -154,7 +154,7 @@ fn working_text(path: &Path, file: &str) -> Option<String> {
 fn side(path: &Path, name: String, rev: &str) -> Result<ConflictSide, GitError> {
     let (ok, out) = git(path, &["rev-parse", "--short=7", rev])?;
     if !ok {
-        return Err(GitError::Read("No merge is in progress.".into()));
+        return Err(GitError::Read("No operation is in progress.".into()));
     }
     Ok(ConflictSide {
         name,
@@ -169,13 +169,26 @@ pub fn list_conflicts(
     theirs_name: &str,
     seen: &[String],
 ) -> Result<ConflictList, GitError> {
-    let (_, head) = git(path, &["symbolic-ref", "--short", "-q", "HEAD"])?;
-    let ours_name = match text(head) {
-        name if name.is_empty() => "HEAD".to_string(),
-        name => name,
+    let op = read_operation(path)?
+        .ok_or_else(|| GitError::Read("No operation is in progress.".into()))?;
+    // Git donne Ours = HEAD (stage 2) et Theirs = ce qui est repris (stage 3). Rebase : HEAD est la base rejouée
+    // (`onto`), Theirs le commit rejoué, de la branche rejouée. Merge : `theirs_name` est la branche fusionnée.
+    let (ours_name, theirs_name, theirs_rev) = match op.kind {
+        OperationKind::Merge => (
+            op.receiving,
+            if theirs_name.is_empty() {
+                op.other
+            } else {
+                theirs_name.to_string()
+            },
+            "MERGE_HEAD",
+        ),
+        OperationKind::Rebase => (op.other, op.receiving, "REBASE_HEAD"),
+        OperationKind::CherryPick => (op.receiving, op.other, "CHERRY_PICK_HEAD"),
+        OperationKind::Revert => (op.receiving, op.other, "REVERT_HEAD"),
     };
     let ours = side(path, ours_name, "HEAD")?;
-    let theirs = side(path, theirs_name.to_string(), "MERGE_HEAD")?;
+    let theirs = side(path, theirs_name, theirs_rev)?;
 
     let conflicted = unmerged(path)?;
     let conflicted_paths: BTreeSet<&str> = conflicted.iter().map(|u| u.file.as_str()).collect();

@@ -7,7 +7,8 @@ function open(props: Record<string, unknown> = {}) {
   const oncontinue = vi.fn();
   const onabort = vi.fn();
   render(OperationBanner, {
-    source: "develop",
+    kind: "merge",
+    other: "develop",
     receiving: "feature/profiles",
     left: 1,
     onresolve,
@@ -27,6 +28,60 @@ describe("OperationBanner", () => {
     expect(
       screen.getByText("Merge in progress · develop into feature/profiles · 1 file left"),
     ).toBeTruthy();
+  });
+
+  it("resoudre-les-conflits CA-13: a rebase names both branches, the step and the files left", () => {
+    open({
+      kind: "rebase",
+      other: "develop",
+      receiving: "feature/profiles",
+      step: { current: 2, total: 5 },
+    });
+
+    expect(
+      screen.getByText("Rebase in progress · feature/profiles onto develop · 2 / 5 · 1 file left"),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Continue rebase" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Abort rebase" })).toBeTruthy();
+  });
+
+  it("resoudre-les-conflits CA-9: the step moves with the rebase", () => {
+    open({
+      kind: "rebase",
+      other: "develop",
+      receiving: "feature",
+      step: { current: 3, total: 5 },
+    });
+    expect(screen.getByText(/ · 3 \/ 5 · /)).toBeTruthy();
+  });
+
+  it("resoudre-les-conflits CA-13: a cherry-pick and a revert name the commit and the branch", () => {
+    open({ kind: "cherryPick", other: "a1b2c3d", receiving: "develop" });
+    expect(
+      screen.getByText("Cherry-pick in progress · a1b2c3d onto develop · 1 file left"),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Continue cherry-pick" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Abort cherry-pick" })).toBeTruthy();
+  });
+
+  it("resoudre-les-conflits CA-13: a revert is named as such", () => {
+    open({ kind: "revert", other: "a1b2c3d", receiving: "develop" });
+    expect(screen.getByText("Revert in progress · a1b2c3d on develop · 1 file left")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Continue revert" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Abort revert" })).toBeTruthy();
+  });
+
+  it("resoudre-les-conflits CA-15: an operation found in a terminal shows the banner with Resolve and no Back to graph", async () => {
+    const { onresolve } = open({
+      kind: "rebase",
+      other: "develop",
+      receiving: "feature",
+      step: { current: 1, total: 2 },
+    });
+    expect(screen.getByRole("region", { name: "Operation in progress" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Back to graph/ })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Resolve" }));
+    expect(onresolve).toHaveBeenCalledTimes(1);
   });
 
   it("resoudre-les-conflits CA-13: counts files left in the plural, and says nothing before the first count", () => {

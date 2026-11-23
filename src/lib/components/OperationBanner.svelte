@@ -1,6 +1,7 @@
 <script lang="ts">
   /**
-   * Bandeau d'une opération en cours (un merge arrêté sur un conflit) : nom, branches, fichiers restants. Resolve
+   * Bandeau d'une opération en cours (merge, rebase, cherry-pick ou revert, lancé dans Octogit ou au terminal) :
+   * nom, branches, étape d'un rebase, fichiers restants. Resolve
    * hors de `ConflictResolver`, Continue actif quand tout est résolu et qu'aucune raison ne le bloque, Abort
    * toujours actif. Le parent garde l'état et fait les actions.
    */
@@ -8,10 +9,14 @@
   import GitMerge from "@lucide/svelte/icons/git-merge";
   import Play from "@lucide/svelte/icons/play";
   import X from "@lucide/svelte/icons/x";
+  import type { OperationKindView, OperationStepView } from "../bindings";
+  import { OPERATION_NAME } from "../operation";
 
   let {
-    source,
+    kind = "merge",
+    other,
     receiving,
+    step = null,
     left = null,
     reason = null,
     busy = false,
@@ -21,10 +26,14 @@
     oncontinue,
     onabort,
   }: {
-    /** Branche fusionnée. */
-    source: string;
-    /** Branche qui reçoit (la courante). */
+    /** Merge, rebase, cherry-pick ou revert, lancé dans Octogit ou au terminal. */
+    kind?: OperationKindView;
+    /** Merge : branche fusionnée ; rebase : base ; cherry-pick et revert : SHA abrégé du commit. */
+    other: string;
+    /** Branche qui reçoit (la courante, ou la branche rejouée d'un rebase). */
     receiving: string;
+    /** Étape d'un rebase (« 2 / 5 »). */
+    step?: OperationStepView | null;
     /** Fichiers encore en conflit ; `null` tant qu'ils ne sont pas lus. */
     left?: number | null;
     /** Pourquoi Continue est désactivé malgré tout (identité, « No profile »), ou `null`. */
@@ -46,8 +55,16 @@
   function continueNow() {
     if (ready) oncontinue();
   }
+  const name = $derived(OPERATION_NAME[kind]);
+  const what = $derived.by(() => {
+    if (kind === "rebase") return `${receiving} onto ${other}`;
+    if (kind === "cherryPick") return `${other} onto ${receiving}`;
+    if (kind === "revert") return `${other} on ${receiving}`;
+    return `${other} into ${receiving}`;
+  });
   const text = $derived(
-    `Merge in progress · ${source} into ${receiving}` +
+    `${name[0].toUpperCase()}${name.slice(1)} in progress · ${what}` +
+      (step === null ? "" : ` · ${step.current} / ${step.total}`) +
       (left === null ? "" : ` · ${left} ${left === 1 ? "file" : "files"} left`),
   );
 </script>
@@ -73,10 +90,10 @@
     </button>
   {/if}
   <button type="button" disabled={busy} onclick={onabort}>
-    <X size={16} strokeWidth={1.8} aria-hidden="true" />Abort merge
+    <X size={16} strokeWidth={1.8} aria-hidden="true" />Abort {name}
   </button>
   <button type="button" class="primary" disabled={!ready} onclick={continueNow}>
-    <Play size={16} strokeWidth={1.8} aria-hidden="true" />Continue merge
+    <Play size={16} strokeWidth={1.8} aria-hidden="true" />Continue {name}
   </button>
 </div>
 

@@ -18,7 +18,9 @@ use crate::preferences::{self, Column, SectionLayoutView, SyncAction};
 use crate::profiles::{self, ProfileView};
 use crate::propagate::{self, SavedProfileView};
 use crate::ssh_keys::{self, ConnectionTestView, SshKeyView};
-use crate::working_tree::{self, CommittedView, MergeView, WorkingTreeView};
+use crate::working_tree::{
+    self, CommittedView, OperationOutcomeView, OperationStateView, WorkingTreeView,
+};
 
 #[tauri::command]
 #[specta::specta]
@@ -527,10 +529,11 @@ pub fn reset_hard(path: String, target: String) -> Result<CommittedView, String>
 
 /// Cherry-pick de `commit` (SHA, branche ou `origin/…`) sur la branche courante, sans dialogue : le commit créé
 /// garde l'auteur d'origine, le committer et la signature sont ceux du `.git/config` local. Rend l'arbre de
-/// travail et le dépôt relus. Rien n'est poussé, aucune autre ref ne bouge.
+/// travail et le dépôt relus, et si le cherry-pick reste en cours sur un conflit. Rien n'est poussé, aucune autre
+/// ref ne bouge.
 #[tauri::command]
 #[specta::specta]
-pub async fn cherry_pick(path: String, commit: String) -> Result<CommittedView, String> {
+pub async fn cherry_pick(path: String, commit: String) -> Result<OperationOutcomeView, String> {
     tauri::async_runtime::spawn_blocking(move || {
         working_tree::cherry_pick_checked(
             &Store::new(data_dir()),
@@ -544,10 +547,10 @@ pub async fn cherry_pick(path: String, commit: String) -> Result<CommittedView, 
 }
 
 /// Revert de `commit` sur la branche courante, sans dialogue : message par défaut de Git, auteur et committer
-/// du `.git/config` local. Rend l'arbre de travail et le dépôt relus.
+/// du `.git/config` local. Rend l'arbre de travail et le dépôt relus, et si le revert reste en cours sur un conflit.
 #[tauri::command]
 #[specta::specta]
-pub async fn revert(path: String, commit: String) -> Result<CommittedView, String> {
+pub async fn revert(path: String, commit: String) -> Result<OperationOutcomeView, String> {
     tauri::async_runtime::spawn_blocking(move || {
         working_tree::revert_checked(
             &Store::new(data_dir()),
@@ -570,7 +573,7 @@ pub async fn merge_branch(
     path: String,
     source: String,
     receiving: String,
-) -> Result<MergeView, String> {
+) -> Result<OperationOutcomeView, String> {
     tauri::async_runtime::spawn_blocking(move || {
         working_tree::merge_checked(
             &Store::new(data_dir()),
@@ -584,31 +587,42 @@ pub async fn merge_branch(
     .map_err(|_| "The merge was interrupted.".to_string())?
 }
 
-/// Continue du merge en conflit : commit de merge au message par défaut de Git, auteur et committer du
-/// `.git/config` local ; refusé si l'identité ne correspond pas au profil ou si un fichier est encore en conflit
-/// (le merge reste en cours). Rend l'arbre de travail et le dépôt relus.
+/// Continue de l'opération en cours (merge, rebase, cherry-pick, revert) : commit au message que Git propose, auteur
+/// d'origine gardé, committer du `.git/config` local ; refusé si l'identité ne correspond pas au profil ou si un
+/// fichier est encore en conflit (l'opération reste en cours). Rend l'arbre de travail et le dépôt relus, et si un
+/// rebase s'est arrêté de nouveau sur un conflit.
 #[tauri::command]
 #[specta::specta]
-pub async fn continue_merge(path: String) -> Result<CommittedView, String> {
+pub async fn continue_operation(path: String) -> Result<OperationOutcomeView, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        working_tree::continue_merge_checked(
+        working_tree::continue_operation_checked(
             &Store::new(data_dir()),
             &crate::home_dir(),
             Path::new(&path),
         )
     })
     .await
-    .map_err(|_| "The merge was interrupted.".to_string())?
+    .map_err(|_| "The operation was interrupted.".to_string())?
 }
 
-/// Abort du merge en cours : la branche, l'index et l'arbre de travail reviennent comme avant. Rend l'arbre de
+/// Abort de l'opération en cours : la branche, l'index et l'arbre de travail reviennent comme avant. Rend l'arbre de
 /// travail et le dépôt relus.
 #[tauri::command]
 #[specta::specta]
-pub async fn abort_merge(path: String) -> Result<CommittedView, String> {
-    tauri::async_runtime::spawn_blocking(move || working_tree::abort_merge(Path::new(&path)))
+pub async fn abort_operation(path: String) -> Result<CommittedView, String> {
+    tauri::async_runtime::spawn_blocking(move || working_tree::abort_operation(Path::new(&path)))
         .await
         .map_err(|_| "The abort was interrupted.".to_string())?
+}
+
+/// L'opération en cours du dépôt (merge, rebase avec son étape, cherry-pick, revert), lue de `.git` : lancée par
+/// Octogit ou au terminal, ou `None`.
+#[tauri::command]
+#[specta::specta]
+pub async fn read_operation(path: String) -> Result<Option<OperationStateView>, String> {
+    tauri::async_runtime::spawn_blocking(move || working_tree::read_operation(Path::new(&path)))
+        .await
+        .map_err(|_| "The operation could not be read.".to_string())?
 }
 
 /// Fichiers du merge en cours par groupe (Conflicted, Resolved, Auto-merged) ; `theirs_name` : branche fusionnée,
@@ -656,14 +670,15 @@ pub async fn resolve_conflict_file(
 }
 
 /// Rebase de `receiving`, la branche courante, sur `onto` (branche, `origin/…` ou SHA de commit), sans dialogue :
-/// les commits sont rejoués et gardent leur auteur. Rend l'arbre de travail et le dépôt relus.
+/// les commits sont rejoués et gardent leur auteur. Rend l'arbre de travail et le dépôt relus, et si le rebase reste
+/// en cours sur un conflit.
 #[tauri::command]
 #[specta::specta]
 pub async fn rebase_branch(
     path: String,
     onto: String,
     receiving: String,
-) -> Result<CommittedView, String> {
+) -> Result<OperationOutcomeView, String> {
     tauri::async_runtime::spawn_blocking(move || {
         working_tree::rebase_checked(
             &Store::new(data_dir()),
@@ -805,10 +820,11 @@ pub async fn fetch_all_repository(path: String) -> Result<Option<RepositoryView>
 }
 
 /// Pull de `SyncButton` (`rebase` : Pull (rebase), sinon Pull (fast-forward only)) en tâche de fond, puis
-/// relecture du dépôt. L'erreur est un message d'une ligne (divergence, branche non publiée, conflit abandonné…).
+/// relecture du dépôt, et si le Pull (rebase) est resté en cours sur un conflit. L'erreur est un message d'une
+/// ligne (divergence, branche non publiée…).
 #[tauri::command]
 #[specta::specta]
-pub async fn pull_repository(path: String, rebase: bool) -> Result<RepositoryView, String> {
+pub async fn pull_repository(path: String, rebase: bool) -> Result<fetch::PullView, String> {
     tauri::async_runtime::spawn_blocking(move || fetch::pull_repository(Path::new(&path), rebase))
         .await
         .map_err(|_| "Pull was interrupted.".to_string())?

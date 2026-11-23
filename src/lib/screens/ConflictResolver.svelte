@@ -119,7 +119,7 @@
     <p class="error" role="alert">{error.split("\n")[0]}</p>
   {/if}
   <div class="body">
-    <nav class="files" aria-label="Files of the merge">
+    <nav class="files" aria-label="Files in conflict">
       {#each GROUPS as g (g.group)}
         {@const files = filesOf(g.group)}
         <div role="group" aria-labelledby="conflict-group-{g.group}">

@@ -1,13 +1,15 @@
 //! Cherry-pick et Revert de la branche courante : écritures par le binaire `git`, sans dialogue. L'identité du
 //! committer (et celle de l'auteur d'un revert) et la signature viennent du `.git/config` local, lues par `git`.
-//! Aucune autre ref ne bouge, rien n'est poussé. Un conflit ou un cherry-pick sans changement n'est pas résolu
-//! ici : l'opération est annulée par `--abort`, le dépôt revient comme avant et la sortie brute suit la raison.
+//! Aucune autre ref ne bouge, rien n'est poussé. Un conflit reste en cours (`OperationOutcome::conflict`, S-40) ;
+//! un cherry-pick sans changement est annulé par `--abort`, le dépôt revient comme avant et la sortie brute suit
+//! la raison.
 
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+use crate::integrate::OperationOutcome;
 use crate::working_tree::{read_working_tree, remember};
-use crate::{GitError, WorkingTree};
+use crate::GitError;
 
 /// Lance `git` dans `path` ; rend si elle a réussi et sa sortie brute (standard puis erreur).
 fn run(path: &Path, args: &[&str], home: Option<&Path>) -> Result<(bool, String), GitError> {
@@ -44,13 +46,13 @@ fn check_commit(commit: &str) -> Result<(), GitError> {
 
 /// Cherry-pick de `commit` (SHA, branche ou `origin/…`) sur la branche courante : un nouveau commit, de même
 /// message et mêmes changements, qui garde l'auteur d'origine. Rend le nouvel état de l'arbre.
-pub fn cherry_pick(path: &Path, commit: &str) -> Result<WorkingTree, GitError> {
+pub fn cherry_pick(path: &Path, commit: &str) -> Result<OperationOutcome, GitError> {
     apply(path, commit, "cherry-pick", None)
 }
 
 /// Revert de `commit` sur la branche courante : un nouveau commit qui inverse ses changements, avec le message par
 /// défaut de Git. Rend le nouvel état de l'arbre.
-pub fn revert(path: &Path, commit: &str) -> Result<WorkingTree, GitError> {
+pub fn revert(path: &Path, commit: &str) -> Result<OperationOutcome, GitError> {
     apply(path, commit, "revert", None)
 }
 
@@ -59,12 +61,16 @@ pub fn cherry_pick_with_home(
     path: &Path,
     commit: &str,
     home: &Path,
-) -> Result<WorkingTree, GitError> {
+) -> Result<OperationOutcome, GitError> {
     apply(path, commit, "cherry-pick", Some(home))
 }
 
 /// Comme `revert`, avec le `HOME` des sous-processus fixé (tests : un `~/.gitconfig` factice).
-pub fn revert_with_home(path: &Path, commit: &str, home: &Path) -> Result<WorkingTree, GitError> {
+pub fn revert_with_home(
+    path: &Path,
+    commit: &str,
+    home: &Path,
+) -> Result<OperationOutcome, GitError> {
     apply(path, commit, "revert", Some(home))
 }
 
@@ -73,7 +79,7 @@ fn apply(
     commit: &str,
     verb: &str,
     home: Option<&Path>,
-) -> Result<WorkingTree, GitError> {
+) -> Result<OperationOutcome, GitError> {
     check_commit(commit)?;
     let state_ref = if verb == "revert" {
         "REVERT_HEAD"
@@ -92,9 +98,17 @@ fn apply(
         if busy {
             return Err(GitError::Read(raw));
         }
-        // Conflit ou cherry-pick vide : l'opération reste en cours, on l'annule, le dépôt revient comme avant.
-        // Un revert vide est déjà nettoyé par Git (rien à annuler).
         let (started, _) = run(path, &["rev-parse", "-q", "--verify", state_ref], home)?;
+        // Conflit (fichiers non fusionnés) : l'opération reste en cours, `ConflictResolver` prend le relais (S-40).
+        if started && !run(path, &["ls-files", "-u"], home)?.1.is_empty() {
+            let tree = read_working_tree(path)?;
+            remember(path, &tree);
+            return Ok(OperationOutcome {
+                tree,
+                conflict: true,
+            });
+        }
+        // Cherry-pick vide : annulé, le dépôt revient comme avant. Un revert vide est déjà nettoyé par Git.
         if started {
             run(path, &[verb, "--abort"], home)?;
         }
@@ -108,5 +122,8 @@ fn apply(
     }
     let tree = read_working_tree(path)?;
     remember(path, &tree);
-    Ok(tree)
+    Ok(OperationOutcome {
+        tree,
+        conflict: false,
+    })
 }

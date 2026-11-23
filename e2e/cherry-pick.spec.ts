@@ -114,13 +114,16 @@ for (const size of sizes) {
     const tip = ws.git(repo, "rev-parse", "HEAD");
 
     // Menu de la section Origin : la cible est `origin/develop` (« Remote three », en conflit avec la courante).
-    // Le refus nomme son SHA court : il prouve que le menu a résolu la bonne ref.
+    // Le bandeau de l'opération en cours nomme son SHA court : il prouve que le menu a résolu la bonne ref.
     await section(page, 1).getByRole("button", { name: "develop" }).click({ button: "right" });
     await menuItem(page, "Cherry-pick").click();
-    await expect(page.getByRole("alert")).toHaveText(
-      `${ws.git(repo, "rev-parse", "--short=7", "origin/develop")} conflicts or brings no changes. Nothing was changed.`,
+    const banner = page.getByRole("region", { name: "Operation in progress" });
+    await expect(banner).toContainText(
+      `Cherry-pick in progress · ${ws.git(repo, "rev-parse", "--short=7", "origin/develop")} onto develop`,
     );
     expect(ws.git(repo, "rev-parse", "HEAD")).toBe(tip);
+    await banner.getByRole("button", { name: "Abort cherry-pick", exact: true }).click();
+    await expect(banner).toHaveCount(0);
     expect(ws.git(repo, "status", "--porcelain")).toBe("");
 
     // « Remote one » seul se reprend sans conflit : le bouton de CommitDetail agit sur le commit sélectionné.
@@ -160,7 +163,7 @@ for (const size of sizes) {
     );
   });
 
-  test(`décision 2 : un conflit est annulé, le dépôt reste inchangé, refus en une ligne (${size.width}x${size.height})`, async ({
+  test(`revenir-en-arriere CA-5 : un conflit laisse le cherry-pick en cours, aucun commit, ConflictResolver s'ouvre, git status l'indique (${size.width}x${size.height})`, async ({
     page,
   }) => {
     await page.setViewportSize(size);
@@ -171,13 +174,35 @@ for (const size of sizes) {
     await graphRow(page, "Remote two").click({ button: "right" });
     await menuItem(page, "Cherry-pick").click();
 
-    await expect(page.getByRole("alert")).toHaveText(
-      /^[0-9a-f]{7} conflicts or brings no changes\. Nothing was changed\.$/,
+    const resolver = page.getByRole("region", { name: "Resolve conflicts" });
+    await expect(resolver).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    const banner = page.getByRole("region", { name: "Operation in progress" });
+    await expect(banner).toContainText(
+      `Cherry-pick in progress · ${ws.git(repo, "rev-parse", "--short=7", "origin/develop~1")} onto develop`,
     );
-    await expect(page.getByRole("dialog")).toHaveCount(0);
     expect(ws.git(repo, "rev-parse", "HEAD")).toBe(tip);
-    expect(ws.git(repo, "status", "--porcelain")).toBe("");
+    expect(existsSync(join(repo, ".git", "CHERRY_PICK_HEAD"))).toBe(true);
+    expect(ws.git(repo, "status", "--porcelain")).toContain("UU ");
+    // `git status` du terminal indique la même opération (Git écrit dans la langue du poste).
+    expect(ws.git(repo, "status")).toMatch(/cherry/i);
+
+    // Tout résoudre à la main, Continue crée le commit au message de Git.
+    const files = ws.git(repo, "diff", "--name-only", "--diff-filter=U").trim().split("\n");
+    for (const file of files) {
+      await resolver.getByRole("button", { name: new RegExp(`${file}$`) }).click();
+      await resolver.getByRole("button", { name: "Take all theirs", exact: true }).click();
+      await resolver.getByRole("button", { name: "Mark as resolved", exact: true }).click();
+    }
+    await expect(banner.getByRole("button", { name: "Continue cherry-pick" })).toBeEnabled();
+    await banner.getByRole("button", { name: "Continue cherry-pick" }).click();
+
+    await expect(banner).toHaveCount(0);
+    await expect(resolver).toHaveCount(0);
     expect(existsSync(join(repo, ".git", "CHERRY_PICK_HEAD"))).toBe(false);
+    expect(ws.git(repo, "rev-parse", "HEAD~1")).toBe(tip);
+    expect(ws.git(repo, "log", "-1", "--format=%s")).toBe("Remote two");
+    expect(ws.git(repo, "status", "--porcelain")).toBe("");
   });
 }
 

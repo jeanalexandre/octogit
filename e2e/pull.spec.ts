@@ -97,7 +97,7 @@ test("synchroniser CA-6, CA-7 : Pull (rebase) rejoue les 2 commits locaux au-des
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
-test("synchroniser CA-6 : un Pull (rebase) en conflit est abandonné, la branche reste comme avant", async ({
+test("synchroniser CA-8 : un Pull (rebase) en conflit reste en rebase en cours, ConflictResolver s'ouvre, Abort rend la branche d'avant le pull", async ({
   page,
 }) => {
   const repo = ws.pullRepo("conflict");
@@ -106,10 +106,21 @@ test("synchroniser CA-6 : un Pull (rebase) en conflit est abandonné, la branche
   await page.goto(ws.urlWithFetchInterval(3_600_000));
   await expect(tracking(page).getByLabel("3 commits behind")).toBeVisible();
   const heads = ws.localHeads(repo);
+  const merges = ws.git(repo, "rev-list", "--all", "--min-parents=2");
 
   await sync(page).getByRole("button", { name: "Pull (rebase)" }).click();
 
-  await expect(page.getByRole("alert")).toHaveText("Pull stopped on a conflict, rebase aborted.");
+  await expect(page.getByRole("region", { name: "Resolve conflicts" })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  const banner = page.getByRole("region", { name: "Operation in progress" });
+  await expect(banner).toContainText("Rebase in progress · develop onto origin/develop");
+  expect(existsSync(join(repo, ".git", "rebase-merge"))).toBe(true);
+  expect(ws.git(repo, "status", "--porcelain")).toContain("UU ");
+  expect(ws.git(repo, "rev-list", "--all", "--min-parents=2")).toBe(merges);
+
+  await banner.getByRole("button", { name: "Abort rebase", exact: true }).click();
+
+  await expect(banner).toHaveCount(0);
   expect(ws.localHeads(repo)).toBe(heads);
   expect(existsSync(join(repo, ".git", "rebase-merge"))).toBe(false);
   expect(ws.git(repo, "status", "--porcelain")).toBe("");

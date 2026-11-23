@@ -25,7 +25,7 @@ pub enum PullError {
         ahead: u32,
         behind: u32,
     },
-    /// Le rebase a rencontré un conflit ; il a été abandonné, la branche est inchangée.
+    /// Le rebase a rencontré un conflit : il reste en cours, sans commit de fusion. Ce n'est pas un refus.
     Conflict,
     Spawn(String),
     Failed {
@@ -48,7 +48,7 @@ impl fmt::Display for PullError {
                 f,
                 "Branch has diverged: {ahead} local, {behind} on {remote}."
             ),
-            PullError::Conflict => write!(f, "Pull stopped on a conflict, rebase aborted."),
+            PullError::Conflict => write!(f, "Pull stopped on a conflict."),
             PullError::Spawn(message) => write!(f, "cannot run git: {message}"),
             PullError::Failed { output } => write!(f, "git pull failed: {}", output.trim()),
             PullError::TimedOut { .. } => write!(f, "git pull timed out"),
@@ -79,7 +79,7 @@ fn rebase_in_progress(path: &Path) -> bool {
 /// Intègre la branche suivie à la branche courante de `path`, sans jamais créer de commit de fusion
 /// (options en ligne de commande : elles l'emportent sur `pull.rebase` et `pull.ff` du `.git/config`).
 /// Une branche sans suivi est refusée avant tout. Une divergence refuse le fast-forward sans rien écrire.
-/// Un conflit de rebase est abandonné (`git rebase --abort`) : la branche reste comme avant (S-40 le prendra en charge).
+/// Un conflit de rebase reste en cours (`PullError::Conflict`, S-40) ; Continue et Abort sont dans `operation.rs`.
 /// Rend la sortie brute de `git`.
 pub fn pull(path: &Path, mode: PullMode, timeout: Duration) -> Result<String, PullError> {
     let Some(branch) = current_branch(path)? else {
@@ -107,8 +107,8 @@ pub fn pull(path: &Path, mode: PullMode, timeout: Duration) -> Result<String, Pu
             Err(PullError::TimedOut { output })
         }
         Err(FetchError::Failed { output }) => {
+            // Conflit : le rebase reste en cours, `ConflictResolver` prend le relais (S-40).
             if rebase_in_progress(path) {
-                let _ = fetch_with(path, timeout, &["rebase", "--abort"]);
                 return Err(PullError::Conflict);
             }
             // Le fetch du pull a mis la ref distante à jour : les nombres sont ceux du moment du refus.
@@ -133,7 +133,7 @@ pub fn pull(path: &Path, mode: PullMode, timeout: Duration) -> Result<String, Pu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fetch_all;
+    use crate::{abort_operation, fetch_all};
     use std::path::PathBuf;
     use std::process::Command;
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -257,13 +257,21 @@ mod tests {
     }
 
     #[test]
-    fn synchroniser_ca_6_a_rebase_that_conflicts_is_aborted_and_leaves_the_branch_as_it_was() {
+    fn synchroniser_ca_8_a_rebase_that_conflicts_stays_in_progress_without_a_merge_commit() {
         let fx = Fixture::new("conflict");
-        let before = fx.state();
+        let merges = fx.merges();
+        let before = fx.git(&["rev-parse", "HEAD"]);
         let error = pull(&fx.repo(), PullMode::Rebase, TIMEOUT).unwrap_err();
         assert_eq!(error, PullError::Conflict);
+        assert!(rebase_in_progress(&fx.repo()));
+        assert!(fx.git(&["status", "--porcelain"]).contains("UU "));
+        assert_eq!(merges, fx.merges());
+        // Abort : la branche pointe de nouveau sur son commit d'avant le pull.
+        abort_operation(&fx.repo()).unwrap();
         assert!(!rebase_in_progress(&fx.repo()));
-        assert_eq!(before, fx.state());
+        assert_eq!(fx.git(&["rev-parse", "HEAD"]), before);
+        assert_eq!(fx.git(&["symbolic-ref", "--short", "HEAD"]), "develop");
+        assert!(fx.git(&["status", "--porcelain"]).is_empty());
     }
 
     #[test]

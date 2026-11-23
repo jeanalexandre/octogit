@@ -7,7 +7,7 @@ use std::process::Command;
 
 use octogit_app::open::open_repository_in;
 use octogit_app::working_tree::{
-    abort_merge, commit_checked, continue_merge_checked, merge_checked, rebase_checked,
+    abort_operation, commit_checked, continue_operation_checked, merge_checked, rebase_checked,
 };
 use octogit_identity::{MatchingRule, Profile, RuleKind};
 use octogit_store::Store;
@@ -174,7 +174,7 @@ fn resoudre_les_conflits_ca_8_a_conform_repository_continues_with_the_profile_id
     let sb = Sandbox::new("continue-ok");
     let repo = resolved_merge(&sb);
 
-    let view = continue_merge_checked(&sb.store, &sb.home, &repo).unwrap();
+    let view = continue_operation_checked(&sb.store, &sb.home, &repo).unwrap();
 
     let merged = git(&repo, &["rev-parse", "HEAD"]);
     assert!(view.repository.commits.iter().any(|c| c.id == merged));
@@ -196,13 +196,13 @@ fn resoudre_les_conflits_ca_13_continue_is_refused_when_the_identity_does_not_ma
     let head = git(&repo, &["rev-parse", "HEAD"]);
     let merge_head = git(&repo, &["rev-parse", "MERGE_HEAD"]);
 
-    let refused = continue_merge_checked(&sb.store, &sb.home, &repo).unwrap_err();
+    let refused = continue_operation_checked(&sb.store, &sb.home, &repo).unwrap_err();
 
     assert_eq!(refused, "Identity does not match profile Work.");
     assert_eq!(git(&repo, &["rev-parse", "HEAD"]), head);
     assert_eq!(git(&repo, &["rev-parse", "MERGE_HEAD"]), merge_head);
     // Abort reste possible, sans contrôle d'identité.
-    abort_merge(&repo).unwrap();
+    abort_operation(&repo).unwrap();
     assert!(!repo.join(".git/MERGE_HEAD").exists());
 }
 
@@ -215,12 +215,88 @@ fn resoudre_les_conflits_ca_13_continue_is_refused_without_a_profile() {
     let head = git(&repo, &["rev-parse", "HEAD"]);
     let merge_head = git(&repo, &["rev-parse", "MERGE_HEAD"]);
 
-    let refused = continue_merge_checked(&sb.store, &sb.home, &repo).unwrap_err();
+    let refused = continue_operation_checked(&sb.store, &sb.home, &repo).unwrap_err();
 
     assert_eq!(refused, "No profile.");
     assert_eq!(git(&repo, &["rev-parse", "HEAD"]), head);
     assert_eq!(git(&repo, &["rev-parse", "MERGE_HEAD"]), merge_head);
     assert!(repo.join(".git/MERGE_HEAD").exists());
+}
+
+/// Dépôt conforme où le rebase de `side` sur `main` s'est arrêté sur un conflit de `clash.txt`, résolu et indexé.
+fn resolved_rebase(sb: &Sandbox) -> PathBuf {
+    let repo = sb.conform_repo();
+    let who = [
+        "-c",
+        "user.name=Zoe Other",
+        "-c",
+        "user.email=zoe@example.com",
+    ];
+    let commit = |message: &str| {
+        let mut args = who.to_vec();
+        args.extend(["commit", "-q", "-m", message]);
+        git(&repo, &args);
+    };
+    git(&repo, &["checkout", "-q", "side"]);
+    fs::write(repo.join("clash.txt"), "side\n").unwrap();
+    git(&repo, &["add", "clash.txt"]);
+    commit("Side clash");
+    git(&repo, &["checkout", "-q", "main"]);
+    fs::write(repo.join("clash.txt"), "main\n").unwrap();
+    git(&repo, &["add", "clash.txt"]);
+    commit("Main clash");
+    git(&repo, &["checkout", "-q", "side"]);
+    let rebasing = rebase_checked(&sb.store, &sb.home, &repo, "main", "side").unwrap();
+    assert!(rebasing.conflict);
+    fs::write(repo.join("clash.txt"), "resolved\n").unwrap();
+    git(&repo, &["add", "clash.txt"]);
+    repo
+}
+
+#[test]
+fn resoudre_les_conflits_ca_13_continue_of_a_rebase_is_refused_on_a_non_conform_repository_or_without_profile(
+) {
+    let sb = Sandbox::new("continue-rebase-refused");
+    let repo = resolved_rebase(&sb);
+    git(
+        &repo,
+        &["config", "--local", "user.email", "perso@example.org"],
+    );
+    let head = git(&repo, &["rev-parse", "HEAD"]);
+    let step = fs::read_to_string(repo.join(".git/rebase-merge/msgnum")).unwrap();
+
+    let refused = continue_operation_checked(&sb.store, &sb.home, &repo).unwrap_err();
+
+    assert_eq!(refused, "Identity does not match profile Work.");
+    assert_eq!(git(&repo, &["rev-parse", "HEAD"]), head);
+    assert!(repo.join(".git/rebase-merge").exists());
+    assert_eq!(
+        fs::read_to_string(repo.join(".git/rebase-merge/msgnum")).unwrap(),
+        step
+    );
+
+    // Sans profil : même refus, le rebase reste tel quel ; Abort reste possible.
+    sb.store.set_profiles(&[]).unwrap();
+    let refused = continue_operation_checked(&sb.store, &sb.home, &repo).unwrap_err();
+    assert_eq!(refused, "No profile.");
+    assert!(repo.join(".git/rebase-merge").exists());
+    abort_operation(&repo).unwrap();
+    assert!(!repo.join(".git/rebase-merge").exists());
+}
+
+#[test]
+fn resoudre_les_conflits_ca_9_a_conform_repository_continues_a_rebase_with_the_profile_identity() {
+    let sb = Sandbox::new("continue-rebase-ok");
+    let repo = resolved_rebase(&sb);
+
+    let view = continue_operation_checked(&sb.store, &sb.home, &repo).unwrap();
+
+    assert!(!view.conflict);
+    assert!(!repo.join(".git/rebase-merge").exists());
+    assert_eq!(
+        git(&repo, &["log", "-1", "--format=%an <%ae>|%cn <%ce>|%s"]),
+        "Zoe Other <zoe@example.com>|Work User <p1@example.org>|Side clash"
+    );
 }
 
 #[test]

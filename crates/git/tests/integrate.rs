@@ -378,22 +378,22 @@ fn a_merge_already_in_progress_is_refused_and_not_aborted() {
 }
 
 #[test]
-fn decision_1_a_rebase_conflict_is_aborted_and_the_repository_is_unchanged() {
+fn resoudre_les_conflits_ca_1_a_rebase_conflict_stays_in_progress_and_is_not_aborted() {
     let fx = Fixture::new();
     fx.git(&["checkout", "-q", "clash-a"]);
-    let refs = fx.refs();
-    let state = fx.state();
 
-    let error = rebase(fx.path(), "clash-b", "clash-a")
-        .unwrap_err()
-        .to_string();
+    let outcome = rebase(fx.path(), "clash-b", "clash-a").unwrap();
 
-    assert!(error.contains("conflict"), "{error}");
-    assert!(!fx.root.join(".git/rebase-merge").exists());
-    assert!(!fx.root.join(".git/rebase-apply").exists());
-    assert_eq!(fx.refs(), refs);
-    assert_eq!(fx.state(), state);
-    assert_eq!(fx.git(&["branch", "--show-current"]).trim(), "clash-a");
+    assert!(outcome.conflict);
+    assert!(
+        fx.root.join(".git/rebase-merge").exists() || fx.root.join(".git/rebase-apply").exists()
+    );
+    assert!(outcome
+        .tree
+        .unstaged
+        .iter()
+        .any(|f| f.path == "file.txt" && f.status == octogit_git::ChangeStatus::Conflicted));
+    assert!(fx.git(&["status", "--porcelain"]).contains("file.txt"));
 }
 
 #[test]

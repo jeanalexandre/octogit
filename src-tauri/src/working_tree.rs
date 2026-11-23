@@ -241,17 +241,18 @@ pub fn amend_message_checked(
 }
 
 /// Cherry-pick de `commit` (SHA, branche ou `origin/…`) sur la branche courante, sans dialogue : même garde
-/// d'identité que `commit_checked`, refaite ici, rien n'est créé en cas de refus. Un conflit ou un cherry-pick
-/// sans changement est annulé (dépôt inchangé) ; l'erreur est la sortie de Git, sa première ligne en est la raison.
+/// d'identité que `commit_checked`, refaite ici, rien n'est créé en cas de refus. Un conflit n'est pas un refus : le
+/// cherry-pick reste en cours (`conflict`). Un cherry-pick sans changement est annulé (dépôt inchangé) ; l'erreur est
+/// la sortie de Git, sa première ligne en est la raison.
 pub fn cherry_pick_checked(
     store: &Store,
     home: &Path,
     path: &Path,
     commit: &str,
-) -> Result<CommittedView, String> {
+) -> Result<OperationOutcomeView, String> {
     crate::attach::ensure_conform(store, path, home)?;
-    let tree = octogit_git::cherry_pick(path, commit).map_err(|e| e.to_string())?;
-    committed(path, tree)
+    let outcome = octogit_git::cherry_pick(path, commit).map_err(|e| e.to_string())?;
+    outcome_view(path, outcome)
 }
 
 /// Revert de `commit` sur la branche courante, sans dialogue : mêmes garde et refus que `cherry_pick_checked`.
@@ -260,20 +261,80 @@ pub fn revert_checked(
     home: &Path,
     path: &Path,
     commit: &str,
-) -> Result<CommittedView, String> {
+) -> Result<OperationOutcomeView, String> {
     crate::attach::ensure_conform(store, path, home)?;
-    let tree = octogit_git::revert(path, commit).map_err(|e| e.to_string())?;
-    committed(path, tree)
+    let outcome = octogit_git::revert(path, commit).map_err(|e| e.to_string())?;
+    outcome_view(path, outcome)
 }
 
-/// Issue d'un merge lancé : l'arbre et le dépôt relus, et `conflict` vrai si le merge s'est arrêté sur un conflit
-/// (il reste en cours : `ConflictResolver` s'ouvre, ce n'est pas un refus).
+/// Issue d'une opération lancée ou continuée (merge, rebase, cherry-pick, revert) : l'arbre et le dépôt relus, et
+/// `conflict` vrai si elle s'est arrêtée sur un conflit (elle reste en cours : `ConflictResolver` s'ouvre, ce n'est
+/// pas un refus).
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct MergeView {
+pub struct OperationOutcomeView {
     pub tree: WorkingTreeView,
     pub repository: RepositoryView,
     pub conflict: bool,
+}
+
+fn outcome_view(
+    path: &Path,
+    outcome: octogit_git::OperationOutcome,
+) -> Result<OperationOutcomeView, String> {
+    let view = committed(path, outcome.tree)?;
+    Ok(OperationOutcomeView {
+        tree: view.tree,
+        repository: view.repository,
+        conflict: outcome.conflict,
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum OperationKindView {
+    Merge,
+    Rebase,
+    CherryPick,
+    Revert,
+}
+
+/// Étape d'un rebase (« 2 / 5 »).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationStepView {
+    pub current: u32,
+    pub total: u32,
+}
+
+/// Opération laissée en cours dans le dépôt, lue de `.git` (lancée par Octogit ou au terminal).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationStateView {
+    pub kind: OperationKindView,
+    /// Branche qui reçoit (courante, ou branche rejouée d'un rebase).
+    pub receiving: String,
+    /// Merge : branche fusionnée ; rebase : base ; cherry-pick et revert : SHA abrégé du commit.
+    pub other: String,
+    pub step: Option<OperationStepView>,
+}
+
+/// L'opération en cours de `path`, ou `None`.
+pub fn read_operation(path: &Path) -> Result<Option<OperationStateView>, String> {
+    let state = octogit_git::read_operation(path).map_err(|e| e.to_string())?;
+    Ok(state.map(|s| OperationStateView {
+        kind: match s.kind {
+            octogit_git::OperationKind::Merge => OperationKindView::Merge,
+            octogit_git::OperationKind::Rebase => OperationKindView::Rebase,
+            octogit_git::OperationKind::CherryPick => OperationKindView::CherryPick,
+            octogit_git::OperationKind::Revert => OperationKindView::Revert,
+        },
+        receiving: s.receiving,
+        other: s.other,
+        step: s
+            .step
+            .map(|(current, total)| OperationStepView { current, total }),
+    }))
 }
 
 /// Merge de `source` dans `receiving` (la branche courante), toujours avec un commit de merge, sans dialogue : même
@@ -286,48 +347,45 @@ pub fn merge_checked(
     path: &Path,
     source: &str,
     receiving: &str,
-) -> Result<MergeView, String> {
+) -> Result<OperationOutcomeView, String> {
     crate::attach::ensure_conform(store, path, home)?;
     let outcome = octogit_git::merge(path, source, receiving).map_err(|e| e.to_string())?;
-    let view = committed(path, outcome.tree)?;
-    Ok(MergeView {
-        tree: view.tree,
-        repository: view.repository,
-        conflict: outcome.conflict,
-    })
+    outcome_view(path, outcome)
 }
 
-/// Continue d'un merge en conflit : commit de merge au message par défaut de Git. Même garde d'identité que
-/// `merge_checked`, refaite ici : un dépôt non conforme ou sans profil refuse, le merge reste en cours. Un refus de
-/// Git (fichier encore en conflit) laisse aussi le merge en cours ; l'erreur est sa sortie, première ligne en tête.
-pub fn continue_merge_checked(
+/// Continue de l'opération en cours (merge, rebase, cherry-pick, revert) : commit au message que Git propose. Même
+/// garde d'identité que `merge_checked`, refaite ici pour toutes les opérations : un dépôt non conforme ou sans
+/// profil refuse, l'opération reste en cours. Un refus de Git (fichier encore en conflit) la laisse aussi ; l'erreur
+/// est sa sortie, première ligne en tête. Un rebase qui s'arrête de nouveau rend `conflict` vrai.
+pub fn continue_operation_checked(
     store: &Store,
     home: &Path,
     path: &Path,
-) -> Result<CommittedView, String> {
+) -> Result<OperationOutcomeView, String> {
     crate::attach::ensure_conform(store, path, home)?;
-    let tree = octogit_git::continue_merge(path).map_err(|e| e.to_string())?;
-    committed(path, tree)
+    let outcome = octogit_git::continue_operation(path).map_err(|e| e.to_string())?;
+    outcome_view(path, outcome)
 }
 
-/// Abort du merge en cours : la branche, l'index et l'arbre de travail reviennent comme avant le merge. Aucun commit
+/// Abort de l'opération en cours : la branche, l'index et l'arbre de travail reviennent comme avant. Aucun commit
 /// n'est créé : pas de contrôle d'identité. Rend l'arbre et le dépôt relus.
-pub fn abort_merge(path: &Path) -> Result<CommittedView, String> {
-    let tree = octogit_git::abort_merge(path).map_err(|e| e.to_string())?;
+pub fn abort_operation(path: &Path) -> Result<CommittedView, String> {
+    let tree = octogit_git::abort_operation(path).map_err(|e| e.to_string())?;
     committed(path, tree)
 }
 
-/// Rebase de `receiving` (la branche courante) sur `onto`, sans dialogue : mêmes garde et refus que `merge_checked`.
+/// Rebase de `receiving` (la branche courante) sur `onto`, sans dialogue : mêmes garde et refus que `merge_checked` ;
+/// un conflit laisse le rebase en cours (`conflict`).
 pub fn rebase_checked(
     store: &Store,
     home: &Path,
     path: &Path,
     onto: &str,
     receiving: &str,
-) -> Result<CommittedView, String> {
+) -> Result<OperationOutcomeView, String> {
     crate::attach::ensure_conform(store, path, home)?;
-    let tree = octogit_git::rebase(path, onto, receiving).map_err(|e| e.to_string())?;
-    committed(path, tree)
+    let outcome = octogit_git::rebase(path, onto, receiving).map_err(|e| e.to_string())?;
+    outcome_view(path, outcome)
 }
 
 /// Commit ou amend refusé tant que l'identité locale diffère du profil rattaché : le contrôle est refait

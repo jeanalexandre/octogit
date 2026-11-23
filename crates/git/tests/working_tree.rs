@@ -254,6 +254,29 @@ fn a_stage_made_in_a_terminal_is_reported_as_a_change() {
 }
 
 #[test]
+fn resoudre_les_conflits_ca_15_an_operation_started_or_ended_in_a_terminal_is_reported_even_when_the_tree_is_the_same(
+) {
+    let fx = Fixture::new("wip");
+    let (tx, rx) = mpsc::channel();
+    let _watcher = WorkingTreeWatcher::start(&fx.0, move |tree| {
+        let _ = tx.send(tree);
+    })
+    .unwrap();
+    // Un cherry-pick arrêté sans conflit ne change ni l'index ni l'arbre : seul `CHERRY_PICK_HEAD` apparaît.
+    let head = fx.git(&["rev-parse", "HEAD"]);
+    std::fs::write(fx.0.join(".git/CHERRY_PICK_HEAD"), format!("{head}\n")).unwrap();
+    assert!(
+        next(&rx, Duration::from_secs(5)).is_some(),
+        "the operation started is reported"
+    );
+    std::fs::remove_file(fx.0.join(".git/CHERRY_PICK_HEAD")).unwrap();
+    assert!(
+        next(&rx, Duration::from_secs(5)).is_some(),
+        "the operation ended is reported"
+    );
+}
+
+#[test]
 fn proteger_l_identite_ca_17_a_change_of_dot_git_config_made_outside_octogit_is_reported() {
     let fx = Fixture::new("wip");
     let (tx, rx) = mpsc::channel();

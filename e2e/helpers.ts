@@ -50,6 +50,7 @@ export class Workspace {
       | "conflict-stash"
       | "conflict-rebase"
       | "conflict-pick"
+      | "rebase-interactive"
       | "identity"
       | "wide"
       | "large"

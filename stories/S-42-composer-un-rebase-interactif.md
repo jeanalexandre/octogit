@@ -24,6 +24,9 @@ Un clic droit sur un commit de la branche courante propose « Interactive rebase
 ### Fiche (à remplir)
 1. Start rebase dans S-42 : a) visible mais inactif, avec la raison « Available in a later story » (réponse de l'humain, 24/11/2026)
 
+### Après la revue 1
+- Coût de `read_rebase_plan` à l'ouverture du menu sur un long historique : pris en compte (pour information), à surveiller avec S-52.
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` (= `vitest run --reporter=dot`) ; Rust `pnpm test:rs -p <crate> [<filtre>]` (= `cargo test -q`) ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test aux vraies commandes du crate `app`, dépôts d'exemple, données dans un dossier temporaire) ; jamais `npx playwright` ni `cargo run`
@@ -75,7 +78,9 @@ Un clic droit sur un commit de la branche courante propose « Interactive rebase
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `c33e1d7`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; tests, lint, build verts | — |
+| 1 | reviewer | `stories/S-42-revue-1.md` | validé |

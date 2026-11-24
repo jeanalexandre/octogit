@@ -13,6 +13,7 @@ mod integrate;
 mod operation;
 mod pull;
 mod push;
+mod rebase_plan;
 mod reset;
 mod rewrite;
 mod stage;
@@ -52,6 +53,7 @@ pub use operation::{
 };
 pub use pull::{pull, PullError, PullMode};
 pub use push::{push, PushError};
+pub use rebase_plan::{read_rebase_plan, RebasePlan, RebasePlanCommit};
 pub use reset::{reset_branch, reset_hard, reset_hard_loss, LostCommit, ResetLoss, ResetMode};
 pub use rewrite::{rewrite_identity, RewriteError, RewriteTarget};
 pub use stage::{discard_file, stage_file, stage_lines, unstage_file, unstage_lines};

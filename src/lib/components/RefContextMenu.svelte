@@ -15,6 +15,8 @@
 </script>
 
 <script lang="ts">
+  import ListOrdered from "@lucide/svelte/icons/list-ordered";
+
   /**
    * Menu d'une ref (clic droit, touche menu, Maj+F10) et confirmation du checkout d'une `origin/…` dont la locale
    * diffère. Le menu n'a pour l'instant que Checkout ; la liste d'entrées est extensible (S-36 et suivantes).
@@ -41,8 +43,14 @@
     carriesBranch = false,
     onmerge,
     onrebase,
+    onCurrentBranch = false,
+    oninteractiverebase,
   }: {
     menu?: RefMenuTarget | null;
+    /** Le commit du menu est un ancêtre de la branche courante ou son sommet (le parent l'a lu du dépôt). */
+    onCurrentBranch?: boolean;
+    /** Entrée « Interactive rebase from here » d'un commit : son identifiant complet. */
+    oninteractiverebase?: (commit: string) => void;
     /** Branche qui reçoit (sélectionnée, sinon la courante), ou `null` : sans branche locale, ni merge ni rebase. */
     receiving?: { name: string; kind: "branch" | "remote" } | null;
     /** Le commit du menu porte une branche (locale ou `origin/…`) : il n'a alors pas d'entrée Rebase. */
@@ -148,6 +156,14 @@
       currentBranch !== null &&
       (menu.kind === "commit" || menu.kind === "branch" || menu.kind === "remote"),
   );
+  /** Un commit de la branche courante (ancêtre ou sommet) a « Interactive rebase from here », après Reset. */
+  const hasInteractiveRebase = $derived(
+    menu !== null &&
+      menu.kind === "commit" &&
+      currentBranch !== null &&
+      onCurrentBranch &&
+      oninteractiverebase !== undefined,
+  );
   let resetOpen = $state(false);
   let resetTrigger: HTMLElement | undefined = $state();
   /** Un autre menu (autre ref, autre endroit) repart sous-menu fermé. */
@@ -168,6 +184,14 @@
     if (target === null) return;
     onclose();
     onresetbranch?.(target, mode);
+  }
+
+  /** Le commit est lu avant la fermeture du menu (`menu` repasse alors à `null`). */
+  function runInteractiveRebase() {
+    const target = menu;
+    if (target === null || target.kind !== "commit") return;
+    onclose();
+    oninteractiverebase?.(target.commit);
   }
 
   function openReset() {
@@ -282,6 +306,11 @@
         </div>
       {/if}
     {/if}
+    {#if hasInteractiveRebase}
+      <button type="button" role="menuitem" class="entry with-icon" onclick={runInteractiveRebase}>
+        <ListOrdered size={16} strokeWidth={1.8} aria-hidden="true" />Interactive rebase from here
+      </button>
+    {/if}
   </div>
 {/if}
 
@@ -343,6 +372,12 @@
     font: inherit;
     text-align: left;
     cursor: pointer;
+  }
+
+  .entry.with-icon {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .entry:hover,

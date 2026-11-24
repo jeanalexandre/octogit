@@ -173,6 +173,12 @@ struct AmendMessageArgs {
 }
 
 #[derive(Deserialize)]
+struct RebasePlanArgs {
+    path: String,
+    commit: String,
+}
+
+#[derive(Deserialize)]
 struct DetailArgs {
     path: String,
     id: String,
@@ -523,6 +529,14 @@ fn main() {
         "get_commit_detail" => {
             let args: DetailArgs = serde_json::from_str(&input).expect("arguments { path, id }");
             match octogit_app::commands::get_commit_detail(args.path, args.id) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "read_rebase_plan" => {
+            let args: RebasePlanArgs =
+                serde_json::from_str(&input).expect("arguments { path, commit }");
+            match octogit_app::commands::read_rebase_plan(args.path, args.commit) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

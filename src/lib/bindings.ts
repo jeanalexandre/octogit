@@ -60,6 +60,11 @@ export const commands = {
 	setGraphWidth: (path: string, width: number | null) => __TAURI_INVOKE<void>("set_graph_width", { path, width }),
 	/**  Détail d'un commit du dépôt `path` (message, auteur, date, signature, fichiers modifiés). */
 	getCommitDetail: (path: string, id: string) => typedError<CommitDetailView, string>(__TAURI_INVOKE("get_commit_detail", { path, id })),
+	/**
+	 *  Plage d'un rebase interactif : base (parent de `commit`) et commits de `commit` au sommet de la branche
+	 *  courante, du plus ancien au plus récent. Lecture seule : rien n'est lancé ni écrit.
+	 */
+	readRebasePlan: (path: string, commit: string) => typedError<RebasePlanView, string>(__TAURI_INVOKE("read_rebase_plan", { path, commit })),
 	/**  Diff du fichier `file` dans le commit `commit` du dépôt `path` (`DiffView`, mode commit), en lecture seule. */
 	commitFileDiff: (path: string, commit: string, file: string) => typedError<FileDiffView_Serialize, string>(__TAURI_INVOKE("commit_file_diff", { path, commit, file })),
 	/**
@@ -834,6 +839,26 @@ export type PushCommitView_Serialize = {
 	shortId: string,
 	summary: string,
 	fault: CommitFaultView | null,
+};
+
+export type RebaseCommitView = {
+	id: string,
+	shortId: string,
+	summary: string,
+	/**  Message complet. */
+	message: string,
+	author: string,
+	initials: string,
+};
+
+export type RebasePlanView = {
+	/**  Branche courante. */
+	branch: string,
+	/**  Base : parent du commit choisi (identifiant complet et SHA abrégé). */
+	base: string,
+	baseShort: string,
+	/**  Du commit choisi au sommet, du plus ancien au plus récent. */
+	commits: RebaseCommitView[],
 };
 
 export type RecentView = RecentView_Serialize | RecentView_Deserialize;

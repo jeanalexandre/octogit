@@ -17,6 +17,7 @@
     type ProfileView,
     type PushCheckView,
     type LostCommitView,
+    type RebasePlanView,
     type RecentView,
     type SectionLayoutView,
     type RepositoryView,
@@ -45,6 +46,7 @@
     type RefSelection,
   } from "./lib/integrate";
   import ConflictResolver from "./lib/screens/ConflictResolver.svelte";
+  import InteractiveRebase from "./lib/screens/InteractiveRebase.svelte";
   import OperationBanner from "./lib/components/OperationBanner.svelte";
   import { isStashOperation, type OperationKind } from "./lib/operation";
   import AbortMergeDialog from "./lib/components/AbortMergeDialog.svelte";
@@ -1311,6 +1313,38 @@
   /** Saisie en ligne du nom d'une branche à créer (Branch, « Create branch here »), liée à `History`. */
   let branchInput: BranchInput | null = $state(null);
 
+  /**
+   * Plage lue à l'ouverture du menu d'un commit : sa présence dit que le commit est un ancêtre de la branche courante
+   * (ou son sommet), et « Interactive rebase from here » l'ouvre sans nouvelle lecture. Lecture seule.
+   */
+  let menuPlan: { path: string; commit: string; plan: RebasePlanView } | null = $state.raw(null);
+  /** `InteractiveRebase` ouvert par-dessus `History` qui reste monté dessous (même patron que `diff`). */
+  let rebase: { path: string; plan: RebasePlanView } | null = $state.raw(null);
+  const rebaseShown = $derived.by(() => rebase !== null && rebase.path === openPath);
+  const menuOnCurrentBranch = $derived.by(
+    () =>
+      refMenu?.kind === "commit" &&
+      menuPlan !== null &&
+      menuPlan.commit === refMenu.commit &&
+      menuPlan.path === openPath,
+  );
+
+  async function readMenuPlan(path: string, commit: string) {
+    try {
+      const result = await commands.readRebasePlan(path, commit);
+      if (result.status === "ok" && path === openPath)
+        menuPlan = { path, commit, plan: result.data };
+    } catch {
+      // Sans plage lue, le menu n'a pas l'entrée.
+    }
+  }
+
+  function openInteractiveRebase(commit: string) {
+    if (menuPlan !== null && menuPlan.commit === commit && menuPlan.path === openPath) {
+      rebase = { path: menuPlan.path, plan: menuPlan.plan };
+    }
+  }
+
   /** Menu d'un commit du graphe (clic droit, touche menu, Maj+F10) : « Create branch here ». */
   function openCommitMenu(commit: string, event: MouseEvent) {
     event.preventDefault();
@@ -1328,6 +1362,8 @@
       x: event.clientX,
       y: event.clientY,
     };
+    menuPlan = null;
+    if (openPath !== null) void readMenuPlan(openPath, commit);
   }
 
   /** Verdict de Git sur le nom tapé ; une lecture impossible n'empêche rien (la création dira son refus). */
@@ -1729,7 +1765,7 @@
   />
 {:else if screen?.screen === "history"}
   <!-- `inert` sous DiffView : rien de History ne prend le focus ni les touches, mais son état reste. -->
-  <div class="stage" inert={diff !== null || resolverShown}>
+  <div class="stage" inert={diff !== null || resolverShown || rebaseShown}>
     <History
       repository={screen.repository}
       {recent}
@@ -1851,6 +1887,18 @@
       {/key}
     </div>
   {/if}
+  {#if rebase !== null && rebaseShown}
+    <div class="diff-layer">
+      {#key rebase.plan.base}
+        <InteractiveRebase
+          branch={rebase.plan.branch}
+          baseShort={rebase.plan.baseShort}
+          commits={rebase.plan.commits}
+          onback={() => (rebase = null)}
+        />
+      {/key}
+    </div>
+  {/if}
   {#if diff !== null}
     <div class="diff-layer">
       <DiffView
@@ -1956,6 +2004,8 @@
     currentBranch={screen.repository.refs.find((r) => r.kind === "branch" && r.current)?.name ??
       null}
     onresetbranch={resetFromMenu}
+    onCurrentBranch={menuOnCurrentBranch}
+    oninteractiverebase={openInteractiveRebase}
     {receiving}
     carriesBranch={menuCommitCarriesBranch}
     onmerge={(source, into) => integrateFromMenu("merge", source, into)}

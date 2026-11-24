@@ -12,6 +12,7 @@ pub mod open;
 pub mod preferences;
 pub mod profiles;
 pub mod propagate;
+pub mod rebase_plan;
 pub mod ssh_keys;
 pub mod working_tree;
 
@@ -95,6 +96,7 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::get_graph_width,
             commands::set_graph_width,
             commands::get_commit_detail,
+            commands::read_rebase_plan,
             commands::commit_file_diff,
             commands::search_commit_messages,
             commands::get_working_tree,

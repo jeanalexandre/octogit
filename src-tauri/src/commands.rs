@@ -17,6 +17,7 @@ use crate::open::{self, OpenError, RecentView};
 use crate::preferences::{self, Column, SectionLayoutView, SyncAction};
 use crate::profiles::{self, ProfileView};
 use crate::propagate::{self, SavedProfileView};
+use crate::rebase_plan::{self, RebasePlanView};
 use crate::ssh_keys::{self, ConnectionTestView, SshKeyView};
 use crate::working_tree::{
     self, CommittedView, OperationOutcomeView, OperationStateView, WorkingTreeView,
@@ -380,6 +381,14 @@ pub fn move_profile(id: String, delta: i32) -> Result<Vec<ProfileView>, String> 
 #[specta::specta]
 pub fn get_commit_detail(path: String, id: String) -> Result<CommitDetailView, String> {
     detail::commit_detail(Path::new(&path), &id)
+}
+
+/// Plage d'un rebase interactif : base (parent de `commit`) et commits de `commit` au sommet de la branche
+/// courante, du plus ancien au plus récent. Lecture seule : rien n'est lancé ni écrit.
+#[tauri::command]
+#[specta::specta]
+pub fn read_rebase_plan(path: String, commit: String) -> Result<RebasePlanView, String> {
+    rebase_plan::rebase_plan(Path::new(&path), &commit)
 }
 
 /// Identifiants, dans l'ordre du graphe, des commits du dépôt `path` dont le message complet (résumé et

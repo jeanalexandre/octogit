@@ -6,4 +6,4 @@ publish.workspace = true
 
 [dependencies]
 gix = { version = "0.90", default-features = false, features = ["revision", "sha1", "status", "blob-diff"] }
-notify = "8"
+notify = "9"

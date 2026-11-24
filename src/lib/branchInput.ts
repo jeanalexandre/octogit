@@ -1,10 +1,23 @@
-/** Saisie en ligne du nom d'une branche à créer : le commit où elle se crée et le geste qui l'a ouverte. */
-export type BranchInput = {
-  /** Identifiant complet du commit : le sommet de la courante (Branch) ou le commit visé (« Create branch here »). */
-  commit: string;
-  /** Geste d'origine : l'endroit où le focus revient à la fermeture. */
-  source: "toolbar" | "row" | "detail";
-};
+/**
+ * Saisie en ligne du nom d'une branche : à créer (le commit où elle se crée et le geste qui l'a ouverte) ou à
+ * renommer (`rename` : son nom actuel ; le champ prend la place de son étiquette dans le graphe ou de sa ligne dans
+ * `BranchSidebar`, selon le geste).
+ */
+export type BranchInput =
+  | {
+      /** Identifiant complet du commit : le sommet de la courante (Branch) ou le commit visé (« Create branch here »). */
+      commit: string;
+      /** Geste d'origine : l'endroit où le focus revient à la fermeture. */
+      source: "toolbar" | "row" | "detail";
+      rename?: undefined;
+    }
+  | {
+      /** Nom actuel de la branche locale à renommer. */
+      rename: string;
+      /** Où le champ s'ouvre ; sans elle, là où le menu de la branche a été ouvert en dernier (graphe par défaut). */
+      source?: "graph" | "sidebar";
+      commit?: undefined;
+    };
 
 /**
  * Champ de saisie en ligne d'un nom (état « saisie en ligne » de `RefLabel`) : réutilisé par Rename et Create tag.
@@ -12,6 +25,8 @@ export type BranchInput = {
 export type InlineInput = {
   /** Nom accessible du champ (« Branch name »). */
   label: string;
+  /** Texte de départ du champ (Rename : le nom actuel) ; vide par défaut. */
+  initial?: string;
   /** Message d'une ligne affiché sous le champ, ou `null`. */
   message: string | null;
   /** Le texte tapé change. */

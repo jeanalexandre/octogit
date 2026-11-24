@@ -255,6 +255,15 @@ export const commands = {
 	 *  tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne.
 	 */
 	createBranchRepository: (path: string, name: string, commit: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("create_branch_repository", { path, name, commit })),
+	/**  Lit ce que « Delete local » de la branche `name` demande (suppression directe ou confirmation). Lecture seule. */
+	planDeleteBranch: (path: string, name: string) => typedError<DeletePlanView_Serialize, string>(__TAURI_INVOKE("plan_delete_branch", { path, name })),
+	/**  Supprime la branche locale `name` (jamais la courante) en tâche de fond, puis relecture du dépôt. */
+	deleteBranchRepository: (path: string, name: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("delete_branch_repository", { path, name })),
+	/**
+	 *  Renomme la branche locale `from` en `to` (lien de suivi gardé, `origin/…` intacte) en tâche de fond, puis
+	 *  relecture du dépôt. L'erreur est un message d'une ligne.
+	 */
+	renameBranchRepository: (path: string, from: string, to: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("rename_branch_repository", { path, from, to })),
 	/**
 	 *  Push de `PushButton` en tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne
 	 *  (distante en avance, pas d'`origin`…).
@@ -518,6 +527,42 @@ export type ConnectionTestView = {
 	status: ConnectionStatus,
 	message: string,
 };
+
+/**
+ *  Plan de « Delete local », valeur typée : suppression directe, ou confirmation dont le texte se compose avec ces
+ *  champs (rien n'a changé).
+ */
+export type DeletePlanView = DeletePlanView_Serialize | DeletePlanView_Deserialize;
+
+/**
+ *  Plan de « Delete local », valeur typée : suppression directe, ou confirmation dont le texte se compose avec ces
+ *  champs (rien n'a changé).
+ */
+export type DeletePlanView_Deserialize = 
+/**  Tous les commits de la branche sont dans la courante : suppression sans confirmation. */
+{ kind: "direct" } | 
+/**
+ *  « <branche> has N commits not merged anywhere. » (`unmerged` > 0) ou « <branche> is not merged into
+ *  <courante> (merged into <ref>). » (`unmerged` = 0).
+ */
+{ kind: "confirm"; branch: string; 
+/**  Branche courante (`None` : HEAD détachée). */
+current?: string | null; unmerged: number; mergedInto?: string | null };
+
+/**
+ *  Plan de « Delete local », valeur typée : suppression directe, ou confirmation dont le texte se compose avec ces
+ *  champs (rien n'a changé).
+ */
+export type DeletePlanView_Serialize = 
+/**  Tous les commits de la branche sont dans la courante : suppression sans confirmation. */
+{ kind: "direct" } | 
+/**
+ *  « <branche> has N commits not merged anywhere. » (`unmerged` > 0) ou « <branche> is not merged into
+ *  <courante> (merged into <ref>). » (`unmerged` = 0).
+ */
+{ kind: "confirm"; branch: string; 
+/**  Branche courante (`None` : HEAD détachée). */
+current: string | null; unmerged: number; mergedInto: string | null };
 
 export type DiffLineKindView = "context" | "added" | "removed";
 

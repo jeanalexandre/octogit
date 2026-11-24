@@ -56,6 +56,7 @@
     branchInput = $bindable(null),
     checkBranchName = async () => "valid",
     oncreatebranch,
+    onrenamebranch,
     oncheckout,
     checkoutNotice = null,
     checkoutStarts = 0,
@@ -129,6 +130,8 @@
     checkBranchName?: (name: string) => Promise<BranchNameVerdict>;
     /** Entrée sur un nom accepté : crée la branche sur ce commit et la rend courante. */
     oncreatebranch?: (name: string, commit: string) => void;
+    /** Entrée sur un nom accepté de la saisie d'un renommage : renomme la branche locale `old` en `name`. */
+    onrenamebranch?: (old: string, name: string) => void;
     /** Des commits déjà poussés ont été réécrits en local (`get_force_push_check`) : `PushButton` dit « Force push ». */
     rewrite?: boolean;
     /** Clic sur « Force push » de `PushButton` : ouvre `ForcePushDialog` (ne pousse rien). */
@@ -439,12 +442,46 @@
     }
   }
 
-  function startBranch(commit: string, source: BranchInput["source"]) {
+  function startBranch(commit: string, source: "toolbar" | "row" | "detail") {
     branchInput = { commit, source };
   }
 
-  /** Rend le focus au geste qui a ouvert la saisie. */
-  function refocus(input: BranchInput) {
+  /** D'où vient le dernier menu de branche : le graphe ou `BranchSidebar` (Rename y ouvre son champ). */
+  let menuSource: "graph" | "sidebar" = "graph";
+  const fromGraph = (name: string, event: MouseEvent) => {
+    menuSource = "graph";
+    onrefcontextmenu?.(name, event);
+  };
+  const fromSidebar = (name: string, event: MouseEvent) => {
+    menuSource = "sidebar";
+    onrefcontextmenu?.(name, event);
+  };
+
+  /** Où s'ouvre la saisie d'un renommage : le graphe si le sommet de la branche y est, sinon sa ligne de la barre latérale. */
+  const renameSource = $derived.by((): "graph" | "sidebar" => {
+    if (branchInput === null || branchInput.rename === undefined) return "graph";
+    const name = branchInput.rename;
+    const tip = repository.refs.find((r) => r.kind === "branch" && r.name === name)?.target;
+    const wanted = branchInput.source ?? menuSource;
+    return wanted === "graph" && repository.commits.some((c) => c.id === tip) ? "graph" : "sidebar";
+  });
+
+  /** Focus sur la branche : sa ligne de `BranchSidebar` ou la ligne de son sommet dans le graphe. */
+  function focusBranchRow(name: string, source: "graph" | "sidebar") {
+    if (source === "sidebar") {
+      const rows = document.querySelectorAll<HTMLElement>("[data-ref-name]");
+      for (const row of rows) if (row.dataset.refName === name) return row.focus();
+    }
+    const tip = repository.refs.find((r) => r.kind === "branch" && r.name === name)?.target;
+    if (tip) document.querySelector<HTMLElement>(`[data-commit="${tip}"]`)?.focus();
+  }
+
+  /** Rend le focus au geste qui a ouvert la saisie (`source` : où le champ d'un renommage était ouvert). */
+  function refocus(input: BranchInput, source: "graph" | "sidebar" = "graph") {
+    if (input.rename !== undefined) {
+      focusBranchRow(input.rename, source);
+      return;
+    }
     const selector =
       input.source === "toolbar"
         ? "[data-branch-button]"
@@ -454,10 +491,27 @@
     document.querySelector<HTMLElement>(selector)?.focus();
   }
 
+  /** Après un renommage accepté : le focus va à la branche sous son nouveau nom, dès que le dépôt relu l'affiche. */
+  let focusAfterRename: { name: string; source: "graph" | "sidebar" } | null = null;
+  $effect(() => {
+    void repository;
+    untrack(() => {
+      const next = focusAfterRename;
+      if (
+        next === null ||
+        !repository.refs.some((r) => r.kind === "branch" && r.name === next.name)
+      )
+        return;
+      focusAfterRename = null;
+      focusBranchRow(next.name, next.source);
+    });
+  });
+
   function closeInput() {
     const input = branchInput;
+    const source = renameSource;
     branchInput = null;
-    if (input) refocus(input);
+    if (input) refocus(input, source);
   }
 
   async function typeBranchName(name: string) {
@@ -481,22 +535,45 @@
       inputMessage = message;
       return;
     }
+    const source = renameSource;
     branchInput = null;
+    if (input.rename !== undefined) {
+      focusAfterRename = { name, source };
+      onrenamebranch?.(input.rename, name);
+      return;
+    }
     refocus(input);
     oncreatebranch?.(name, input.commit);
   }
 
-  const inline = $derived(
+  const inputField = $derived(
     branchInput === null
       ? null
       : {
-          commit: branchInput.commit,
           label: "Branch name",
+          initial: branchInput.rename,
           message: inputMessage,
           oninput: typeBranchName,
           onsubmit: submitBranchName,
           oncancel: closeInput,
         },
+  );
+
+  /** Saisie dans la colonne des refs du graphe : création, ou renommage lancé depuis le graphe. */
+  const inline = $derived.by(() => {
+    if (branchInput === null || inputField === null) return null;
+    if (branchInput.rename === undefined) return { commit: branchInput.commit, ...inputField };
+    if (renameSource !== "graph") return null;
+    const name = branchInput.rename;
+    const tip = repository.refs.find((r) => r.kind === "branch" && r.name === name)?.target;
+    return tip === undefined ? null : { commit: tip, ...inputField };
+  });
+
+  /** Saisie dans la ligne de la branche de `BranchSidebar` : renommage lancé depuis la barre latérale. */
+  const renaming = $derived(
+    branchInput?.rename !== undefined && inputField !== null && renameSource === "sidebar"
+      ? { name: branchInput.rename, ...inputField }
+      : null,
   );
 
   /** Refs que désigne le commit du panneau de droite (Checkout de `CommitDetail`). */
@@ -672,7 +749,8 @@
       {onrefclick}
       {selectedRef}
       {onrefdblclick}
-      {onrefcontextmenu}
+      onrefcontextmenu={fromSidebar}
+      {renaming}
       {checkoutStarts}
     />
     <CommitGraph
@@ -687,7 +765,7 @@
       {onhidecolumns}
       {onrefclick}
       {onrefdblclick}
-      {onrefcontextmenu}
+      onrefcontextmenu={fromGraph}
       {oncommitcontextmenu}
       {inline}
       {faults}

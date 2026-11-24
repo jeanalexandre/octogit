@@ -3,6 +3,7 @@
   import Cloud from "@lucide/svelte/icons/cloud";
   import Monitor from "@lucide/svelte/icons/monitor";
   import Tag from "@lucide/svelte/icons/tag";
+  import { untrack } from "svelte";
   import type { InlineInput } from "../branchInput";
 
   /**
@@ -21,7 +22,10 @@
     oncontextmenu,
     onclick,
     input = null,
+    flow = false,
   }: {
+    /** Saisie en ligne dans le flux (ligne de `BranchSidebar`) au lieu de flotter par-dessus le graphe. */
+    flow?: boolean;
     /** Clic simple sur l'étiquette (pas ceux d'un double-clic) : rappel avec le nom de sa ref. */
     onclick?: (name: string) => void;
     /**
@@ -48,7 +52,8 @@
 
   /** Largeur minimale du champ, en caractères : celle de la colonne des refs (180 px) à peu près. */
   const MIN_SIZE = 18;
-  let typed = $state("");
+  // Le champ naît avec son texte de départ ; il vit ensuite de ce qui est tapé.
+  let typed = $state(untrack(() => input?.initial ?? ""));
   const size = $derived(Math.max(MIN_SIZE, typed.length + 1));
 
   function focusOnMount(node: HTMLElement) {
@@ -68,7 +73,7 @@
 </script>
 
 {#if input}
-  <span class="inline" data-inline-input>
+  <span class="inline" class:flow data-inline-input>
     <input
       type="text"
       class="field"
@@ -133,6 +138,19 @@
     flex-direction: column;
     transform: translateY(-50%);
     max-width: 60vw;
+  }
+
+  /* Dans une ligne de la barre latérale : au fil de la ligne, le message dessous, sans rien flotter. */
+  .inline.flow {
+    position: static;
+    transform: none;
+    max-width: 100%;
+  }
+
+  .inline.flow .message {
+    position: static;
+    max-width: 100%;
+    margin-top: 4px;
   }
 
   .field {

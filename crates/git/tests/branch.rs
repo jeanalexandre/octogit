@@ -7,21 +7,27 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use octogit_git::{
-    check_branch_name, create_branch, read_refs, BranchError, BranchNameCheck, RefKind,
-    FETCH_TIMEOUT,
+    check_branch_name, create_branch, delete_branch, plan_delete_branch, read_refs, rename_branch,
+    BranchError, BranchNameCheck, DeletePlan, RefKind, FETCH_TIMEOUT,
 };
 
 struct Fixture(PathBuf);
 
 impl Fixture {
     fn new() -> Self {
+        Self::with("refs.sh")
+    }
+
+    fn with(fixture: &str) -> Self {
         static N: AtomicU32 = AtomicU32::new(0);
         let dir = std::env::temp_dir().join(format!(
             "octogit-branch-test-{}-{}",
             std::process::id(),
             N.fetch_add(1, Ordering::SeqCst)
         ));
-        let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/refs.sh");
+        let script = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures")
+            .join(fixture);
         assert!(Command::new("sh")
             .arg(script)
             .arg(dir.join("repo"))
@@ -213,4 +219,218 @@ fn gerer_les_branches_ca_23_something_that_is_not_a_commit_id_creates_nothing() 
     }
     assert_eq!(before, fx.state());
     assert!(!fx.succeeds(&["rev-parse", "--verify", "-q", "refs/heads/other"]));
+}
+
+/// Ce que renommer ou supprimer ne doit pas changer : nombre de commits, `origin`, HEAD sur une branche.
+fn assert_no_commit_and_origin_intact(fx: &Fixture, before: &(String, String, String, String)) {
+    assert!(
+        fx.succeeds(&["symbolic-ref", "-q", "HEAD"]),
+        "HEAD is detached"
+    );
+    assert_eq!(before.2, fx.state().2, "a commit was created");
+    assert_eq!(before.3, fx.state().3, "origin changed");
+}
+
+#[test]
+fn gerer_les_branches_ca_12_rename_keeps_the_commit_and_the_tracking_link_and_leaves_origin_intact()
+{
+    let fx = Fixture::with("branch-delete.sh");
+    let before = fx.state();
+    let commit = fx.git(&["rev-parse", "feature/profiles"]);
+    assert_eq!(
+        fx.git(&["rev-parse", "--abbrev-ref", "feature/profiles@{upstream}"]),
+        "origin/feature/profiles"
+    );
+    rename_branch(
+        &fx.repo(),
+        "feature/profiles",
+        "feature/lanes",
+        FETCH_TIMEOUT,
+    )
+    .unwrap();
+    assert_eq!(fx.git(&["rev-parse", "feature/lanes"]), commit);
+    assert!(!fx.succeeds(&["rev-parse", "--verify", "-q", "refs/heads/feature/profiles"]));
+    assert_eq!(
+        fx.git(&["rev-parse", "--abbrev-ref", "feature/lanes@{upstream}"]),
+        "origin/feature/profiles"
+    );
+    assert!(fx
+        .git(&["ls-remote", "origin"])
+        .contains("refs/heads/feature/profiles"));
+    assert!(fx.succeeds(&[
+        "rev-parse",
+        "--verify",
+        "-q",
+        "refs/remotes/origin/feature/profiles"
+    ]));
+    assert_no_commit_and_origin_intact(&fx, &before);
+    assert_eq!(fx.git(&["branch", "--show-current"]), "develop");
+}
+
+#[test]
+fn gerer_les_branches_ca_12_the_renamed_current_branch_stays_current() {
+    let fx = Fixture::new();
+    let before = fx.state();
+    rename_branch(&fx.repo(), "develop", "dev", FETCH_TIMEOUT).unwrap();
+    assert_eq!(fx.git(&["branch", "--show-current"]), "dev");
+    assert_eq!(
+        fx.git(&["rev-parse", "--abbrev-ref", "dev@{upstream}"]),
+        "origin/develop"
+    );
+    let refs = read_refs(&fx.repo()).unwrap();
+    assert!(refs
+        .iter()
+        .any(|r| r.kind == RefKind::Branch && r.name == "dev" && r.current));
+    assert_no_commit_and_origin_intact(&fx, &before);
+}
+
+#[test]
+fn gerer_les_branches_ca_10_rename_refuses_an_existing_or_invalid_name_and_changes_nothing() {
+    let fx = Fixture::new();
+    let before = (fx.state(), fx.git(&["for-each-ref", "refs/heads"]));
+    // Même le nom actuel de la branche : « existe déjà », sans cas particulier.
+    for (name, expected) in [
+        ("develop", BranchError::Exists),
+        ("feature/profiles", BranchError::Exists),
+        ("feature graph", BranchError::Invalid),
+        ("", BranchError::Invalid),
+    ] {
+        assert_eq!(
+            rename_branch(&fx.repo(), "feature/profiles", name, FETCH_TIMEOUT).unwrap_err(),
+            expected,
+            "{name:?}"
+        );
+    }
+    assert_eq!(
+        rename_branch(&fx.repo(), "nope", "other", FETCH_TIMEOUT).unwrap_err(),
+        BranchError::NotABranch("nope".to_string())
+    );
+    assert_eq!(
+        before,
+        (fx.state(), fx.git(&["for-each-ref", "refs/heads"]))
+    );
+}
+
+#[test]
+fn gerer_les_branches_ca_13_the_current_branch_cannot_be_deleted() {
+    let fx = Fixture::new();
+    let before = fx.state();
+    assert_eq!(
+        plan_delete_branch(&fx.repo(), "develop").unwrap_err(),
+        BranchError::Current
+    );
+    assert_eq!(
+        delete_branch(&fx.repo(), "develop", FETCH_TIMEOUT).unwrap_err(),
+        BranchError::Current
+    );
+    assert_eq!(fx.git(&["branch", "--show-current"]), "develop");
+    assert_no_commit_and_origin_intact(&fx, &before);
+}
+
+#[test]
+fn gerer_les_branches_ca_14_a_branch_fully_in_the_current_one_is_deleted_without_confirmation() {
+    let fx = Fixture::with("branch-delete.sh");
+    let before = fx.state();
+    assert_eq!(
+        plan_delete_branch(&fx.repo(), "feature/profiles").unwrap(),
+        DeletePlan::Direct
+    );
+    assert_eq!(before, fx.state(), "the plan wrote something");
+    delete_branch(&fx.repo(), "feature/profiles", FETCH_TIMEOUT).unwrap();
+    assert!(!fx.succeeds(&["rev-parse", "--verify", "-q", "refs/heads/feature/profiles"]));
+    assert!(fx.succeeds(&[
+        "rev-parse",
+        "--verify",
+        "-q",
+        "refs/remotes/origin/feature/profiles"
+    ]));
+    assert!(fx.origin().contains("refs/heads/feature/profiles"));
+    assert_eq!(fx.git(&["branch", "--show-current"]), "develop");
+    assert_no_commit_and_origin_intact(&fx, &before);
+}
+
+#[test]
+fn gerer_les_branches_ca_15_commits_carried_by_no_other_branch_ask_for_confirmation_and_the_plan_writes_nothing(
+) {
+    let fx = Fixture::with("branch-delete.sh");
+    let before = fx.state();
+    let heads = fx.git(&["for-each-ref", "refs/heads"]);
+    assert_eq!(
+        plan_delete_branch(&fx.repo(), "wip/lanes").unwrap(),
+        DeletePlan::Confirm {
+            branch: "wip/lanes".to_string(),
+            current: Some("develop".to_string()),
+            unmerged: 3,
+            merged_into: None,
+        }
+    );
+    assert_eq!(before, fx.state());
+    assert_eq!(heads, fx.git(&["for-each-ref", "refs/heads"]));
+    delete_branch(&fx.repo(), "wip/lanes", FETCH_TIMEOUT).unwrap();
+    assert!(!fx.succeeds(&["rev-parse", "--verify", "-q", "refs/heads/wip/lanes"]));
+    assert_eq!(fx.git(&["branch", "--show-current"]), "develop");
+    assert_eq!(before.3, fx.state().3, "origin changed");
+}
+
+#[test]
+fn gerer_les_branches_ca_15_tags_do_not_count_as_merged() {
+    let fx = Fixture::with("branch-delete.sh");
+    fx.git(&["tag", "keep-lanes", "wip/lanes"]);
+    assert_eq!(
+        plan_delete_branch(&fx.repo(), "wip/lanes").unwrap(),
+        DeletePlan::Confirm {
+            branch: "wip/lanes".to_string(),
+            current: Some("develop".to_string()),
+            unmerged: 3,
+            merged_into: None,
+        }
+    );
+}
+
+#[test]
+fn gerer_les_branches_ca_16_commits_all_in_origin_develop_name_it_and_the_plan_writes_nothing() {
+    let fx = Fixture::with("branch-delete.sh");
+    let before = fx.state();
+    assert_eq!(
+        plan_delete_branch(&fx.repo(), "topic/remote-work").unwrap(),
+        DeletePlan::Confirm {
+            branch: "topic/remote-work".to_string(),
+            current: Some("develop".to_string()),
+            unmerged: 0,
+            merged_into: Some("origin/develop".to_string()),
+        }
+    );
+    assert_eq!(before, fx.state());
+    delete_branch(&fx.repo(), "topic/remote-work", FETCH_TIMEOUT).unwrap();
+    assert!(!fx.succeeds(&[
+        "rev-parse",
+        "--verify",
+        "-q",
+        "refs/heads/topic/remote-work"
+    ]));
+    assert_no_commit_and_origin_intact(&fx, &before);
+}
+
+#[test]
+fn gerer_les_branches_ca_16_a_local_branch_is_named_before_remote_ones_and_the_upstream_counts() {
+    let fx = Fixture::with("branch-delete.sh");
+    // Une locale `aaa` sur le même commit : les locales passent avant les distantes.
+    fx.git(&["branch", "aaa", "origin/develop"]);
+    match plan_delete_branch(&fx.repo(), "topic/remote-work").unwrap() {
+        DeletePlan::Confirm { merged_into, .. } => assert_eq!(merged_into.as_deref(), Some("aaa")),
+        other => panic!("{other:?}"),
+    }
+    // L'upstream compte comme n'importe quelle ref.
+    fx.git(&["branch", "-D", "aaa"]);
+    fx.git(&[
+        "branch",
+        "--set-upstream-to=origin/spike/gix",
+        "topic/remote-work",
+    ]);
+    match plan_delete_branch(&fx.repo(), "topic/remote-work").unwrap() {
+        DeletePlan::Confirm { merged_into, .. } => {
+            assert_eq!(merged_into.as_deref(), Some("origin/develop"))
+        }
+        other => panic!("{other:?}"),
+    }
 }

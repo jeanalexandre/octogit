@@ -1016,6 +1016,48 @@ pub async fn create_branch_repository(
     .map_err(|_| "Branch creation was interrupted.".to_string())?
 }
 
+/// Lit ce que « Delete local » de la branche `name` demande (suppression directe ou confirmation). Lecture seule.
+#[tauri::command]
+#[specta::specta]
+pub async fn plan_delete_branch(
+    path: String,
+    name: String,
+) -> Result<fetch::DeletePlanView, String> {
+    tauri::async_runtime::spawn_blocking(move || fetch::plan_delete_branch(Path::new(&path), &name))
+        .await
+        .map_err(|_| "Branch check was interrupted.".to_string())?
+}
+
+/// Supprime la branche locale `name` (jamais la courante) en tâche de fond, puis relecture du dépôt.
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_branch_repository(
+    path: String,
+    name: String,
+) -> Result<RepositoryView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fetch::delete_branch_repository(Path::new(&path), &name)
+    })
+    .await
+    .map_err(|_| "Branch deletion was interrupted.".to_string())?
+}
+
+/// Renomme la branche locale `from` en `to` (lien de suivi gardé, `origin/…` intacte) en tâche de fond, puis
+/// relecture du dépôt. L'erreur est un message d'une ligne.
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_branch_repository(
+    path: String,
+    from: String,
+    to: String,
+) -> Result<RepositoryView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fetch::rename_branch_repository(Path::new(&path), &from, &to)
+    })
+    .await
+    .map_err(|_| "Branch rename was interrupted.".to_string())?
+}
+
 /// Push de `PushButton` en tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne
 /// (distante en avance, pas d'`origin`…).
 #[tauri::command]

@@ -1104,6 +1104,81 @@ describe("History", () => {
     });
   });
 
+  describe("branch rename (J-16)", () => {
+    const field = () => screen.getByRole("textbox", { name: "Branch name" });
+    const type = (value: string) => fireEvent.input(field(), { target: { value } });
+    const rows = () => screen.getAllByRole("listitem");
+    const rename = { rename: "feature/profiles" };
+
+    it("gerer-les-branches CA-12: Rename opened on a branch puts the input, filled with its name, in place of its label in the graph, then Enter renames", async () => {
+      const onrenamebranch = vi.fn();
+      const checkBranchName = vi.fn(async () => "valid" as const);
+      render(History, props({ branchInput: rename, onrenamebranch, checkBranchName }));
+      expect(within(rows()[2]).getByRole("textbox", { name: "Branch name" })).toHaveFocus();
+      expect(field()).toHaveValue("feature/profiles");
+      await type("feature/lanes");
+      await fireEvent.keyDown(field(), { key: "Enter" });
+      await vi.waitFor(() => expect(onrenamebranch).toHaveBeenCalledTimes(1));
+      expect(onrenamebranch).toHaveBeenCalledWith("feature/profiles", "feature/lanes");
+      expect(checkBranchName).toHaveBeenCalledWith("feature/lanes");
+      expect(screen.queryByRole("textbox", { name: "Branch name" })).toBeNull();
+    });
+
+    it("gerer-les-branches CA-12: from BranchSidebar the input takes the place of the row of the branch, not the graph label", async () => {
+      const onrenamebranch = vi.fn();
+      render(
+        History,
+        props({ branchInput: { rename: "feature/profiles", source: "sidebar" }, onrenamebranch }),
+      );
+      const sidebar = screen.getByRole("navigation", { name: "Branches" });
+      expect(within(sidebar).getByRole("textbox", { name: "Branch name" })).toHaveFocus();
+      expect(screen.getAllByRole("textbox", { name: "Branch name" })).toHaveLength(1);
+      await type("feature/lanes");
+      await fireEvent.keyDown(field(), { key: "Enter" });
+      await vi.waitFor(() =>
+        expect(onrenamebranch).toHaveBeenCalledWith("feature/profiles", "feature/lanes"),
+      );
+    });
+
+    it("gerer-les-branches CA-10: a taken name shows « Branch develop already exists. », the current name too, and Enter renames nothing", async () => {
+      const onrenamebranch = vi.fn();
+      render(History, props({ branchInput: rename, onrenamebranch }));
+      await type("develop");
+      expect(await screen.findByRole("alert")).toHaveTextContent("Branch develop already exists.");
+      await fireEvent.keyDown(field(), { key: "Enter" });
+      await type("feature/profiles");
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Branch feature/profiles already exists.",
+      );
+      await fireEvent.keyDown(field(), { key: "Enter" });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(onrenamebranch).not.toHaveBeenCalled();
+      expect(field()).toBeInTheDocument();
+    });
+
+    it("gerer-les-branches CA-10: a name refused by Git shows « Invalid branch name. » and Enter renames nothing", async () => {
+      const onrenamebranch = vi.fn();
+      const checkBranchName = vi.fn(async () => "invalid" as const);
+      render(History, props({ branchInput: rename, onrenamebranch, checkBranchName }));
+      await type("feature graph");
+      expect(await screen.findByRole("alert")).toHaveTextContent("Invalid branch name.");
+      await fireEvent.keyDown(field(), { key: "Enter" });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(onrenamebranch).not.toHaveBeenCalled();
+    });
+
+    it("gerer-les-branches CA-11: Escape closes the input, renames nothing and gives the focus back to the branch row of the graph", async () => {
+      const onrenamebranch = vi.fn();
+      render(History, props({ branchInput: rename, onrenamebranch }));
+      await type("feature/lanes");
+      await fireEvent.keyDown(field(), { key: "Escape" });
+      expect(screen.queryByRole("textbox", { name: "Branch name" })).toBeNull();
+      expect(onrenamebranch).not.toHaveBeenCalled();
+      expect(document.querySelector(`[data-commit="${"c".repeat(40)}"]`)).toHaveFocus();
+      expect(within(rows()[2]).getByText("feature/profiles")).toBeInTheDocument();
+    });
+  });
+
   it("explorer-l-historique CA-25: a merge commit opens the merge variant", async () => {
     const loadDetail = vi.fn(async () => detail({ parents: ["b".repeat(40), "c".repeat(40)] }));
     render(History, props({ loadDetail }));

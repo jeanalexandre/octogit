@@ -65,7 +65,12 @@ for (const size of sizes) {
     await page.keyboard.press("Escape");
 
     await section(page, 0).getByRole("button", { name: "profiles" }).click({ button: "right" });
-    expect(await menuLabels(page)).toEqual(["Checkout", expect.stringMatching(/^Reset /)]);
+    expect(await menuLabels(page)).toEqual([
+      "Checkout",
+      "Rename",
+      expect.stringMatching(/^Delete local/),
+      expect.stringMatching(/^Reset /),
+    ]);
     await page.keyboard.press("Escape");
 
     // Sélectionner develop : il reçoit, feature/profiles devient une source.

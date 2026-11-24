@@ -43,6 +43,7 @@ export class Workspace {
       | "refs"
       | "diff"
       | "refcolumn"
+      | "branch-delete"
       | "sidebar"
       | "layout"
       | "conflict"

@@ -24,6 +24,8 @@ Repris aussi, car la saisie en ligne de Rename les applique (déjà livrés par 
 ## Décisions de l'humain
 ### Fiche (24/11/2026)
 1. « Merged into » de CA-16 (son upstream compte-t-il, quelle ref nommer s'il y en a plusieurs) : 1a — l'upstream compte comme n'importe quelle ref ; le message nomme la première trouvée, locales d'abord puis distantes, par ordre alphabétique
+### Après la revue 2
+- Captures aux deux tailles non refaites par le reviewer (preuve par e2e de géométrie) : pris en compte (pour information).
 
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
@@ -76,8 +78,13 @@ Repris aussi, car la saisie en ligne de Rename les applique (déjà livrés par 
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `39d8b87`   <!-- Non renseignée par /story : HEAD au démarrage du story-runner. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; vérifications toutes vertes | — |
+| 1 | reviewer | 1 bloquant (champ de Rename de BranchSidebar chevauche les lignes voisines), tests sans rouge jugés probants | à corriger |
+| 2 | dev | terminé ; `.item.renaming` + e2e de non-chevauchement (rouge constaté) ; vérifications vertes | — |
+| 2 | reviewer | bloquant 1 levé, aucun problème | validé |
+| fin | run de fin | `pnpm e2e` : 428 passés ; `pnpm audit:deps` non lancé (aucun fichier de verrouillage changé) | — |

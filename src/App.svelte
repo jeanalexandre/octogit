@@ -37,6 +37,7 @@
   import IdentityMismatch from "./lib/components/IdentityMismatch.svelte";
   import RefContextMenu, {
     type CheckoutConfirm,
+    type DeleteConfirm,
     type RefMenuTarget,
   } from "./lib/components/RefContextMenu.svelte";
   import {
@@ -1474,6 +1475,87 @@
     }
   }
 
+  /**
+   * Écriture sur les branches (renommer, supprimer) sous la même garde que le checkout : jamais en même temps qu'un
+   * fetch du même dépôt, un seul geste à la fois. Le dépôt relu remplace l'affichage (profil et écart gardés),
+   * l'arbre de travail est relu ; un refus laisse l'affichage tel quel et montre un message d'une ligne.
+   */
+  async function writeBranches(
+    write: (path: string) => ReturnType<typeof commands.renameBranchRepository>,
+  ) {
+    const path = openPath;
+    if (path === null || checkoutPath !== null || screen?.screen !== "history") return;
+    checkoutNotice = null;
+    checkoutPath = path;
+    try {
+      await runFetchNow(path, async () => {
+        const result = await write(path);
+        if (screen?.screen !== "history" || screen.repository.path !== path) return;
+        if (result.status !== "ok") {
+          checkoutNotice = { path, text: result.error };
+          return;
+        }
+        screen = {
+          screen: "history",
+          repository: {
+            ...result.data,
+            profile: screen.repository.profile,
+            mismatch: screen.repository.mismatch,
+          } satisfies RepositoryView,
+        };
+        const tree = await commands.getWorkingTree(path);
+        if (tree.status === "ok" && openPath === path) workingTree = tree.data;
+      });
+    } catch {
+      // Échec inattendu : l'affichage garde l'état d'avant.
+    } finally {
+      checkoutPath = null;
+    }
+  }
+
+  /** Rename : la branche locale `from` devient `to` (lien de suivi gardé, `origin/…` intacte, la courante reste courante). */
+  const renameBranch = (from: string, to: string) =>
+    writeBranches((path) => commands.renameBranchRepository(path, from, to));
+
+  /** Confirmation de « Delete local » d'une branche non fusionnée dans la courante, avec le dépôt concerné. */
+  let deleteConfirm: (DeleteConfirm & { path: string }) | null = $state(null);
+
+  const deleteBranch = (name: string) =>
+    writeBranches((path) => commands.deleteBranchRepository(path, name));
+
+  /**
+   * « Delete local » : le plan est lu d'abord (lecture seule). Fusionnée dans la courante : supprimée sans
+   * confirmation ; sinon la confirmation nomme ce qui serait perdu et rien n'est écrit avant d'être confirmée.
+   */
+  async function askDeleteBranch(name: string) {
+    const path = openPath;
+    if (path === null || checkoutPath !== null || screen?.screen !== "history") return;
+    checkoutNotice = null;
+    try {
+      const plan = await commands.planDeleteBranch(path, name);
+      if (openPath !== path) return;
+      if (plan.status !== "ok") {
+        checkoutNotice = { path, text: plan.error };
+        return;
+      }
+      if (plan.data.kind === "direct") {
+        await deleteBranch(name);
+        return;
+      }
+      const { branch, current, unmerged, mergedInto } = plan.data;
+      deleteConfirm = { path, branch, current, unmerged, mergedInto };
+    } catch {
+      // Lecture impossible : rien n'est supprimé.
+    }
+  }
+
+  /** « Delete local » de la confirmation : la branche est supprimée. */
+  function confirmDeleteBranch() {
+    const pending = deleteConfirm;
+    deleteConfirm = null;
+    if (pending !== null && pending.path === openPath) void deleteBranch(pending.branch);
+  }
+
   /** « Reset and checkout » ou « Checkout local as is » : lève la confirmation, puis le checkout a lieu. */
   function resolveCheckout(choice: CheckoutChoiceView) {
     const pending = checkoutConfirm;
@@ -1883,6 +1965,7 @@
       bind:branchInput
       {checkBranchName}
       oncreatebranch={createBranch}
+      onrenamebranch={renameBranch}
       oncheckout={(name) => checkout(name)}
       {checkoutStarts}
       checkoutNotice={checkoutNotice !== null && checkoutNotice.path === openPath
@@ -2079,6 +2162,11 @@
     confirm={checkoutConfirm !== null && checkoutConfirm.path === openPath ? checkoutConfirm : null}
     oncheckout={(name) => checkout(name)}
     oncreatebranch={(commit) => (branchInput = { commit, source: "row" })}
+    onrenamebranch={(name) => (branchInput = { rename: name })}
+    ondeletebranch={askDeleteBranch}
+    deleteConfirm={deleteConfirm !== null && deleteConfirm.path === openPath ? deleteConfirm : null}
+    ondeleteconfirm={confirmDeleteBranch}
+    ondeletecancel={() => (deleteConfirm = null)}
     ondiscard={(file, untracked) => {
       if (openPath !== null)
         discardDialog = { path: openPath, file, untracked, busy: false, error: null };

@@ -12,6 +12,25 @@
     | { name: string; kind: "stash"; x: number; y: number };
   /** Une locale de même nom que l'`origin/…` choisie est sur un autre commit : le choix est à faire. */
   export type CheckoutConfirm = { branch: string; remote: string; commits: LocalCommitView[] };
+  /**
+   * « Delete local » d'une branche dont des commits ne sont pas dans la courante : ce que la confirmation dit.
+   * `unmerged` commits portés par aucune autre ref, ou (à 0) la première ref qui les porte (`mergedInto`).
+   */
+  export type DeleteConfirm = {
+    branch: string;
+    current: string | null;
+    unmerged: number;
+    mergedInto: string | null;
+  };
+
+  /** Texte de la confirmation de « Delete local ». */
+  export function deleteConfirmText(confirm: DeleteConfirm): string {
+    if (confirm.unmerged > 0) {
+      const commits = confirm.unmerged === 1 ? "1 commit" : `${confirm.unmerged} commits`;
+      return `${confirm.branch} has ${commits} not merged anywhere. Delete anyway?`;
+    }
+    return `${confirm.branch} is not merged into ${confirm.current ?? "HEAD"} (merged into ${confirm.mergedInto}). Delete anyway?`;
+  }
 </script>
 
 <script lang="ts">
@@ -45,7 +64,22 @@
     onrebase,
     onCurrentBranch = false,
     oninteractiverebase,
+    onrenamebranch,
+    ondeletebranch,
+    deleteConfirm = null,
+    ondeleteconfirm,
+    ondeletecancel,
   }: {
+    /** Entrée Rename d'une branche locale : son nom (le parent ouvre la saisie en ligne). */
+    onrenamebranch?: (name: string) => void;
+    /** Entrée « Delete local » d'une branche locale non courante : son nom (le parent lit le plan : suppression ou confirmation). */
+    ondeletebranch?: (name: string) => void;
+    /** Confirmation de « Delete local » à résoudre, ou `null`. */
+    deleteConfirm?: DeleteConfirm | null;
+    /** « Delete local » de la confirmation : la branche est supprimée. */
+    ondeleteconfirm?: () => void;
+    /** Cancel ou Échap de la confirmation de « Delete local » : rien ne change. */
+    ondeletecancel?: () => void;
     menu?: RefMenuTarget | null;
     /** Le commit du menu est un ancêtre de la branche courante ou son sommet (le parent l'a lu du dépôt). */
     onCurrentBranch?: boolean;
@@ -87,7 +121,8 @@
     oncancel: () => void;
   } = $props();
 
-  type Entry = { id: string; label: string; run: () => void };
+  /** `disabled` : la raison, affichée dans l'entrée, qui ne se lance alors jamais. */
+  type Entry = { id: string; label: string; run: () => void; disabled?: string };
 
   /** Le nom de la ref est figé avec l'entrée : le menu se ferme (`menu` repasse à `null`) avant qu'elle ne s'exécute. */
   const entries: Entry[] = $derived.by(() => {
@@ -144,7 +179,19 @@
             },
           ]
         : [];
-    return menu.kind === "remote" ? [checkout, ...integrate, ...pick] : [checkout, ...integrate];
+    if (menu.kind === "remote") return [checkout, ...integrate, ...pick];
+    const isCurrent = currentBranch === name;
+    return [
+      checkout,
+      ...integrate,
+      { id: "rename", label: "Rename", run: () => onrenamebranch?.(name) },
+      {
+        id: "delete-local",
+        label: "Delete local",
+        run: () => ondeletebranch?.(name),
+        disabled: isCurrent ? "Current branch cannot be deleted." : undefined,
+      },
+    ];
   });
 
   let menuEl: HTMLElement | undefined = $state();
@@ -200,6 +247,7 @@
   }
 
   function runEntry(entry: Entry) {
+    if (entry.disabled !== undefined) return;
     onclose();
     entry.run();
   }
@@ -214,10 +262,11 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (confirm !== null) {
+    if (confirm !== null || deleteConfirm !== null) {
       if (event.key === "Escape") {
         event.preventDefault();
-        oncancel();
+        if (confirm !== null) oncancel();
+        else ondeletecancel?.();
       } else if (event.key === "Tab") {
         const buttons = [
           ...(dialog?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []),
@@ -281,8 +330,12 @@
         type="button"
         role="menuitem"
         class="entry"
+        class:disabled={entry.disabled !== undefined}
+        aria-disabled={entry.disabled !== undefined ? "true" : undefined}
         use:focusIf={i === 0}
-        onclick={() => runEntry(entry)}>{entry.label}</button
+        onclick={() => runEntry(entry)}
+        >{entry.label}{#if entry.disabled !== undefined}<span class="reason">{entry.disabled}</span
+          >{/if}</button
       >
     {/each}
     {#if hasReset}
@@ -311,6 +364,26 @@
         <ListOrdered size={16} strokeWidth={1.8} aria-hidden="true" />Interactive rebase from here
       </button>
     {/if}
+  </div>
+{/if}
+
+{#if deleteConfirm}
+  <div class="backdrop">
+    <div
+      class="dialog"
+      bind:this={dialog}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-confirm-title"
+    >
+      <h2 id="delete-confirm-title">{deleteConfirmText(deleteConfirm)}</h2>
+      <div class="choices">
+        <button type="button" use:focusOnMount onclick={() => ondeletecancel?.()}>Cancel</button>
+        <button type="button" class="primary" onclick={() => ondeleteconfirm?.()}
+          >Delete local</button
+        >
+      </div>
+    </div>
   </div>
 {/if}
 
@@ -372,6 +445,17 @@
     font: inherit;
     text-align: left;
     cursor: pointer;
+  }
+
+  /* Entrée désactivée : sa raison est dite dessous, elle ne se lance pas. */
+  .entry.disabled {
+    color: var(--muted);
+    cursor: default;
+  }
+
+  .entry .reason {
+    display: block;
+    font-size: 12px;
   }
 
   .entry.with-icon {

@@ -36,6 +36,10 @@ pub enum BranchError {
     TimedOut {
         output: String,
     },
+    /// Aucune branche locale de ce nom.
+    NotABranch(String),
+    /// La branche courante ne se supprime pas.
+    Current,
 }
 
 impl fmt::Display for BranchError {
@@ -48,6 +52,8 @@ impl fmt::Display for BranchError {
             BranchError::Spawn(message) => write!(f, "cannot run git: {message}"),
             BranchError::Failed { output } => write!(f, "git switch failed: {}", output.trim()),
             BranchError::TimedOut { .. } => write!(f, "git switch timed out"),
+            BranchError::NotABranch(name) => write!(f, "{name} is not a local branch."),
+            BranchError::Current => write!(f, "Current branch cannot be deleted."),
         }
     }
 }
@@ -85,6 +91,150 @@ pub fn check_branch_name(path: &Path, name: &str) -> Result<BranchNameCheck, Bra
             BranchNameCheck::Valid
         },
     )
+}
+
+/// Ce que fera « Delete local », lu sans rien écrire.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeletePlan {
+    /// Tous les commits de la branche sont dans la courante : suppression sans confirmation.
+    Direct,
+    /// Des commits de la branche ne sont pas dans la courante : confirmation avant de supprimer.
+    Confirm {
+        branch: String,
+        /// Branche courante (`None` : HEAD détachée).
+        current: Option<String>,
+        /// Commits de la branche portés par aucune autre branche locale ou distante.
+        unmerged: u32,
+        /// Quand `unmerged` vaut 0 : la première ref (locales d'abord, puis distantes, par ordre alphabétique) qui
+        /// porte tous les commits de la branche. L'upstream compte comme n'importe quelle ref.
+        merged_into: Option<String>,
+    },
+}
+
+fn map_fetch(e: FetchError) -> BranchError {
+    match e {
+        FetchError::Spawn(message) => BranchError::Spawn(message),
+        FetchError::Failed { output } => BranchError::Failed { output },
+        FetchError::TimedOut { output } => BranchError::TimedOut { output },
+    }
+}
+
+fn local_branch(path: &Path, name: &str) -> Result<crate::RefInfo, BranchError> {
+    read_refs(path)
+        .map_err(|e| BranchError::Read(e.to_string()))?
+        .into_iter()
+        .find(|r| r.kind == RefKind::Branch && r.name == name)
+        .ok_or_else(|| BranchError::NotABranch(name.to_string()))
+}
+
+/// Lit ce que « Delete local » de `name` demande, sans rien écrire : suppression directe si tous les commits de la
+/// branche sont dans la courante, sinon confirmation (commits portés par aucune autre ref, ou ref qui les porte).
+pub fn plan_delete_branch(path: &Path, name: &str) -> Result<DeletePlan, BranchError> {
+    let branch = local_branch(path, name)?;
+    if branch.current {
+        return Err(BranchError::Current);
+    }
+    let tip = format!("refs/heads/{name}");
+    let count = |args: &[&str]| -> Result<u32, BranchError> {
+        let out = git(path, FETCH_TIMEOUT, args).map_err(map_fetch)?;
+        out.trim()
+            .parse()
+            .map_err(|_| BranchError::Read(format!("unexpected output: {out}")))
+    };
+    if count(&["rev-list", "--count", &tip, "--not", "HEAD"])? == 0 {
+        return Ok(DeletePlan::Direct);
+    }
+    let refs = read_refs(path).map_err(|e| BranchError::Read(e.to_string()))?;
+    let current = refs.iter().find(|r| r.current).map(|r| r.name.clone());
+    // Le motif d'`--exclude` est relatif à `refs/heads/` (`--branches`) puis à `refs/remotes/` (`--remotes`).
+    let exclude = format!("--exclude={name}");
+    let unmerged = count(&[
+        "rev-list",
+        "--count",
+        &tip,
+        "--not",
+        &exclude,
+        "--branches",
+        "--exclude=*/HEAD",
+        "--remotes",
+    ])?;
+    if unmerged > 0 {
+        return Ok(DeletePlan::Confirm {
+            branch: name.to_string(),
+            current,
+            unmerged,
+            merged_into: None,
+        });
+    }
+    let candidates = |kind: RefKind| {
+        let mut names: Vec<&str> = refs
+            .iter()
+            .filter(|r| r.kind == kind && r.name != name && !r.name.ends_with("/HEAD"))
+            .map(|r| r.name.as_str())
+            .collect();
+        names.sort_unstable();
+        names
+    };
+    let mut merged_into = None;
+    for (kind, prefix) in [
+        (RefKind::Branch, "refs/heads/"),
+        (RefKind::Remote, "refs/remotes/"),
+    ] {
+        for other in candidates(kind) {
+            match git(
+                path,
+                FETCH_TIMEOUT,
+                &[
+                    "merge-base",
+                    "--is-ancestor",
+                    &tip,
+                    &format!("{prefix}{other}"),
+                ],
+            ) {
+                Ok(_) => {
+                    merged_into = Some(other.to_string());
+                    break;
+                }
+                Err(FetchError::Failed { .. }) => {}
+                Err(e) => return Err(map_fetch(e)),
+            }
+        }
+        if merged_into.is_some() {
+            break;
+        }
+    }
+    Ok(DeletePlan::Confirm {
+        branch: name.to_string(),
+        current,
+        unmerged: 0,
+        merged_into,
+    })
+}
+
+/// Supprime la branche locale `name` (`git branch -D`) ; la confirmation, s'il en faut une, est faite avant par
+/// `plan_delete_branch`. Refuse la courante. Ne touche ni `origin` ni aucun commit.
+pub fn delete_branch(path: &Path, name: &str, timeout: Duration) -> Result<String, BranchError> {
+    if local_branch(path, name)?.current {
+        return Err(BranchError::Current);
+    }
+    git(path, timeout, &["branch", "-D", name]).map_err(map_fetch)
+}
+
+/// Renomme la branche locale `old` en `new` (`git branch -m`) : le lien de suivi est gardé, `origin/…` reste
+/// intacte, la courante renommée reste courante. `new` suit les règles de `check_branch_name`.
+pub fn rename_branch(
+    path: &Path,
+    old: &str,
+    new: &str,
+    timeout: Duration,
+) -> Result<String, BranchError> {
+    local_branch(path, old)?;
+    match check_branch_name(path, new)? {
+        BranchNameCheck::Invalid => return Err(BranchError::Invalid),
+        BranchNameCheck::Exists => return Err(BranchError::Exists),
+        BranchNameCheck::Valid => {}
+    }
+    git(path, timeout, &["branch", "-m", old, new]).map_err(map_fetch)
 }
 
 /// Crée la branche locale `name` sur `commit` (identifiant hexadécimal) et la rend courante : `git switch

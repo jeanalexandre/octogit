@@ -9,6 +9,8 @@
   import Tag from "@lucide/svelte/icons/tag";
   import { untrack } from "svelte";
   import type { CommitView, RefView } from "../bindings";
+  import type { InlineInput } from "../branchInput";
+  import RefLabel from "./RefLabel.svelte";
   import { isMenuKey, menuEventAt } from "../menuKey";
   import { ROW_HEIGHT, clampHeight, defaultHeight, visibleRows } from "../sectionHeight";
   import { buildSections, type RefNode, type SidebarSection, type TreeNode } from "../sidebarTree";
@@ -31,7 +33,10 @@
     onrefdblclick,
     onrefcontextmenu,
     checkoutStarts = 0,
+    renaming = null,
   }: {
+    /** Rename lancé depuis cette barre : le champ de saisie en ligne prend la place de la ligne de la branche `name`. */
+    renaming?: ({ name: string } & InlineInput) | null;
     /** Clic sur une branche locale ou une `origin/…` : sa sélection comme branche qui reçoit (le parent bascule). */
     onrefclick?: (name: string) => void;
     /** Branche sélectionnée comme celle qui reçoit : marquée par `aria-pressed` et un marqueur, pas seulement la couleur. */
@@ -284,12 +289,18 @@
       </button>
       {#if open}{@render nodes(node.children, depth + 1)}{/if}
     {:else}
-      {#if node.ref.kind === "branch" || node.ref.kind === "remote"}
+      {#if renaming && node.ref.kind === "branch" && node.ref.name === renaming.name}
+        <!-- Rename depuis la barre latérale : le champ prend la place de la ligne de la branche. -->
+        <div class="item renaming" style="padding-left: {6 + depth * 12}px">
+          <RefLabel name="" variant="synced" input={renaming} flow />
+        </div>
+      {:else if node.ref.kind === "branch" || node.ref.kind === "remote"}
         <!-- Une branche locale ou une `origin/…` porte les gestes de checkout (tags et stashes : aucun, ils ne détachent jamais HEAD). -->
         <div
           class="item branch"
           role="button"
           tabindex="0"
+          data-ref-name={node.ref.name}
           aria-current={node.ref.current ? "true" : undefined}
           aria-pressed={selectedRef === node.ref.name}
           class:current={node.ref.current}
@@ -576,6 +587,15 @@
     height: 24px;
     padding: 0 6px;
     border-radius: 4px;
+  }
+
+  /* Ligne en saisie : hauteur libre, le champ en haut et le message dessous poussent les lignes suivantes au lieu de les recouvrir. */
+  .item.renaming {
+    height: auto;
+    min-height: 24px;
+    align-items: flex-start;
+    padding-top: 1px;
+    padding-bottom: 1px;
   }
 
   .item.branch:focus-visible,

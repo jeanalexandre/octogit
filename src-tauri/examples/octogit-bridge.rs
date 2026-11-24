@@ -91,6 +91,13 @@ struct CreateBranchArgs {
 }
 
 #[derive(Deserialize)]
+struct RenameBranchArgs {
+    path: String,
+    from: String,
+    to: String,
+}
+
+#[derive(Deserialize)]
 struct ForcePushArgs {
     path: String,
     expected: String,
@@ -979,6 +986,40 @@ fn main() {
                 std::path::Path::new(&args.path),
                 &args.name,
                 &args.commit,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "plan_delete_branch" => {
+            let args: CheckBranchNameArgs =
+                serde_json::from_str(&input).expect("arguments { path, name }");
+            match octogit_app::fetch::plan_delete_branch(
+                std::path::Path::new(&args.path),
+                &args.name,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "delete_branch_repository" => {
+            let args: CheckBranchNameArgs =
+                serde_json::from_str(&input).expect("arguments { path, name }");
+            match octogit_app::fetch::delete_branch_repository(
+                std::path::Path::new(&args.path),
+                &args.name,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "rename_branch_repository" => {
+            let args: RenameBranchArgs =
+                serde_json::from_str(&input).expect("arguments { path, from, to }");
+            match octogit_app::fetch::rename_branch_repository(
+                std::path::Path::new(&args.path),
+                &args.from,
+                &args.to,
             ) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),

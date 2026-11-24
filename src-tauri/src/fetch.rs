@@ -174,10 +174,66 @@ pub fn create_branch_repository(
     repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
 }
 
+/// Plan de « Delete local », valeur typée : suppression directe, ou confirmation dont le texte se compose avec ces
+/// champs (rien n'a changé).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum DeletePlanView {
+    /// Tous les commits de la branche sont dans la courante : suppression sans confirmation.
+    Direct,
+    /// « <branche> has N commits not merged anywhere. » (`unmerged` > 0) ou « <branche> is not merged into
+    /// <courante> (merged into <ref>). » (`unmerged` = 0).
+    #[serde(rename_all = "camelCase")]
+    Confirm {
+        branch: String,
+        /// Branche courante (`None` : HEAD détachée).
+        current: Option<String>,
+        unmerged: u32,
+        merged_into: Option<String>,
+    },
+}
+
+/// Lit ce que « Delete local » de `name` demande : suppression directe ou confirmation. N'écrit rien.
+pub fn plan_delete_branch(path: &Path, name: &str) -> Result<DeletePlanView, String> {
+    octogit_git::plan_delete_branch(path, name)
+        .map(|plan| match plan {
+            octogit_git::DeletePlan::Direct => DeletePlanView::Direct,
+            octogit_git::DeletePlan::Confirm {
+                branch,
+                current,
+                unmerged,
+                merged_into,
+            } => DeletePlanView::Confirm {
+                branch,
+                current,
+                unmerged,
+                merged_into,
+            },
+        })
+        .map_err(branch_message)
+}
+
+/// Supprime la branche locale `name` (confirmée au besoin par l'interface) puis relit le dépôt.
+pub fn delete_branch_repository(path: &Path, name: &str) -> Result<RepositoryView, String> {
+    octogit_git::delete_branch(path, name, octogit_git::FETCH_TIMEOUT).map_err(branch_message)?;
+    repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
+}
+
+/// Renomme la branche locale `old` en `new` (lien de suivi gardé, `origin/…` intacte) puis relit le dépôt.
+pub fn rename_branch_repository(
+    path: &Path,
+    old: &str,
+    new: &str,
+) -> Result<RepositoryView, String> {
+    octogit_git::rename_branch(path, old, new, octogit_git::FETCH_TIMEOUT)
+        .map_err(branch_message)?;
+    repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
+}
+
 fn branch_message(error: octogit_git::BranchError) -> String {
     match error {
-        octogit_git::BranchError::TimedOut { .. } => "Branch creation timed out.".to_string(),
-        octogit_git::BranchError::Failed { .. } => "Branch creation failed.".to_string(),
+        octogit_git::BranchError::TimedOut { .. } => "Branch operation timed out.".to_string(),
+        octogit_git::BranchError::Failed { .. } => "Branch operation failed.".to_string(),
         octogit_git::BranchError::Spawn(_) => "Git could not run.".to_string(),
         octogit_git::BranchError::Read(_) => "Could not read the repository.".to_string(),
         other => other.to_string(),

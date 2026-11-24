@@ -122,6 +122,8 @@ test("gerer-les-branches CA-3 : clic droit › Checkout sur une branche locale d
     "Checkout",
     "Merge feature/profiles into develop",
     "Rebase develop onto feature/profiles",
+    "Rename",
+    "Delete local",
     "Reset develop to here ›",
   ]);
   await page.keyboard.press("Escape");

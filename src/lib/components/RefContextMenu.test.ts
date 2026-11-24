@@ -60,10 +60,10 @@ describe("RefContextMenu merge and rebase", () => {
       RefContextMenu,
       props({ menu: { ...develop, name: "feature/profiles" }, receiving: recv }),
     );
-    expect(labels()).toEqual(["Checkout"]);
+    expect(labels()).toEqual(["Checkout", "Rename", "Delete local"]);
     unmount();
     render(RefContextMenu, props({ menu: develop, receiving: null }));
-    expect(labels()).toEqual(["Checkout"]);
+    expect(labels()).toEqual(["Checkout", "Rename", "Delete local"]);
   });
 
   it("integrer-une-branche CA-3: an origin/… source is named in full, before Cherry-pick, and nothing moves a remote", () => {
@@ -89,7 +89,7 @@ describe("RefContextMenu merge and rebase", () => {
       RefContextMenu,
       props({ menu: develop, receiving: { name: "origin/main", kind: "remote" as const } }),
     );
-    expect(labels()).toEqual(["Checkout"]);
+    expect(labels()).toEqual(["Checkout", "Rename", "Delete local"]);
   });
 
   it("integrer-une-branche CA-4: a commit without branch offers only Rebase onto its short SHA, after Create branch here", async () => {
@@ -202,7 +202,7 @@ describe("RefContextMenu reset", () => {
       ).toEqual(
         target === remote
           ? ["Checkout", "Cherry-pick", "Revert", "Reset feature/profiles to here ›"]
-          : ["Checkout", "Reset feature/profiles to here ›"],
+          : ["Checkout", "Rename", "Delete local", "Reset feature/profiles to here ›"],
       );
       await fireEvent.click(trigger());
       await fireEvent.click(screen.getByRole("menuitem", { name: /^Mixed/ }));
@@ -265,7 +265,12 @@ describe("RefContextMenu cherry-pick and revert", () => {
 
   it("revenir-en-arriere CA-1: the menu of a local branch has neither Cherry-pick nor Revert", () => {
     render(RefContextMenu, props({ menu: local, currentBranch: "feature/profiles" }));
-    expect(labels()).toEqual(["Checkout", "Reset feature/profiles to here ›"]);
+    expect(labels()).toEqual([
+      "Checkout",
+      "Rename",
+      "Delete local",
+      "Reset feature/profiles to here ›",
+    ]);
   });
 
   it("revenir-en-arriere CA-2 and CA-3: Cherry-pick and Revert run at once, without a dialog, on the clicked commit or origin/… ref", async () => {
@@ -314,7 +319,9 @@ describe("RefContextMenu menu", () => {
       expect(menu).toBeVisible();
       const items = within(menu).getAllByRole("menuitem");
       expect(items.map((i) => i.textContent?.trim())).toEqual(
-        target === remote ? ["Checkout", "Cherry-pick", "Revert"] : ["Checkout"],
+        target === remote
+          ? ["Checkout", "Cherry-pick", "Revert"]
+          : ["Checkout", "Rename", "Delete local"],
       );
       await fireEvent.click(items[0]);
       expect(p.oncheckout).toHaveBeenCalledTimes(1);

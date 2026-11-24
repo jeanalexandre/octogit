@@ -179,6 +179,20 @@ struct RebasePlanArgs {
 }
 
 #[derive(Deserialize)]
+struct PushedRangeArgs {
+    path: String,
+    base: String,
+}
+
+#[derive(Deserialize)]
+struct StartRebaseArgs {
+    path: String,
+    base: String,
+    branch: String,
+    entries: Vec<octogit_app::rebase_plan::TodoEntryView>,
+}
+
+#[derive(Deserialize)]
 struct DetailArgs {
     path: String,
     id: String,
@@ -537,6 +551,41 @@ fn main() {
             let args: RebasePlanArgs =
                 serde_json::from_str(&input).expect("arguments { path, commit }");
             match octogit_app::commands::read_rebase_plan(args.path, args.commit) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "read_pushed_range" => {
+            let args: PushedRangeArgs =
+                serde_json::from_str(&input).expect("arguments { path, base }");
+            match octogit_app::rebase_plan::pushed_range(
+                std::path::Path::new(&args.path),
+                &args.base,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "read_range_length" => {
+            let args: PushedRangeArgs =
+                serde_json::from_str(&input).expect("arguments { path, base }");
+            match octogit_app::rebase_plan::range_length(
+                std::path::Path::new(&args.path),
+                &args.base,
+            ) {
+                Ok(count) => (serde_json::to_string(&count), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "start_interactive_rebase" => {
+            let args: StartRebaseArgs =
+                serde_json::from_str(&input).expect("arguments { path, base, branch, entries }");
+            match octogit_app::rebase_plan::start_rebase(
+                std::path::Path::new(&args.path),
+                &args.base,
+                &args.branch,
+                &args.entries,
+            ) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }

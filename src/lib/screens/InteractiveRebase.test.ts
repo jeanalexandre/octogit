@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
-import type { RebaseCommit } from "../rebasePlan";
+import type { RebaseCommit, RebaseEnd } from "../rebasePlan";
 import InteractiveRebase from "./InteractiveRebase.svelte";
 
 const commit = (n: number, summary: string, body = ""): RebaseCommit => ({
@@ -25,6 +25,8 @@ function open(extra = {}) {
     base: "e92a6b3".padEnd(40, "0"),
     baseShort: "e92a6b3",
     commits,
+    pushed: null,
+    onstart: vi.fn(async (): Promise<RebaseEnd> => ({ conflict: false, produced: 5 })),
     onback: vi.fn(),
     ...extra,
   };
@@ -231,15 +233,113 @@ describe("InteractiveRebase", () => {
     expect(props.onback).toHaveBeenCalledTimes(3);
   });
 
-  it("Decision 1: Start rebase is visible but disabled, with the reason « Available in a later story »", async () => {
-    const { props } = open();
-    const start = screen.getByRole("button", { name: /Start rebase/ }) as HTMLButtonElement;
-    expect(start.disabled).toBe(true);
-    expect(screen.getByText("Available in a later story")).toBeTruthy();
-    expect(start.getAttribute("aria-describedby")).toBe(
-      screen.getByText("Available in a later story").id,
-    );
-    await fireEvent.click(start);
-    expect(props.onback).not.toHaveBeenCalled();
+  const startButton = () =>
+    screen.getByRole("button", { name: /Start rebase/ }) as HTMLButtonElement;
+
+  it("nettoyer-une-branche CA-7: Start rebase is disabled with its reason when a squash is the first line, and active again once fixed", async () => {
+    open();
+    expect(startButton().disabled).toBe(false);
+    await press("Profile model", "s");
+    expect(startButton().disabled).toBe(true);
+    const reason = screen.getByText("The first commit cannot be squash or fixup.");
+    expect(startButton().getAttribute("aria-describedby")).toBe(reason.id);
+    await press("Profile model", "f");
+    expect(startButton().disabled).toBe(true);
+    await press("Profile model", "p");
+    expect(startButton().disabled).toBe(false);
+    expect(screen.queryByText("The first commit cannot be squash or fixup.")).toBeNull();
+  });
+
+  it("nettoyer-une-branche CA-7: an empty reword message or an empty combined message disables Start rebase with a reason", async () => {
+    open();
+    await press("wip ssh", "r");
+    const field = within(rowOf("wip ssh")).getByRole("textbox", { name: "New message" });
+    await fireEvent.input(field, { target: { value: "   " } });
+    expect(startButton().disabled).toBe(true);
+    expect(screen.getByText("A new message is empty.")).toBeTruthy();
+    await fireEvent.input(field, { target: { value: "wip ssh 2" } });
+    expect(startButton().disabled).toBe(false);
+
+    await press("fix typo", "s");
+    const combined = screen.getByRole("textbox", { name: "Combined message" });
+    await fireEvent.input(combined, { target: { value: "" } });
+    expect(startButton().disabled).toBe(true);
+    expect(screen.getByText("The combined message is empty.")).toBeTruthy();
+    await fireEvent.input(combined, { target: { value: "One" } });
+    expect(startButton().disabled).toBe(false);
+  });
+
+  it("nettoyer-une-branche CA-9: the alert gives the exact count, the remote and the branch, and is absent without pushed commits", () => {
+    const { unmount } = open({
+      pushed: { count: 2, remote: "origin", branch: "feature/profiles" },
+    });
+    expect(
+      screen.getByText(
+        "2 commits already pushed to origin/feature/profiles: a force push will be needed.",
+      ),
+    ).toBeTruthy();
+    unmount();
+    open({ pushed: { count: 1, remote: "origin", branch: "feature/profiles" } });
+    expect(
+      screen.getByText(
+        "1 commit already pushed to origin/feature/profiles: a force push will be needed.",
+      ),
+    ).toBeTruthy();
+    cleanup();
+    open({ pushed: null });
+    expect(screen.queryByText(/already pushed/)).toBeNull();
+  });
+
+  it("nettoyer-une-branche CA-12: Start rebase sends the composition once, and the screen is locked while it runs", async () => {
+    let finish: (value: RebaseEnd) => void = () => {};
+    const onstart = vi.fn(() => new Promise<RebaseEnd>((r) => (finish = r)));
+    open({ onstart });
+    await press("wip ssh", "s");
+    await fireEvent.click(startButton());
+    expect(onstart).toHaveBeenCalledTimes(1);
+    const sent = (onstart.mock.calls[0] as unknown as [{ id: string; action: string }[]])[0];
+    expect(sent.map((e) => e.action)).toEqual(["pick", "squash", "pick", "pick", "pick"]);
+    expect(screen.getByText("Rebase in progress…")).toBeTruthy();
+    expect(startButton().disabled).toBe(true);
+    await fireEvent.click(startButton());
+    expect(onstart).toHaveBeenCalledTimes(1);
+    finish({ conflict: true });
+  });
+
+  it("nettoyer-une-branche CA-13: a finished rebase shows « ✓ Rebase complete · n → m commits. », m being the count read back, not the preview", async () => {
+    // L'aperçu « After » compte 2 commits ; la branche relue en a 3 : l'écran affiche le relu.
+    const onstart = vi.fn(async (): Promise<RebaseEnd> => ({ conflict: false, produced: 3 }));
+    const { props } = open({ onstart });
+    await press("wip ssh", "s");
+    await press("fix typo", "f");
+    await press("debug print", "d");
+    expect(screen.getByRole("heading", { name: "After · 2 commits" })).toBeTruthy();
+    await fireEvent.click(startButton());
+    expect(await screen.findByText(/✓ Rebase complete · 5 → 3 commits\./)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Start rebase/ })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: /Back to graph/ }));
+    expect(props.onback).toHaveBeenCalledTimes(1);
+  });
+
+  it("nettoyer-une-branche CA-13: once finished, the editable list and the pushed alert are gone", async () => {
+    open({ pushed: { count: 2, remote: "origin", branch: "feature/profiles" } });
+    expect(screen.getByRole("list", { name: "Commits to rebase" })).toBeTruthy();
+    await fireEvent.click(startButton());
+    expect(await screen.findByText(/✓ Rebase complete/)).toBeTruthy();
+    expect(screen.queryByRole("list", { name: "Commits to rebase" })).toBeNull();
+    expect(screen.queryByText(/already pushed/)).toBeNull();
+  });
+
+  it("nettoyer-une-branche CA-12: a refusal of Git shows its first line, nothing is finished and Start rebase is usable again", async () => {
+    const onstart = vi.fn(async () => {
+      throw "error: cannot rebase: You have unstaged changes.\nmore";
+    });
+    open({ onstart });
+    await fireEvent.click(startButton());
+    expect(
+      await screen.findByText("error: cannot rebase: You have unstaged changes."),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Rebase complete/)).toBeNull();
+    expect(startButton().disabled).toBe(false);
   });
 });

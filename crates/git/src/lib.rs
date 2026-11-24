@@ -10,6 +10,7 @@ mod fetch;
 mod force_push;
 mod graph;
 mod integrate;
+mod interactive_rebase;
 mod operation;
 mod pull;
 mod push;
@@ -46,6 +47,10 @@ pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};
 pub use integrate::{
     abort_merge, continue_merge, continue_merge_with_home, merge, merge_with_home, rebase,
     rebase_with_home, MergeOutcome, OperationOutcome,
+};
+pub use interactive_rebase::{
+    read_pushed_range, read_range_length, start_interactive_rebase,
+    start_interactive_rebase_with_home, PushedRange, TodoAction, TodoEntry,
 };
 pub use operation::{
     abort_operation, continue_operation, continue_operation_with_home, read_operation,

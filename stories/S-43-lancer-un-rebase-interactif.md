@@ -25,6 +25,14 @@ Start rebase lance le rebase interactif composé dans `InteractiveRebase`, sans 
 1. Pendant l'exécution, Continue et Abort du bandeau : a) désactivés tant que le rebase tourne, actifs à l'arrêt sur conflit (réponse de l'humain, 24/11/2026)
 2. Commit devenu vide pendant le rebase : a) conservé vide, le graphe reste celui de l'aperçu « After » (réponse de l'humain, 24/11/2026)
 
+### Après la revue 1
+- Problèmes 1 et 2 (bloquants) : corrigés au passage suivant.
+- Problème 3 (mineur, liste figée après la fin) : traiter (d'office), corrigé au passage suivant.
+- Lecture « déjà poussé » sans réseau ; « No profile » pendant le rebase : pris en compte (pour information).
+
+### Après la revue 2
+- Validé, aucun mineur ; points « pour information » repris de la revue 1, déjà consignés.
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` (= `vitest run --reporter=dot`) ; Rust `pnpm test:rs -p <crate> [<filtre>]` (= `cargo test -q`) ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test aux vraies commandes du crate `app`, dépôts d'exemple, données dans un dossier temporaire) ; jamais `npx playwright` ni `cargo run`
@@ -77,7 +85,12 @@ Start rebase lance le rebase interactif composé dans `InteractiveRebase`, sans 
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `2466100`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | bloqué : `pnpm e2e` 1 échec (`e2e/graph-width.spec.ts:123`, non prouvé préexistant) ; décision 1 (Continue/Abort désactivés pendant l'exécution) sans test ; m affiché = aperçu, pas relu | — |
+| 2 | dev | terminé : e2e `graph-width.spec.ts:123` instable (passe sur 2466100 et sur l'arbre courant en relance), test décision 1 côté bandeau, m relu par `read_range_length` | — |
+| 2 | reviewer | revue 1 : 2 bloquants (Resolve affiché pendant l'exécution sans conflit ; bandeau « en cours » non gardé par un test), 1 mineur (liste figée après la fin) | à corriger |
+| 3 | dev | terminé : Resolve retiré pendant l'exécution, e2e « slow », liste et alerte masquées après la fin | — |
+| 3 | reviewer | revue 2 : bloquants et mineur levés, aucun problème | validé |

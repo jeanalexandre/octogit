@@ -391,6 +391,45 @@ pub fn read_rebase_plan(path: String, commit: String) -> Result<RebasePlanView, 
     rebase_plan::rebase_plan(Path::new(&path), &commit)
 }
 
+/// Commits de la plage de `base` au sommet de la branche courante déjà présents sur la branche distante suivie
+/// (alerte « déjà poussé » de `InteractiveRebase`). Lecture seule.
+#[tauri::command]
+#[specta::specta]
+pub async fn read_pushed_range(
+    path: String,
+    base: String,
+) -> Result<Option<rebase_plan::PushedRangeView>, String> {
+    tauri::async_runtime::spawn_blocking(move || rebase_plan::pushed_range(Path::new(&path), &base))
+        .await
+        .map_err(|_| "The read was interrupted.".to_string())?
+}
+
+/// Nombre de commits de `base` au sommet de la branche courante, relu après un rebase interactif. Lecture seule.
+#[tauri::command]
+#[specta::specta]
+pub async fn read_range_length(path: String, base: String) -> Result<u32, String> {
+    tauri::async_runtime::spawn_blocking(move || rebase_plan::range_length(Path::new(&path), &base))
+        .await
+        .map_err(|_| "The read was interrupted.".to_string())?
+}
+
+/// Start rebase : lance le rebase interactif composé de la branche courante sans éditeur ni fichier todo à éditer.
+/// Rend l'arbre et le dépôt relus, et si le rebase reste en cours sur un conflit.
+#[tauri::command]
+#[specta::specta]
+pub async fn start_interactive_rebase(
+    path: String,
+    base: String,
+    branch: String,
+    entries: Vec<rebase_plan::TodoEntryView>,
+) -> Result<OperationOutcomeView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        rebase_plan::start_rebase(Path::new(&path), &base, &branch, &entries)
+    })
+    .await
+    .map_err(|_| "The rebase was interrupted.".to_string())?
+}
+
 /// Identifiants, dans l'ordre du graphe, des commits du dépôt `path` dont le message complet (résumé et
 /// description) contient `query`, sans tenir compte de la casse (`SearchBox`) ; même plage que le graphe.
 #[tauri::command]

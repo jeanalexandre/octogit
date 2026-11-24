@@ -4,17 +4,30 @@
   import Play from "@lucide/svelte/icons/play";
   import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
   import X from "@lucide/svelte/icons/x";
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import RebaseTodoList from "../components/RebaseTodoList.svelte";
-  import { openState, preview, type RebaseCommit, type RebaseState } from "../rebasePlan";
+  import {
+    openState,
+    preview,
+    startBlocker,
+    todoEntries,
+    type RebaseCommit,
+    type RebaseEnd,
+    type RebaseState,
+    type TodoEntry,
+  } from "../rebasePlan";
 
   /**
-   * Composition d'un rebase interactif, par-dessus `History`. Rien n'est lancé ni écrit : Cancel, Échap et Back to
-   * graph rendent le graphe tel qu'il était. Le lancement (Start rebase) est livré par une autre story.
+   * Composition d'un rebase interactif, par-dessus `History`. Cancel, Échap et Back to graph rendent le graphe tel
+   * qu'il était tant que Start rebase n'a pas été cliqué. Start rebase lance la composition (`onstart`, sans éditeur) :
+   * un conflit passe la main à `ConflictResolver` (le parent ferme cet écran), une fin sans conflit affiche le résultat.
    */
   let {
     branch,
     baseShort,
     commits,
+    pushed = null,
+    onstart,
     onback,
   }: {
     /** Branche courante. */
@@ -23,6 +36,10 @@
     baseShort: string;
     /** Commits de la plage, du plus ancien au plus récent. */
     commits: RebaseCommit[];
+    /** Commits de la plage déjà présents sur la branche distante suivie, ou `null`. */
+    pushed?: { count: number; remote: string; branch: string } | null;
+    /** Lance le rebase ; rejette avec la sortie de Git s'il est refusé. */
+    onstart: (entries: TodoEntry[]) => Promise<RebaseEnd>;
     /** Cancel, Échap ou Back to graph : `History` revient. */
     onback: () => void;
   } = $props();
@@ -33,8 +50,27 @@
   let plan: RebaseState = $state.raw(opening());
   let selected: string | null = $state(first());
   let root: HTMLElement | undefined = $state();
+  let running = $state(false);
+  let failure: string | null = $state(null);
+  /** Fin sans conflit : n commits d'origine, m commits produits relus de la branche réécrite. */
+  let done: { before: number; after: number } | null = $state(null);
 
   const view = $derived(preview(commits, plan, baseShort));
+  const blocker = $derived(startBlocker(plan));
+
+  async function start() {
+    if (running || blocker !== null || done !== null) return;
+    running = true;
+    failure = null;
+    try {
+      const result = await onstart(todoEntries(plan));
+      if (!result.conflict) done = { before: commits.length, after: result.produced };
+    } catch (e) {
+      failure = (typeof e === "string" ? e : "The rebase failed.").split("\n")[0];
+    } finally {
+      running = false;
+    }
+  }
 
   onMount(() => {
     root?.querySelector<HTMLElement>(".pick")?.focus();
@@ -48,7 +84,7 @@
 
   /** Échap ramène au graphe, sauf si un autre élément l'a déjà pris. */
   function onkeydown(event: KeyboardEvent) {
-    if (event.key === "Escape" && !event.defaultPrevented) {
+    if (event.key === "Escape" && !event.defaultPrevented && !running) {
       event.preventDefault();
       onback();
     }
@@ -72,16 +108,25 @@
 
   <div class="body">
     <div class="main">
-      <p class="hint">
-        Oldest at the top. Arrow keys select a commit; Alt+Arrow keys or the row buttons move it.
-        Action shortcuts: p r s f d.
-      </p>
-      <RebaseTodoList
-        {plan}
-        {selected}
-        onchange={(next) => (plan = next)}
-        onselect={(id) => (selected = id)}
-      />
+      {#if done === null}
+        {#if pushed !== null}
+          <p class="alert" role="status">
+            <TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />{pushed.count}
+            {pushed.count === 1 ? "commit" : "commits"} already pushed to {pushed.remote}/{pushed.branch}:
+            a force push will be needed.
+          </p>
+        {/if}
+        <p class="hint">
+          Oldest at the top. Arrow keys select a commit; Alt+Arrow keys or the row buttons move it.
+          Action shortcuts: p r s f d.
+        </p>
+        <RebaseTodoList
+          {plan}
+          {selected}
+          onchange={(next) => (plan = next)}
+          onselect={(id) => (selected = id)}
+        />
+      {/if}
     </div>
 
     <aside class="preview" aria-label="Preview">
@@ -103,16 +148,34 @@
   </div>
 
   <footer>
-    <button type="button" class="control" onclick={reset}>
-      <RotateCcw size={16} strokeWidth={1.8} aria-hidden="true" />Reset
-    </button>
-    <button type="button" class="control" onclick={onback}>
-      <X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel
-    </button>
-    <button type="button" class="control primary" disabled aria-describedby="start-rebase-reason">
-      <Play size={16} strokeWidth={1.8} aria-hidden="true" />Start rebase
-    </button>
-    <span id="start-rebase-reason" class="reason">Available in a later story</span>
+    {#if done !== null}
+      <span class="done" role="status"
+        >{`✓ Rebase complete · ${done.before} → ${done.after} ${done.after === 1 ? "commit" : "commits"}. Graph updated.`}</span
+      >
+    {:else}
+      {#if running}
+        <span class="reason" role="status">Rebase in progress…</span>
+      {:else if failure !== null}
+        <span class="failure" role="alert">{failure}</span>
+      {:else if blocker !== null}
+        <span id="start-rebase-reason" class="reason">{blocker}</span>
+      {/if}
+      <button type="button" class="control" disabled={running} onclick={reset}>
+        <RotateCcw size={16} strokeWidth={1.8} aria-hidden="true" />Reset
+      </button>
+      <button type="button" class="control" disabled={running} onclick={onback}>
+        <X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel
+      </button>
+      <button
+        type="button"
+        class="control primary"
+        disabled={running || blocker !== null}
+        aria-describedby={blocker !== null ? "start-rebase-reason" : undefined}
+        onclick={start}
+      >
+        <Play size={16} strokeWidth={1.8} aria-hidden="true" />Start rebase
+      </button>
+    {/if}
   </footer>
 </section>
 
@@ -165,6 +228,34 @@
 
   .hint {
     margin: 0 0 8px;
+  }
+
+  .alert,
+  .failure,
+  .done {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 8px;
+    font-size: 12px;
+  }
+
+  .alert {
+    padding: 6px 10px;
+    border: 1px solid var(--warning);
+    border-radius: 7px;
+    color: var(--ink);
+  }
+
+  .failure {
+    margin: 0;
+    color: var(--danger);
+  }
+
+  .done {
+    margin: 0;
+    color: var(--success);
+    font-weight: 600;
   }
 
   kbd {

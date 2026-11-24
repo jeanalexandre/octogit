@@ -65,6 +65,18 @@ export const commands = {
 	 *  courante, du plus ancien au plus récent. Lecture seule : rien n'est lancé ni écrit.
 	 */
 	readRebasePlan: (path: string, commit: string) => typedError<RebasePlanView, string>(__TAURI_INVOKE("read_rebase_plan", { path, commit })),
+	/**
+	 *  Commits de la plage de `base` au sommet de la branche courante déjà présents sur la branche distante suivie
+	 *  (alerte « déjà poussé » de `InteractiveRebase`). Lecture seule.
+	 */
+	readPushedRange: (path: string, base: string) => typedError<PushedRangeView | null, string>(__TAURI_INVOKE("read_pushed_range", { path, base })),
+	/**  Nombre de commits de `base` au sommet de la branche courante, relu après un rebase interactif. Lecture seule. */
+	readRangeLength: (path: string, base: string) => typedError<number, string>(__TAURI_INVOKE("read_range_length", { path, base })),
+	/**
+	 *  Start rebase : lance le rebase interactif composé de la branche courante sans éditeur ni fichier todo à éditer.
+	 *  Rend l'arbre et le dépôt relus, et si le rebase reste en cours sur un conflit.
+	 */
+	startInteractiveRebase: (path: string, base: string, branch: string, entries: TodoEntryView_Deserialize[]) => typedError<OperationOutcomeView_Serialize, string>(__TAURI_INVOKE("start_interactive_rebase", { path, base, branch, entries })),
 	/**  Diff du fichier `file` dans le commit `commit` du dépôt `path` (`DiffView`, mode commit), en lecture seule. */
 	commitFileDiff: (path: string, commit: string, file: string) => typedError<FileDiffView_Serialize, string>(__TAURI_INVOKE("commit_file_diff", { path, commit, file })),
 	/**
@@ -841,6 +853,13 @@ export type PushCommitView_Serialize = {
 	fault: CommitFaultView | null,
 };
 
+/**  Commits de la plage déjà présents sur la branche distante suivie. */
+export type PushedRangeView = {
+	count: number,
+	remote: string,
+	branch: string,
+};
+
 export type RebaseCommitView = {
 	id: string,
 	shortId: string,
@@ -1058,6 +1077,27 @@ export type SshKeyView_Serialize = {
 
 /**  Action par défaut de `SyncButton` (Pull : exécution en S-19). */
 export type SyncAction = "fetchAll" | "pullFfOnly" | "pullRebase";
+
+export type TodoActionView = "pick" | "reword" | "squash" | "fixup" | "drop";
+
+/**  Une ligne de la composition envoyée par `InteractiveRebase`. */
+export type TodoEntryView = TodoEntryView_Serialize | TodoEntryView_Deserialize;
+
+/**  Une ligne de la composition envoyée par `InteractiveRebase`. */
+export type TodoEntryView_Deserialize = {
+	id: string,
+	action: TodoActionView,
+	/**  Message final du commit produit que cette ligne ouvre (pick ou reword), ou `None` : message d'origine. */
+	message?: string | null,
+};
+
+/**  Une ligne de la composition envoyée par `InteractiveRebase`. */
+export type TodoEntryView_Serialize = {
+	id: string,
+	action: TodoActionView,
+	/**  Message final du commit produit que cette ligne ouvre (pick ou reword), ou `None` : message d'origine. */
+	message: string | null,
+};
 
 /**  Événement `working-tree-changed` (typé par tauri-specta) : le dépôt surveillé et son nouvel état. */
 export type WorkingTreeChanged = {

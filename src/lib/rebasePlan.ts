@@ -126,6 +126,49 @@ export function setCombined(state: RebaseState, group: RebaseGroup, text: string
   return { ...state, combined: { ...state.combined, [group.key]: text } };
 }
 
+/**
+ * Raison pour laquelle Start rebase est désactivé, ou `null` : squash ou fixup sur la première ligne gardée, message
+ * de reword vide, message combiné de squash vide.
+ */
+export function startBlocker(state: RebaseState): string | null {
+  const firstKept = state.lines.find((l) => l.action !== "drop");
+  if (firstKept !== undefined && joins(firstKept.action)) {
+    return "The first commit cannot be squash or fixup.";
+  }
+  for (const group of groupsOf(state)) {
+    if (hasSquash(group)) {
+      if (trimmed(combinedMessage(state, group)) === "") return "The combined message is empty.";
+    } else if (group.head.action === "reword" && trimmed(group.head.newMessage) === "") {
+      return "A new message is empty.";
+    }
+  }
+  return null;
+}
+
+/** Ligne envoyée à Git : l'action, et le message final du commit produit sur la ligne qui l'ouvre (sinon `null`). */
+export type TodoEntry = {
+  id: string;
+  action: RebaseAction;
+  message: string | null;
+};
+
+/** Fin de Start rebase : un conflit (le rebase reste en cours), ou le nombre de commits produits, relu de la branche. */
+export type RebaseEnd = { conflict: true } | { conflict: false; produced: number };
+
+/** La composition, dans l'ordre de la liste, telle que Git la reçoit ; les messages sont ceux de l'aperçu « After ». */
+export function todoEntries(state: RebaseState): TodoEntry[] {
+  const heads = new Map(groupsOf(state).map((g) => [g.head.id, g]));
+  return state.lines.map((line) => {
+    const group = heads.get(line.id);
+    let message: string | null = null;
+    if (group !== undefined && line.action !== "squash" && line.action !== "fixup") {
+      if (hasSquash(group)) message = trimmed(combinedMessage(state, group));
+      else if (line.action === "reword") message = trimmed(line.newMessage);
+    }
+    return { id: line.id, action: line.action, message };
+  });
+}
+
 export type PreviewItem = { id: string; summary: string; initials: string };
 export type PreviewColumn = { title: string; items: PreviewItem[]; base: string };
 

@@ -178,6 +178,46 @@ describe("OperationBanner", () => {
     expect(onabort).toHaveBeenCalledTimes(1);
   });
 
+  it("nettoyer-une-branche CA-12: while a rebase runs, Continue and Abort are disabled and call nothing", async () => {
+    const { oncontinue, onabort } = open({
+      kind: "rebase",
+      other: "e92a6b3",
+      receiving: "feature/profiles",
+      step: { current: 2, total: 5 },
+      left: 0,
+      busy: true,
+    });
+    expect(screen.getByText(/^Rebase in progress · .* · 2 \/ 5/)).toBeTruthy();
+    const proceed = screen.getByRole("button", { name: "Continue rebase" }) as HTMLButtonElement;
+    const abort = screen.getByRole("button", { name: "Abort rebase" }) as HTMLButtonElement;
+    expect(proceed.disabled).toBe(true);
+    expect(abort.disabled).toBe(true);
+    await fireEvent.click(proceed);
+    expect(oncontinue).not.toHaveBeenCalled();
+    expect(onabort).not.toHaveBeenCalled();
+  });
+
+  it("nettoyer-une-branche CA-12: stopped on a conflict with nothing left, Continue and Abort are active", async () => {
+    const { oncontinue, onabort } = open({
+      kind: "rebase",
+      other: "e92a6b3",
+      receiving: "feature/profiles",
+      step: { current: 2, total: 5 },
+      left: 0,
+      busy: false,
+    });
+    expect(
+      (screen.getByRole("button", { name: "Continue rebase" }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+    expect(
+      (screen.getByRole("button", { name: "Abort rebase" }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+    await fireEvent.click(screen.getByRole("button", { name: "Continue rebase" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Abort rebase" }));
+    expect(oncontinue).toHaveBeenCalledTimes(1);
+    expect(onabort).toHaveBeenCalledTimes(1);
+  });
+
   it("resoudre-les-conflits CA-13: No profile is a reason too", () => {
     open({ left: 0, reason: "No profile" });
     expect(screen.getByText("No profile")).toBeTruthy();

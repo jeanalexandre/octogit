@@ -16,6 +16,7 @@
     type MismatchView,
     type ProfileView,
     type PushCheckView,
+    type PushedRangeView,
     type LostCommitView,
     type RebasePlanView,
     type RecentView,
@@ -49,6 +50,7 @@
   import InteractiveRebase from "./lib/screens/InteractiveRebase.svelte";
   import OperationBanner from "./lib/components/OperationBanner.svelte";
   import { isStashOperation, type OperationKind } from "./lib/operation";
+  import type { RebaseEnd, TodoEntry } from "./lib/rebasePlan";
   import AbortMergeDialog from "./lib/components/AbortMergeDialog.svelte";
   import DiffView from "./lib/screens/DiffView.svelte";
   import History from "./lib/screens/History.svelte";
@@ -102,6 +104,8 @@
   /** Confirmation d'Abort ouverte (au moins un fichier résolu). */
   let abortAsk = $state(false);
   let operationBusy = $state(false);
+  /** Start rebase en cours d'exécution, sans conflit : le bandeau n'a pas de Resolve. */
+  let rebaseRunning = $state(false);
   let operationError: string | null = $state(null);
 
   function reportList(list: ConflictListView, seen: string[]) {
@@ -1319,7 +1323,12 @@
    */
   let menuPlan: { path: string; commit: string; plan: RebasePlanView } | null = $state.raw(null);
   /** `InteractiveRebase` ouvert par-dessus `History` qui reste monté dessous (même patron que `diff`). */
-  let rebase: { path: string; plan: RebasePlanView } | null = $state.raw(null);
+  let rebase: {
+    path: string;
+    plan: RebasePlanView;
+    /** Commits de la plage déjà poussés sur la branche distante suivie (alerte), lus à l'ouverture. */
+    pushed: PushedRangeView | null;
+  } | null = $state.raw(null);
   const rebaseShown = $derived.by(() => rebase !== null && rebase.path === openPath);
   const menuOnCurrentBranch = $derived.by(
     () =>
@@ -1341,7 +1350,57 @@
 
   function openInteractiveRebase(commit: string) {
     if (menuPlan !== null && menuPlan.commit === commit && menuPlan.path === openPath) {
-      rebase = { path: menuPlan.path, plan: menuPlan.plan };
+      const { path, plan } = menuPlan;
+      rebase = { path, plan, pushed: null };
+      void readPushed(path, plan);
+    }
+  }
+
+  /** Alerte « déjà poussé » : lecture seule de la plage ouverte ; sans lecture, aucune alerte. */
+  async function readPushed(path: string, plan: RebasePlanView) {
+    try {
+      const result = await commands.readPushedRange(path, plan.base);
+      if (result.status === "ok" && rebase !== null && rebase.plan === plan) {
+        rebase = { ...rebase, pushed: result.data };
+      }
+    } catch {
+      // Sans lecture, l'écran n'a pas l'alerte.
+    }
+  }
+
+  /**
+   * Start rebase : lance la composition sans bloquer l'interface. Pendant l'exécution, l'opération est relue de `.git`
+   * (bandeau « Rebase in progress », étape « i / n ») et Continue et Abort restent désactivés ; sur un conflit
+   * `ConflictResolver` s'ouvre (Continue et Abort s'activent), sinon le dépôt relu remplace l'affichage.
+   */
+  async function startRebase(entries: TodoEntry[]): Promise<RebaseEnd> {
+    const current = rebase;
+    if (current === null || operationBusy || current.path !== openPath) {
+      throw "Operation in progress.";
+    }
+    const { path, plan } = current;
+    operationBusy = true;
+    rebaseRunning = true;
+    const poll = setInterval(() => void syncOperation(path), 200);
+    try {
+      const result = await commands.startInteractiveRebase(path, plan.base, plan.branch, entries);
+      applyCommitted(path, result);
+      const conflict = result.status === "ok" && result.data.conflict;
+      clearInterval(poll);
+      if (conflict) {
+        rebase = null;
+        await syncOperation(path, true);
+        return { conflict: true };
+      }
+      await syncOperation(path);
+      // « m » de « n → m commits » : relu de la branche réécrite, pas de l'aperçu.
+      const length = await commands.readRangeLength(path, plan.base);
+      if (length.status !== "ok") throw length.error;
+      return { conflict: false, produced: length.data };
+    } finally {
+      clearInterval(poll);
+      operationBusy = false;
+      rebaseRunning = false;
     }
   }
 
@@ -1743,7 +1802,7 @@
     reason={isStashOperation(operation.kind) ? null : continueReason}
     busy={operationBusy}
     error={operationError}
-    onresolve={resolverShown && diff === null ? undefined : resolveAgain}
+    onresolve={(resolverShown && diff === null) || rebaseRunning ? undefined : resolveAgain}
     onback={resolverShown && diff === null ? backToGraph : undefined}
     oncontinue={continueOperation}
     onabort={abortOperation}
@@ -1894,6 +1953,8 @@
           branch={rebase.plan.branch}
           baseShort={rebase.plan.baseShort}
           commits={rebase.plan.commits}
+          pushed={rebase.pushed}
+          onstart={startRebase}
           onback={() => (rebase = null)}
         />
       {/key}

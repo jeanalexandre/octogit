@@ -290,7 +290,7 @@ pub struct OperationOutcomeView {
     pub conflict: bool,
 }
 
-fn outcome_view(
+pub(crate) fn outcome_view(
     path: &Path,
     outcome: octogit_git::OperationOutcome,
 ) -> Result<OperationOutcomeView, String> {

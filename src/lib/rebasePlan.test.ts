@@ -8,7 +8,9 @@ import {
   setAction,
   setCombined,
   setNewMessage,
+  startBlocker,
   swapLines,
+  todoEntries,
   type RebaseCommit,
 } from "./rebasePlan";
 
@@ -127,5 +129,62 @@ describe("rebasePlan", () => {
     const view = preview(commits.slice(0, 1), openState(commits.slice(0, 1)), base);
     expect(view.before.title).toBe("Before · 1 commit");
     expect(view.after.title).toBe("After · 1 commit");
+  });
+
+  it("nettoyer-une-branche CA-7: a squash or a fixup on the first kept line gives a reason, which goes away with its cause", () => {
+    expect(startBlocker(openState(commits))).toBeNull();
+    for (const action of ["squash", "fixup"] as const) {
+      let state = setAction(openState(commits), id(1), action);
+      expect(startBlocker(state)).toBe("The first commit cannot be squash or fixup.");
+      state = setAction(state, id(1), "pick");
+      expect(startBlocker(state)).toBeNull();
+    }
+    // Un drop devant ne change rien : la première ligne gardée est encore un squash.
+    let state = setAction(setAction(openState(commits), id(1), "drop"), id(2), "squash");
+    expect(startBlocker(state)).toBe("The first commit cannot be squash or fixup.");
+    state = swapLines(setAction(openState(commits), id(2), "squash"), id(2), -1);
+    expect(startBlocker(state)).toBe("The first commit cannot be squash or fixup.");
+  });
+
+  it("nettoyer-une-branche CA-7: an empty reword message or an empty combined message gives a reason", () => {
+    let state = setAction(openState(commits), id(2), "reword");
+    state = setNewMessage(state, id(2), "  \n");
+    expect(startBlocker(state)).toBe("A new message is empty.");
+    expect(startBlocker(setNewMessage(state, id(2), "wip ssh 2"))).toBeNull();
+
+    let squashed = setAction(openState(commits), id(2), "squash");
+    const group = groupsOf(squashed)[0];
+    squashed = setCombined(squashed, group, "");
+    expect(startBlocker(squashed)).toBe("The combined message is empty.");
+    expect(startBlocker(setCombined(squashed, group, "One"))).toBeNull();
+  });
+
+  it("nettoyer-une-branche CA-12: the entries sent to Git follow the list, the final message sits on the line that opens a commit", () => {
+    let state = setAction(openState(commits), id(1), "reword");
+    state = setNewMessage(state, id(1), "Profile model v2");
+    state = setAction(state, id(2), "squash");
+    state = setAction(state, id(3), "fixup");
+    state = setAction(state, id(4), "drop");
+    state = swapLines(state, id(5), -1);
+    expect(todoEntries(state)).toEqual([
+      { id: id(1), action: "reword", message: "Profile model v2\n\nwip ssh" },
+      { id: id(2), action: "squash", message: null },
+      { id: id(3), action: "fixup", message: null },
+      { id: id(5), action: "pick", message: null },
+      { id: id(4), action: "drop", message: null },
+    ]);
+  });
+
+  it("nettoyer-une-branche CA-12: an edited combined message is the one sent, and a reword alone sends its new message", () => {
+    let state = setAction(openState(commits), id(1), "squash");
+    state = setAction(state, id(1), "pick");
+    state = setAction(state, id(2), "squash");
+    state = setCombined(state, groupsOf(state)[0], "Everything");
+    state = setAction(state, id(4), "reword");
+    state = setNewMessage(state, id(4), "Debug v2");
+    const sent = todoEntries(state);
+    expect(sent[0]).toEqual({ id: id(1), action: "pick", message: "Everything" });
+    expect(sent.find((e) => e.id === id(4))?.message).toBe("Debug v2");
+    expect(sent.find((e) => e.id === id(3))?.message).toBeNull();
   });
 });

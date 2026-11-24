@@ -64,6 +64,18 @@ export class Workspace {
     return path;
   }
 
+  /** Fabrique un dépôt de `fixtures/rebase-interactive.sh` avec son scénario (`pushed`, `conflict` ou `slow`) ; rend son chemin. */
+  rebaseRepo(scenario: "pushed" | "conflict" | "slow", name = "my-repo"): string {
+    const path = join(this.root, name);
+    execFileSync("sh", [resolve("fixtures", "rebase-interactive.sh"), path, scenario]);
+    return path;
+  }
+
+  /** Dépôt bare `origin` d'un dépôt de fixture (`<dépôt>-origin.git`). */
+  originOf(repo: string): string {
+    return `${repo}-origin.git`;
+  }
+
   /** Mémorise le dernier dépôt, comme le ferait une session précédente. */
   rememberLastRepository(path: string): void {
     writeFileSync(

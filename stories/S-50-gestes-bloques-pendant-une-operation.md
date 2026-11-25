@@ -1,0 +1,91 @@
+# Story S-50 : Désactiver les gestes concernés pendant une opération en cours, et refuser merge, cherry-pick, revert, rebase et Continue à une identité non conforme
+
+> Générée par `/story` à partir d'une ligne du backlog de `plan.md`, juste avant l'implémentation.
+> Fichier : `stories/S-50-gestes-bloques-pendant-une-operation.md`. Seule entrée de `dev` avec les fichiers qu'elle cite.
+
+## Source
+- Plan : `plan.md`, ligne S-50 (tranche durcissement) ; dépend de S-43 et S-45 (livrées)
+- Critères couverts : `resoudre-les-conflits` CA-16 ; `gerer-les-branches` CA-20 ; `integrer-une-branche` CA-14 ; `revenir-en-arriere` CA-21 ; `synchroniser` CA-21 ; `proteger-l-identite` CA-16 (specs validées le 07/11/2026, `proteger-l-identite` révisée et validée le 17/11/2026)
+- Jobs servis : J-9, J-13, J-16
+- Revue renforcée : non
+
+## Objectif
+Tant qu'un merge, un rebase, un cherry-pick ou un revert est en cours (lancé dans Octogit ou au terminal), les gestes qui le gêneraient sont désactivés dans l'interface et refusés par le cœur ; sur un dépôt non conforme ou « No profile », merge, cherry-pick, revert, rebase, rebase interactif et Continue sont refusés avec la raison d'identité, rien ne change.
+
+## Critères d'acceptation
+- **resoudre-les-conflits CA-16** (modifié le 07/11/2026) : Étant donné une opération en cours, alors les gestes suivants sont désactivés :
+  - le checkout d'une branche (tous gestes), Branch, « Create branch here », Rename, « Delete local » et « Delete from origin », avec la raison « Operation in progress. » (`specs/gerer-les-branches.md`, CA-20) ;
+  - Stash et Pop ;
+  - les entrées merge et rebase, avec la raison « Operation in progress. » (`specs/integrer-une-branche.md`, CA-14) ;
+  - les entrées rebase interactif, cherry-pick et revert, sans raison affichée (décision de l'humain) ;
+  - les entrées Soft, Mixed et Hard du reset, avec la raison « Operation in progress. » (`specs/revenir-en-arriere.md`, CA-21) ;
+  - `SyncButton` (Fetch All et Pull) et `PushButton` (`specs/synchroniser.md`, CA-21).
+
+  Aucun raccourci ne les lance. Ils redeviennent actifs à la fin de l'opération.
+- **gerer-les-branches CA-20** : Étant donné un merge, un rebase, un cherry-pick ou un revert en cours, y compris lancé depuis le terminal, alors le checkout (tous gestes), Branch, « Create branch here », Rename, « Delete local » et « Delete from origin » sont désactivés avec la raison « Operation in progress. » ; aucun raccourci ne les lance ; ils redeviennent actifs à la fin de l'opération.
+- **integrer-une-branche CA-14** (modifié le 07/11/2026) : Étant donné un merge, un rebase, un cherry-pick ou un revert en cours, y compris lancé depuis le terminal, alors les entrées merge et rebase de `RefContextMenu` restent affichées, désactivées, avec la raison « Operation in progress. ».
+- **revenir-en-arriere CA-21** : Étant donné un merge, un rebase, un cherry-pick ou un revert en cours, y compris lancé depuis le terminal, alors Soft, Mixed et Hard sont désactivés avec la raison « Operation in progress. » ; aucun raccourci ne les lance ; ils redeviennent actifs après Continue ou Abort (`specs/resoudre-les-conflits.md`, CA-8 à CA-11).
+- **synchroniser CA-21** : Étant donné un merge, un rebase, un cherry-pick ou un revert en cours, alors `SyncButton` et `PushButton` sont désactivés.
+- **proteger-l-identite CA-16** (modifié le 07/11/2026) : Étant donné un dépôt non conforme ou « No profile », quand je lance un merge, un cherry-pick, un revert, un rebase ou un rebase interactif, alors l'action est refusée avec la même raison qu'en CA-15 ou CA-13 ; `git log`, les branches et l'index sont inchangés. Étant donné ce même dépôt avec une opération en cours, alors Continue de `ConflictResolver` et de `OperationBanner` est désactivé d'emblée, même si tout est résolu, et affiche la même raison qu'en CA-15 ou CA-13 ; aucun clic ni raccourci ne lance Continue, aucun commit n'est créé (`git log` inchangé) et `git status` indique la même opération en cours (`specs/resoudre-les-conflits.md`, CA-13).
+
+Raisons d'identité reprises de `proteger-l-identite` : CA-15 « Identity does not match profile Work. », CA-13 « No profile » (forme « No profile. » déjà utilisée par Push, « Delete from origin » et « Push tag » : la reprendre).
+
+## Décisions de l'humain
+### Fiche (à remplir)
+1. Gestes que CA-16 ne liste pas : a) ils restent disponibles, strictement la liste de CA-16 (recommandation retenue par l'humain, 25/11/2026)
+
+## Outillage
+- Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
+- Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test aux vraies commandes du crate `app`, dépôts d'exemple dont des conflits en cours et une identité non conforme ; port et données par `.env.local` en worktree)
+- Fichiers générés : `src/lib/bindings.ts` par `pnpm gen:bindings`, jamais édité à la main (seulement si une signature de commande change)
+- Tokens de style : `src/lib/styles/tokens.css` (aucune couleur en dur)
+- Conventions : écritures de Git par le binaire `git` en sous-processus, jamais `~/.gitconfig` ; crate `app` sans logique hors garde (identité, opération en cours) ; contrat par `tauri-specta` ; `snake_case` en Rust, `camelCase` en TypeScript, composants en `PascalCase` au nom exact de `ux.md` ; icônes Lucide (16 px, trait 1,8) ; tout au clavier avec focus visible ; texte ≥ 12 px, jamais d'information portée par la couleur seule ; interface en anglais ; aucun appel réseau réel en test (`origin` = dépôts `--bare` par chemin, faux `ssh`) ; travail direct sur `main`, aucun push sans validation humaine ; Conventional Commits en anglais
+
+## Contexte technique
+- Dépend de S-43 (livrée : Start rebase, conflit de rebase) et S-45 (livrée : « Delete from origin » avec sa raison d'identité). Les garde-fous d'identité du cœur existent déjà ; ce qui manque est listé ci-dessous.
+- Déjà fait, à ne pas refaire : `crate::attach::ensure_conform(store, path, home)` (`src-tauri/src/attach.rs` l. 164 ; raisons « Identity does not match profile <nom>. » et « No profile. ») est appelé par `merge_checked`, `rebase_checked`, `cherry_pick_checked`, `revert_checked`, `continue_operation_checked` (`src-tauri/src/working_tree.rs` l. 259-413) ; Continue est déjà désactivé dans `OperationBanner` par `continueReason` (`src/App.svelte` l. 542 ; texte « No profile » sans point, à garder tel quel). Tests existants : `src-tauri/tests/integrate_guard.rs`, `cherry_pick_guard.rs`, `commit_guard.rs`, `identity_block.rs` (modèles).
+- Manque côté identité : `start_interactive_rebase` (`src-tauri/src/commands.rs` l. 436, `rebase_plan::start_rebase` dans `src-tauri/src/rebase_plan.rs` l. 55) n'a aucun garde d'identité : lui passer `Store`, `home` et `ensure_conform` comme `rebase_branch` (l. 833 : `Store::new(data_dir())`, `crate::home_dir()`), avant tout sous-processus Git. Côté interface, les entrées merge, rebase, cherry-pick, revert et « Interactive rebase from here » de `RefContextMenu`, les boutons Cherry-pick et Revert de `CommitDetail` et Start rebase de `InteractiveRebase` ne montrent pas encore la raison d'identité : suivre le patron de « Delete from origin » et « Push tag » (`RefContextMenu.svelte` : `Entry.disabled` = la raison, `deleteRemoteBlocked`, `pushTagBlocked` ; `App.svelte` l. 1687 `deleteRemoteBlocked` donne « Identity does not match profile X. » ou « No profile. » : en faire une valeur partagée plutôt que la copier). Checkout, Branch, « Create branch here », Rename, « Delete local », Reset restent disponibles pour l'identité.
+- Opération en cours, lecture : `octogit_git::read_operation(path)` (`crates/git/src/operation.rs` l. 119 ; merge, rebase, cherry-pick, revert, y compris lancés au terminal) ; côté app `working_tree::read_operation` (l. 335). Ajouter un garde « Operation in progress. » (fonction à côté de `ensure_conform`, ou dans `working_tree.rs`), appelé avant tout sous-processus Git par les commandes concernées : `checkout_repository`, `create_branch_repository`, `rename_branch_repository`, `delete_branch_repository`, `delete_remote_branch_repository` (`src-tauri/src/fetch.rs`, `commands.rs` l. 992-1111), `stash_changes`, `pop_stash`, `merge_branch`, `rebase_branch`, `start_interactive_rebase`, `cherry_pick`, `revert`, `reset_branch`, `reset_hard` (`working_tree.rs`), `fetch_all_repository`, `pull_repository`, `push_repository`, `force_push_repository`. Pas de garde sur Continue, Abort, Done, `commit` (son refus « Merge in progress » existe), lectures, ni sur le fetch automatique (`fetch_repository`). Le refus ne dépend jamais de l'interface. Un conflit de Pop ou d'Apply n'a aucun marqueur dans `.git` (tenu en mémoire par `src/App.svelte`, `operation.kind` `pop` / `apply`) : le cœur ne peut pas le voir, c'est l'interface qui désactive les gestes pendant cet état. Message : « Operation in progress. », une ligne, rien n'a changé.
+- Interface, état : `src/App.svelte` tient `operation` (l. 95) ; `merging` (l. 526) est vrai pour toute opération du dépôt ouvert, pas seulement un merge (nom trompeur, ne pas le confondre avec le `merging` de `WorkingChanges` qui vise `operation?.kind === "merge"`, l. 2139). En dériver un booléen `operationBlocked` et le passer à `src/lib/screens/History.svelte` (props déjà passées : `blocked`, `merging`), puis aux composants : `Toolbar.svelte` (sélecteur de branche = checkout, Branch), `BranchSidebar.svelte` (double-clic checkout, menus), `CommitGraph.svelte` / `RefLabel.svelte` (double-clic checkout), `RefContextMenu.svelte` (Checkout, « Create branch here », Rename, « Delete local », « Delete from origin », merge, rebase, cherry-pick, revert, interactive rebase, Soft / Mixed / Hard : raison « Operation in progress. » sauf rebase interactif, cherry-pick et revert, désactivés sans raison affichée), `CommitDetail.svelte` (Checkout, « Create branch here », Cherry-pick, Revert), `StashButtons.svelte` (Stash, Pop), `SyncButton.svelte`, `PushButton.svelte`. Un geste désactivé ne se lance ni au clic, ni à la touche, ni par un raccourci : vérifier les gestionnaires de clavier (`git grep -n` sur `onkeydown`, `Enter`, `dblclick`) et les saisies en ligne déjà ouvertes (Branch, Rename, Create tag) qui n'ont pas à se valider une fois l'opération détectée. Quand deux raisons s'appliquent (opération et identité), « Operation in progress. » passe en premier (choix de présentation de la fiche).
+- Détection : une opération lancée ou terminée au terminal est déjà relue par `syncOperation` (`App.svelte` l. 235, ouverture, retour dans la fenêtre, `repo-config-changed` / surveillance) : les gestes se désactivent et se réactivent avec `operation`, sans autre geste.
+- Raisons et états exacts : `ux/ecrans/history.md` (états de `History`, composants `SyncButton`, `PushButton`, `StashButtons`, `RefContextMenu`, « Désactivées, avec raison », « Blocage d'identité (J-13) ») et `ux/ecrans/communs.md` (`Toolbar` : opération en cours, checkout, Branch, Stash, Pop, Pull désactivés) ; maquette `ux/maquettes/history.html`, sections « Operation in progress (all screens) » et 4 (opération en cours). Direction visuelle de `ux.md` (« Neon ») ; état désactivé et raison lisible sans la couleur seule.
+- Pont de test et e2e : `src-tauri/examples/octogit-bridge.rs` (une branche `match` par commande : aucune nouvelle commande attendue, seulement des refus), `src/web-bridge.ts`, `e2e/helpers.ts`. Fixtures d'opération en cours : `fixtures/conflict-merge.sh`, `conflict-rebase.sh`, `conflict-pick.sh`, `conflict-stash.sh` (conflit de Pop / Apply) ; identité non conforme : `fixtures/identity.sh` ; dépôt à `origin` bare : `fixtures/refs.sh`, `push.sh`. Modèles e2e : `e2e/conflict-resolver.spec.ts`, `e2e/identity-block.spec.ts`, `e2e/branch-remote-delete.spec.ts`. Ajouter `e2e/operation-guard.spec.ts` (ou voisin).
+- Reports vers S-50 lus dans les fiches existantes : S-43 (Start rebase refusé pour identité non conforme ou « No profile », bandeau « No profile » pendant le rebase d'un dépôt sans profil : pour information) ; S-19 (revue 1 : Pull pendant un rebase répond « Branch not published. », trompeur : S-50 désactive les boutons) ; S-35 et S-37 (refus d'identité dans le menu avec sa raison) ; S-39 (Continue d'identité déjà fait). Aucun point « reporter vers S-50 » explicite.
+
+## Interface à vérifier
+- **Écrans et états** : `History` avec une opération en cours (merge en conflit, rebase en conflit, cherry-pick en conflit, conflit de Pop) : `Toolbar` (sélecteur, Branch), `StashButtons`, `SyncButton`, `PushButton` désactivés ; `RefContextMenu` d'une branche locale, d'une `origin/…`, d'un commit : entrées désactivées avec « Operation in progress. » (rebase interactif, cherry-pick, revert sans raison), Reset Soft / Mixed / Hard désactivés avec la raison ; `CommitDetail` (Checkout, « Create branch here », Cherry-pick, Revert) ; double-clic sur une branche sans effet ; après Continue ou Abort, tout redevient actif ; dépôt non conforme et « No profile » sans opération : entrées merge, rebase, cherry-pick, revert, rebase interactif désactivées avec la raison d'identité, Checkout / Branch / Reset disponibles ; `InteractiveRebase` : Start rebase refusé avec la raison ; `OperationBanner` : Continue désactivé avec la raison d'identité, Abort actif
+- **Tailles d'écran** : 1500×900 (portable en plein écran), 1920×1080 (second écran)
+- **Adresse** : `http://localhost:1420` (`pnpm dev:web`, port du créneau dans `.env.local` en worktree)
+
+## Tests à écrire d'abord
+- [ ] resoudre-les-conflits CA-16 → test Rust (`src-tauri/tests/`, fichier voisin de `integrate_guard.rs`) : avec un merge, un rebase, un cherry-pick et un revert en cours (y compris lancés par `git` direct), chaque commande listée ci-dessus répond « Operation in progress. » et ne change ni branches, ni index, ni arbre, ni `origin` (bare) ; Continue, Abort et lectures restent permis ; Vitest : chaque composant (`Toolbar`, `StashButtons`, `SyncButton`, `PushButton`, `RefContextMenu`, `CommitDetail`) désactivé avec `operationBlocked`, clic et Entrée sans effet, actif sans ; e2e : sur `conflict-merge.sh`, chaque geste de la liste est désactivé, puis Abort et tout redevient actif
+- [ ] gerer-les-branches CA-20 → Vitest et e2e : checkout (double-clic, sélecteur, entrée de menu), Branch, « Create branch here », Rename, « Delete local », « Delete from origin » désactivés avec « Operation in progress. », aucun raccourci ne les lance ; opération lancée au terminal (`git merge` en conflit hors Octogit) : gestes désactivés au retour dans la fenêtre, réactivés quand elle est terminée au terminal
+- [ ] integrer-une-branche CA-14 → Vitest `RefContextMenu` : entrées merge et rebase affichées, désactivées, « Operation in progress. » ; e2e sur merge, rebase, cherry-pick et revert en cours
+- [ ] revenir-en-arriere CA-21 → Vitest et e2e : Soft, Mixed, Hard désactivés avec la raison, ni clic ni raccourci ne lancent un reset (`git rev-parse HEAD` inchangé), actifs après Continue ou Abort ; cherry-pick, revert et rebase interactif désactivés sans raison affichée
+- [ ] synchroniser CA-21 → Vitest `SyncButton` et `PushButton` désactivés ; test Rust : `fetch_all_repository`, `pull_repository`, `push_repository` et `force_push_repository` refusés pendant l'opération, `origin` bare inchangé ; e2e
+- [ ] proteger-l-identite CA-16 → test Rust (`src-tauri/tests/`, modèle `identity_block.rs`) : `start_interactive_rebase` refusé sur écart d'identité et « No profile », aucun sous-processus Git lancé, `git log`, branches et index inchangés ; Vitest : entrées merge, rebase, cherry-pick, revert, interactive rebase et Start rebase désactivées avec la raison, Checkout / Branch / Reset disponibles ; e2e (`fixtures/identity.sh`) : menu avec raison, `git log` inchangé ; opération en cours sur dépôt non conforme : Continue désactivé d'emblée avec la raison, aucun clic ni raccourci ne le lance, `git status` indique la même opération
+- [ ] Décision 1 → test selon la réponse
+
+## Hors périmètre
+- Refus pour modifications non commitées (S-51), HEAD détachée, commit racine, plage avec merge, commit de merge et cherry-pick vide (S-52), message d'échec de Continue en trois éléments et « Details » (S-53), réseau coupé et boutons occupés (S-55), accès clavier complet et contraste (S-56).
+- Le fetch automatique chaque minute (`fetch_repository`, `FetchStatus`) continue pendant une opération : seul Fetch All de `SyncButton` est désactivé.
+- Continue, Abort, Done, Mark as resolved, Open in external editor, Commit et Amend (déjà désactivés pendant un merge par S-39) : inchangés.
+- Détection d'un conflit de Pop ou d'Apply après redémarrage d'Octogit (aucun marqueur dans `.git`) : limite connue de S-41, non traitée ici.
+- Tout changement de signature ou de contrat de commande : aucun attendu (seulement de nouveaux refus d'une ligne).
+
+## Documentation à mettre à jour
+- README, section « Graphe de `History` » : lignes 73 à 75 qui renvoient à S-50 (« les gestes ne sont pas encore désactivés pendant l'opération », refus d'identité de merge, cherry-pick, revert, rebase, rebase interactif et Continue) : les remplacer par l'état livré (gestes désactivés avec « Operation in progress. » pendant un merge, rebase, cherry-pick, revert, y compris lancé au terminal ; refus avec la raison d'identité) et mentionner la fixture ajoutée s'il y en a une.
+- `.env.example` : aucun changement. Rattrapage : aucun retard constaté (README et `.env.example` à jour jusqu'à S-49).
+
+## Terminé quand
+- [ ] À chaque passage de `dev` : `pnpm lint`, `pnpm format:check`, `pnpm test`, `pnpm tauri build`, plus les e2e liés au diff par « Tests ciblés » (`pnpm e2e <fichier>`)
+- [ ] Avant le commit, une fois, par l'agent story-runner : `pnpm e2e` ; `pnpm audit:deps` seulement si `pnpm-lock.yaml` ou `Cargo.lock` a changé depuis la Référence
+- [ ] Documentation listée ci-dessus à jour
+- [ ] Verdict du reviewer : **validé**
+
+## Journal
+- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+
+<!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
+| # | Agent | Résultat | Verdict |
+|---|---|---|---|

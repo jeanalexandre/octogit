@@ -22,7 +22,13 @@
     blocked = null,
     noProfile = false,
     onfix,
+    operationBlocked = false,
+    identityReason = null,
   }: {
+    /** Un merge, un rebase, un cherry-pick ou un revert est en cours : Checkout et « Create branch here » désactivés avec la raison, Cherry-pick et Revert sans raison affichée. */
+    operationBlocked?: boolean;
+    /** Raison d'identité (« Identity does not match profile X. », « No profile. ») de Cherry-pick et Revert, ou `null`. */
+    identityReason?: string | null;
     /** Variante « dernier commit sur arbre propre » : Summary, Description et « Amend <sha> » (décidée par l'appelant à la sélection). */
     editable?: boolean;
     /** Amend du seul message ; rejette avec le message de Git si refusé. */
@@ -60,15 +66,26 @@
   let checkoutButton: HTMLButtonElement | undefined = $state();
   let chooser: HTMLElement | undefined = $state();
 
+  const OPERATION_REASON = "Operation in progress.";
+  /** Cherry-pick et Revert : désactivés pendant une opération (sans raison affichée), sinon par l'identité (avec sa raison). */
+  const pickOff = $derived(operationBlocked || identityReason !== null);
+  const pickTitle = $derived(operationBlocked ? undefined : (identityReason ?? undefined));
+
   function checkout() {
+    if (operationBlocked) return;
     if (targets.length === 1) oncheckout?.(targets[0]);
     else choosing = !choosing;
   }
 
   function choose(name: string) {
     choosing = false;
-    oncheckout?.(name);
+    if (!operationBlocked) oncheckout?.(name);
   }
+
+  /** Une opération détectée pendant que le choix de la branche est ouvert le referme. */
+  $effect(() => {
+    if (operationBlocked) choosing = false;
+  });
 
   function closeChooser(refocus: boolean) {
     choosing = false;
@@ -192,6 +209,8 @@
           type="button"
           class="action"
           bind:this={checkoutButton}
+          disabled={operationBlocked}
+          title={operationBlocked ? OPERATION_REASON : undefined}
           aria-haspopup={targets.length > 1 ? "menu" : undefined}
           aria-expanded={targets.length > 1 ? choosing : undefined}
           onclick={checkout}
@@ -223,13 +242,25 @@
       type="button"
       class="action"
       data-create-branch
-      onclick={() => oncreatebranch?.(detail.id)}
+      disabled={operationBlocked}
+      title={operationBlocked ? OPERATION_REASON : undefined}
+      onclick={() => !operationBlocked && oncreatebranch?.(detail.id)}
       ><GitBranchPlus size={16} strokeWidth={1.8} aria-hidden="true" />Create branch here</button
     >
-    <button type="button" class="action" onclick={() => oncherrypick?.(detail.id)}
+    <button
+      type="button"
+      class="action"
+      disabled={pickOff}
+      title={pickTitle}
+      onclick={() => !pickOff && oncherrypick?.(detail.id)}
       ><Cherry size={16} strokeWidth={1.8} aria-hidden="true" />Cherry-pick</button
     >
-    <button type="button" class="action" onclick={() => onrevert?.(detail.id)}
+    <button
+      type="button"
+      class="action"
+      disabled={pickOff}
+      title={pickTitle}
+      onclick={() => !pickOff && onrevert?.(detail.id)}
       ><Undo2 size={16} strokeWidth={1.8} aria-hidden="true" />Revert</button
     >
   </div>
@@ -357,8 +388,13 @@
     cursor: pointer;
   }
 
-  .action:hover {
+  .action:hover:not(:disabled) {
     background: var(--selection);
+  }
+
+  .action:disabled {
+    color: var(--muted);
+    cursor: not-allowed;
   }
 
   .action:focus-visible,

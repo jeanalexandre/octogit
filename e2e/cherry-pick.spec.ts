@@ -216,9 +216,16 @@ test("décision 1 : un dépôt à l'identité non conforme refuse Cherry-pick et
   const tip = ws.git(repo, "rev-parse", "HEAD");
 
   await graphRow(page, "Remote one").click({ button: "right" });
-  await menuItem(page, "Cherry-pick").click();
+  // S-50 : Cherry-pick et Revert sont désactivés d'emblée avec la raison d'identité ; un clic forcé ne lance rien.
+  for (const name of ["Cherry-pick", "Revert"]) {
+    await expect(menuItem(page, new RegExp(`^${name}`))).toHaveAttribute("aria-disabled", "true");
+    await expect(menuItem(page, new RegExp(`^${name}`))).toContainText(
+      "Identity does not match profile Work.",
+    );
+  }
+  await menuItem(page, /^Cherry-pick/).click({ force: true });
 
-  await expect(page.getByRole("alert")).toContainText("Identity does not match profile Work.");
+  await expect(page.getByRole("alert")).toHaveCount(0);
   expect(ws.git(repo, "rev-parse", "HEAD")).toBe(tip);
   expect(ws.git(repo, "status", "--porcelain")).toBe("");
 });

@@ -128,6 +128,46 @@ function props(overrides = {}) {
   };
 }
 
+describe("History pendant une opération", () => {
+  it("resoudre-les-conflits CA-16: the header gestures are disabled and a double-click on a ref checks nothing out", async () => {
+    const onrefdblclick = vi.fn();
+    const oncheckout = vi.fn();
+    render(History, props({ onrefdblclick, oncheckout, operationBlocked: true }));
+    expect(screen.getByRole("button", { name: /Switch branch/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Branch" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Stash" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Pop" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Fetch All/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /^Push/ })).toHaveAttribute("aria-disabled", "true");
+    const row = screen.getAllByRole("listitem")[0];
+    await fireEvent.mouseEnter(row.querySelector("[data-labels]") as HTMLElement);
+    const tag = within(row.querySelector("[data-floating]") as HTMLElement).getByText("v1.1.0");
+    await fireEvent.dblClick(tag);
+    expect(onrefdblclick).not.toHaveBeenCalled();
+    expect(oncheckout).not.toHaveBeenCalled();
+  });
+
+  it("gerer-les-branches CA-20: an open Branch field closes when the operation is detected and creates nothing", async () => {
+    const oncreatebranch = vi.fn();
+    const { rerender } = render(History, props({ oncreatebranch }));
+    await fireEvent.click(screen.getByRole("button", { name: "Branch" }));
+    const field = screen.getByRole("textbox", { name: "Branch name" });
+    await fireEvent.input(field, { target: { value: "wip" } });
+    await rerender({ operationBlocked: true });
+    expect(screen.queryByRole("textbox", { name: "Branch name" })).toBeNull();
+    expect(oncreatebranch).not.toHaveBeenCalled();
+  });
+
+  it("resoudre-les-conflits CA-16: without an operation the header gestures are enabled", () => {
+    render(History, props());
+    expect(screen.getByRole("button", { name: /Switch branch/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Branch" })).toBeEnabled();
+  });
+});
+
 describe("History", () => {
   it("shows the repository header and the given commits in order", () => {
     render(History, props());

@@ -150,11 +150,12 @@ test("gerer-les-branches CA-9 : clic droit sur un commit › Create branch here 
     .click({ button: "right" });
   await expect(page.getByRole("menuitem")).toHaveText([
     "Create branch here",
-    /^Rebase develop onto [0-9a-f]{7}$/,
-    "Cherry-pick",
-    "Revert",
+    // Dépôt sans profil (S-50) : ces entrées sont désactivées avec la raison d'identité.
+    /^Rebase develop onto [0-9a-f]{7}\s*No profile\.$/,
+    /^Cherry-pick\s*No profile\.$/,
+    /^Revert\s*No profile\.$/,
     "Reset develop to here ›",
-    "Interactive rebase from here",
+    /^Interactive rebase from here\s*No profile\.$/,
     "Create tag",
   ]);
   await page.getByRole("menuitem", { name: "Create branch here" }).click();

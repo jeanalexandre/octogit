@@ -103,7 +103,13 @@
     ontagdeleteconfirm,
     ontagdeletecancel,
     pushTagBlocked = null,
+    operationBlocked = false,
+    identityBlocked = null,
   }: {
+    /** Un merge, un rebase, un cherry-pick ou un revert est en cours : les gestes qui le gêneraient sont désactivés. */
+    operationBlocked?: boolean;
+    /** Raison d'identité (« Identity does not match profile X. », « No profile. ») de merge, rebase, cherry-pick, revert, rebase interactif, ou `null`. */
+    identityBlocked?: string | null;
     /** Entrée « Create tag » d'un commit : son identifiant complet (le parent ouvre la saisie en ligne). */
     oncreatetag?: (commit: string) => void;
     /** Entrée « Push tag » d'un tag : son nom. */
@@ -179,16 +185,29 @@
     oncancel: () => void;
   } = $props();
 
-  /** `disabled` : la raison, affichée dans l'entrée, qui ne se lance alors jamais. */
+  /** `disabled` : la raison, affichée dans l'entrée, qui ne se lance alors jamais (`""` : désactivée sans raison affichée). */
   type Entry = { id: string; label: string; run: () => void; disabled?: string };
+
+  const OPERATION_REASON = "Operation in progress.";
+  /** Merge et rebase : « Operation in progress. » d'abord, sinon la raison d'identité. */
+  const shownReason = $derived(
+    operationBlocked ? OPERATION_REASON : (identityBlocked ?? undefined),
+  );
+  /** Cherry-pick, revert, rebase interactif : sans raison affichée pendant une opération, sinon la raison d'identité. */
+  const silentReason = $derived(operationBlocked ? "" : (identityBlocked ?? undefined));
 
   /** Le nom de la ref est figé avec l'entrée : le menu se ferme (`menu` repasse à `null`) avant qu'elle ne s'exécute. */
   const entries: Entry[] = $derived.by(() => {
     if (menu === null) return [];
     const target = menu;
     const pick: Entry[] = [
-      { id: "cherry-pick", label: "Cherry-pick", run: () => oncherrypick?.(target) },
-      { id: "revert", label: "Revert", run: () => onrevert?.(target) },
+      {
+        id: "cherry-pick",
+        label: "Cherry-pick",
+        run: () => oncherrypick?.(target),
+        disabled: silentReason,
+      },
+      { id: "revert", label: "Revert", run: () => onrevert?.(target), disabled: silentReason },
     ];
     const into = receiving !== null && receiving.kind === "branch" ? receiving.name : null;
     if (menu.kind === "commit") {
@@ -200,11 +219,17 @@
                 id: "rebase",
                 label: `Rebase ${into} onto ${menu.name}`,
                 run: () => onrebase?.(commit, into),
+                disabled: shownReason,
               },
             ]
           : [];
       return [
-        { id: "create-branch", label: "Create branch here", run: () => oncreatebranch?.(commit) },
+        {
+          id: "create-branch",
+          label: "Create branch here",
+          run: () => oncreatebranch?.(commit),
+          disabled: operationBlocked ? OPERATION_REASON : undefined,
+        },
         ...rebase,
         ...pick,
       ];
@@ -213,7 +238,12 @@
     if (menu.kind === "stash") {
       return [
         { id: "apply", label: "Apply", run: () => onapplystash?.(name) },
-        { id: "pop", label: "Pop", run: () => onpopstash?.(name) },
+        {
+          id: "pop",
+          label: "Pop",
+          run: () => onpopstash?.(name),
+          disabled: operationBlocked ? OPERATION_REASON : undefined,
+        },
         { id: "drop", label: "Drop", run: () => ondropstash?.(name) },
       ];
     }
@@ -232,7 +262,12 @@
       const { untracked } = menu;
       return [{ id: "discard", label: "Discard changes", run: () => ondiscard?.(name, untracked) }];
     }
-    const checkout: Entry = { id: "checkout", label: "Checkout", run: () => oncheckout(name) };
+    const checkout: Entry = {
+      id: "checkout",
+      label: "Checkout",
+      run: () => oncheckout(name),
+      disabled: operationBlocked ? OPERATION_REASON : undefined,
+    };
     const integrate: Entry[] =
       into !== null && into !== name
         ? [
@@ -240,11 +275,13 @@
               id: "merge",
               label: `Merge ${name} into ${into}`,
               run: () => onmerge?.(name, into),
+              disabled: shownReason,
             },
             {
               id: "rebase",
               label: `Rebase ${into} onto ${name}`,
               run: () => onrebase?.(name, into),
+              disabled: shownReason,
             },
           ]
         : [];
@@ -257,7 +294,7 @@
               id: "delete-remote",
               label: "Delete from origin",
               run: () => ondeleteremote?.(branch),
-              disabled: deleteRemoteBlocked ?? undefined,
+              disabled: operationBlocked ? OPERATION_REASON : (deleteRemoteBlocked ?? undefined),
             },
           ]
         : [];
@@ -267,12 +304,21 @@
     return [
       checkout,
       ...integrate,
-      { id: "rename", label: "Rename", run: () => onrenamebranch?.(name) },
+      {
+        id: "rename",
+        label: "Rename",
+        run: () => onrenamebranch?.(name),
+        disabled: operationBlocked ? OPERATION_REASON : undefined,
+      },
       {
         id: "delete-local",
         label: "Delete local",
         run: () => ondeletebranch?.(name),
-        disabled: isCurrent ? "Current branch cannot be deleted." : undefined,
+        disabled: operationBlocked
+          ? OPERATION_REASON
+          : isCurrent
+            ? "Current branch cannot be deleted."
+            : undefined,
       },
     ];
   });
@@ -311,7 +357,7 @@
 
   function runReset(mode: "soft" | "mixed" | "hard") {
     const target = menu;
-    if (target === null) return;
+    if (target === null || operationBlocked) return;
     onclose();
     onresetbranch?.(target, mode);
   }
@@ -319,7 +365,7 @@
   /** Le commit est lu avant la fermeture du menu (`menu` repasse alors à `null`). */
   function runInteractiveRebase() {
     const target = menu;
-    if (target === null || target.kind !== "commit") return;
+    if (target === null || target.kind !== "commit" || silentReason !== undefined) return;
     onclose();
     oninteractiverebase?.(target.commit);
   }
@@ -432,8 +478,7 @@
         aria-disabled={entry.disabled !== undefined ? "true" : undefined}
         use:focusIf={i === 0}
         onclick={() => runEntry(entry)}
-        >{entry.label}{#if entry.disabled !== undefined}<span class="reason">{entry.disabled}</span
-          >{/if}</button
+        >{entry.label}{#if entry.disabled}<span class="reason">{entry.disabled}</span>{/if}</button
       >
     {/each}
     {#if hasReset}
@@ -450,16 +495,33 @@
       {#if resetOpen}
         <div class="submenu" role="menu" aria-label="Reset {currentBranch} to here">
           {#each resetModes as item (item.mode)}
-            <button type="button" role="menuitem" class="entry" onclick={() => runReset(item.mode)}
-              ><strong>{item.label}</strong> — {item.line}</button
+            <button
+              type="button"
+              role="menuitem"
+              class="entry"
+              class:disabled={operationBlocked}
+              aria-disabled={operationBlocked ? "true" : undefined}
+              onclick={() => runReset(item.mode)}
+              ><strong>{item.label}</strong> — {item.line}{#if operationBlocked}<span class="reason"
+                  >{OPERATION_REASON}</span
+                >{/if}</button
             >
           {/each}
         </div>
       {/if}
     {/if}
     {#if hasInteractiveRebase}
-      <button type="button" role="menuitem" class="entry with-icon" onclick={runInteractiveRebase}>
-        <ListOrdered size={16} strokeWidth={1.8} aria-hidden="true" />Interactive rebase from here
+      <button
+        type="button"
+        role="menuitem"
+        class="entry with-icon"
+        class:disabled={silentReason !== undefined}
+        aria-disabled={silentReason !== undefined ? "true" : undefined}
+        onclick={runInteractiveRebase}
+      >
+        <ListOrdered size={16} strokeWidth={1.8} aria-hidden="true" />Interactive rebase from here{#if silentReason}<span
+            class="reason">{silentReason}</span
+          >{/if}
       </button>
     {/if}
     {#if menu.kind === "commit" && oncreatetag !== undefined}

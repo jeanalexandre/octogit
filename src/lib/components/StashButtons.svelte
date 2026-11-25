@@ -14,7 +14,10 @@
     popName = null,
     onstash,
     onpop,
+    operationBlocked = false,
   }: {
+    /** Un merge, un rebase, un cherry-pick, un revert ou un conflit de Pop est en cours : Stash et Pop désactivés. */
+    operationBlocked?: boolean;
     /** Pourquoi Stash est désactivé (arbre propre, aucun commit), ou `null`. */
     stashReason?: string | null;
     /** Pourquoi Pop est désactivé (aucun stash), ou `null`. */
@@ -34,8 +37,9 @@
   let input: HTMLInputElement | undefined = $state();
   let stashButton: HTMLButtonElement | undefined = $state();
 
-  const stashOff = $derived(busy || stashReason !== null);
-  const popOff = $derived(busy || popReason !== null);
+  const OPERATION_REASON = "Operation in progress.";
+  const stashOff = $derived(busy || operationBlocked || stashReason !== null);
+  const popOff = $derived(busy || operationBlocked || popReason !== null);
 
   /** Une ligne : la sortie brute de Git n'est pas affichée ici. */
   function oneLine(e: unknown, fallback: string) {
@@ -55,7 +59,7 @@
   }
 
   async function stash() {
-    if (busy) return;
+    if (busy || operationBlocked) return;
     busy = true;
     failure = null;
     try {
@@ -103,7 +107,7 @@
     type="button"
     bind:this={stashButton}
     disabled={stashOff}
-    title={stashReason ?? undefined}
+    title={operationBlocked ? OPERATION_REASON : (stashReason ?? undefined)}
     aria-expanded={naming}
     onclick={open}
   >
@@ -112,7 +116,9 @@
   <button
     type="button"
     disabled={popOff}
-    title={popReason ?? (popName ? `Pop ${popName}` : "Pop the last stash")}
+    title={operationBlocked
+      ? OPERATION_REASON
+      : (popReason ?? (popName ? `Pop ${popName}` : "Pop the last stash"))}
     onclick={pop}
   >
     <ArchiveRestore size={16} strokeWidth={1.8} aria-hidden="true" />Pop
@@ -128,7 +134,7 @@
           placeholder="Message (optional)"
           {onkeydown}
         />
-        <button type="button" disabled={busy} onclick={stash}>
+        <button type="button" disabled={busy || operationBlocked} onclick={stash}>
           <Archive size={16} strokeWidth={1.8} aria-hidden="true" />Stash changes
         </button>
         <button type="button" disabled={busy} onclick={close}>

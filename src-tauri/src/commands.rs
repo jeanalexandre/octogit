@@ -440,7 +440,14 @@ pub async fn start_interactive_rebase(
     entries: Vec<rebase_plan::TodoEntryView>,
 ) -> Result<OperationOutcomeView, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        rebase_plan::start_rebase(Path::new(&path), &base, &branch, &entries)
+        rebase_plan::start_rebase(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+            &base,
+            &branch,
+            &entries,
+        )
     })
     .await
     .map_err(|_| "The rebase was interrupted.".to_string())?

@@ -624,7 +624,11 @@ fn main() {
         "start_interactive_rebase" => {
             let args: StartRebaseArgs =
                 serde_json::from_str(&input).expect("arguments { path, base, branch, entries }");
+            let store = octogit_store::Store::new(octogit_app::data_dir());
+            let home = octogit_app::home_dir();
             match octogit_app::rebase_plan::start_rebase(
+                &store,
+                &home,
                 std::path::Path::new(&args.path),
                 &args.base,
                 &args.branch,

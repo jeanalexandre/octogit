@@ -18,6 +18,90 @@ const detail: CommitDetailView = {
   ],
 };
 
+describe("CommitDetail pendant une opération ou avec une identité bloquée", () => {
+  const branchRef: RefView = {
+    name: "main",
+    kind: "branch",
+    target: detail.id,
+    current: false,
+    upstream: null,
+    ahead: 0,
+    behind: 0,
+  };
+
+  it("resoudre-les-conflits CA-16: Checkout and Create branch here are disabled with the reason, Cherry-pick and Revert without one, nothing runs", async () => {
+    const p = {
+      detail,
+      refs: [branchRef],
+      operationBlocked: true,
+      oncheckout: vi.fn(),
+      oncreatebranch: vi.fn(),
+      oncherrypick: vi.fn(),
+      onrevert: vi.fn(),
+    };
+    render(CommitDetail, p);
+    for (const name of ["Checkout", "Create branch here"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("title", "Operation in progress.");
+      await fireEvent.click(button);
+    }
+    for (const name of ["Cherry-pick", "Revert"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toBeDisabled();
+      expect(button).not.toHaveAttribute("title");
+      await fireEvent.click(button);
+    }
+    expect(p.oncheckout).not.toHaveBeenCalled();
+    expect(p.oncreatebranch).not.toHaveBeenCalled();
+    expect(p.oncherrypick).not.toHaveBeenCalled();
+    expect(p.onrevert).not.toHaveBeenCalled();
+  });
+
+  it("proteger-l-identite CA-16: a blocked identity disables Cherry-pick and Revert with the reason, Checkout and Create branch here stay", async () => {
+    for (const reason of ["Identity does not match profile Work.", "No profile."]) {
+      const p = {
+        detail,
+        refs: [branchRef],
+        identityReason: reason,
+        oncheckout: vi.fn(),
+        oncreatebranch: vi.fn(),
+        oncherrypick: vi.fn(),
+        onrevert: vi.fn(),
+      };
+      const { unmount } = render(CommitDetail, p);
+      for (const name of ["Cherry-pick", "Revert"]) {
+        const button = screen.getByRole("button", { name });
+        expect(button).toBeDisabled();
+        expect(button).toHaveAttribute("title", reason);
+        await fireEvent.click(button);
+      }
+      expect(p.oncherrypick).not.toHaveBeenCalled();
+      expect(p.onrevert).not.toHaveBeenCalled();
+      await fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
+      await fireEvent.click(screen.getByRole("button", { name: "Create branch here" }));
+      expect(p.oncheckout).toHaveBeenCalledWith("main");
+      expect(p.oncreatebranch).toHaveBeenCalledWith(detail.id);
+      unmount();
+    }
+  });
+
+  it("resoudre-les-conflits CA-16: without an operation nor identity block all four run", async () => {
+    const p = {
+      detail,
+      refs: [branchRef],
+      oncheckout: vi.fn(),
+      oncherrypick: vi.fn(),
+      onrevert: vi.fn(),
+    };
+    render(CommitDetail, p);
+    await fireEvent.click(screen.getByRole("button", { name: "Cherry-pick" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Revert" }));
+    expect(p.oncherrypick).toHaveBeenCalledWith(detail.id);
+    expect(p.onrevert).toHaveBeenCalledWith(detail.id);
+  });
+});
+
 describe("CommitDetail", () => {
   it("explorer-l-historique CA-24: shows message, author, date, full SHA, signature and files with a letter", () => {
     render(CommitDetail, { detail });
@@ -112,6 +196,21 @@ describe("CommitDetail Checkout and Create branch here", () => {
     expect(oncheckout).toHaveBeenCalledTimes(1);
     expect(oncheckout).toHaveBeenCalledWith("fix/graph");
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("gerer-les-branches CA-20: an open Checkout menu closes when an operation starts, and no checkout runs", async () => {
+    const oncheckout = vi.fn();
+    const { rerender } = render(CommitDetail, {
+      detail,
+      refs: [ref("feature/profiles", "branch"), ref("fix/graph", "branch")],
+      oncheckout,
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Checkout" }));
+    expect(screen.getByRole("menu", { name: "Checkout" })).toBeInTheDocument();
+    await rerender({ operationBlocked: true });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.getByRole("button", { name: "Checkout" })).toBeDisabled();
+    expect(oncheckout).not.toHaveBeenCalled();
   });
 
   it("gerer-les-branches CA-7: the menu of choice works with the keyboard (arrows, Enter) and Escape closes it without checkout", async () => {

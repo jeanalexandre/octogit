@@ -34,6 +34,9 @@ Raisons d'identité reprises de `proteger-l-identite` : CA-15 « Identity does n
 ### Fiche (à remplir)
 1. Gestes que CA-16 ne liste pas : a) ils restent disponibles, strictement la liste de CA-16 (recommandation retenue par l'humain, 25/11/2026)
 
+### Après la revue 1
+- Mineur 2 (test `CommitDetail` : menu Checkout ouvert puis `operationBlocked`) : traiter (d'office), passage 2 avec le bloquant 1.
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test aux vraies commandes du crate `app`, dépôts d'exemple dont des conflits en cours et une identité non conforme ; port et données par `.env.local` en worktree)
@@ -84,8 +87,13 @@ Raisons d'identité reprises de `proteger-l-identite` : CA-15 « Identity does n
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `6cf2a1c`
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : tests, lint, build, e2e liés verts ; 28 fichiers modifiés | — |
+| 1 | reviewer | `stories/S-50-revue-1.md` : 1 bloquant (style désactivé de `CommitDetail`), 1 mineur | à corriger |
+| 2 | dev | terminé : style `:disabled` de `.action`, test du menu Checkout, assertion e2e ; vérifications vertes | — |
+| 2 | reviewer | `stories/S-50-revue-2.md` : aucun problème | validé |
+| fin | run de fin | `pnpm e2e` complet vert ; `pnpm audit:deps` non lancé (aucun fichier de verrouillage modifié) | — |

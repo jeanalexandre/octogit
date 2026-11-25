@@ -17,7 +17,10 @@
     notice = null,
     onrun,
     onchoose,
+    operationBlocked = false,
   }: {
+    /** Un merge, un rebase, un cherry-pick ou un revert est en cours : Fetch All et Pull sont désactivés. */
+    operationBlocked?: boolean;
     /** Action par défaut, commune à tous les dépôts. */
     action: SyncAction;
     /** Un Fetch All ou un Pull est en cours : progression dans le bouton, non relançable. */
@@ -45,8 +48,9 @@
   const label = $derived(entries.find((e) => e.action === action)?.label ?? "Fetch All");
   const isPull = $derived(action !== "fetchAll");
   /** Un Pull sur une branche non publiée : seule l'exécution est grisée, avec sa raison (Fetch All reste actif). */
-  const unavailable = $derived(isPull && !published);
-  const reason = "Branch not published.";
+  const unavailable = $derived(operationBlocked || (isPull && !published));
+  /** « Operation in progress. » passe avant « Branch not published. ». */
+  const reason = $derived(operationBlocked ? "Operation in progress." : "Branch not published.");
   const inactive = $derived(busy || unavailable);
 
   function run() {

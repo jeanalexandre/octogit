@@ -38,6 +38,8 @@ const afterItems = (page: Page) =>
 
 async function openRepo(page: Page) {
   const repo = ws.repo("rebase-interactive");
+  // Dépôt conforme (S-50) : sans profil, l'entrée et Start rebase sont désactivés avec « No profile. ».
+  ws.attachWork(repo, FIXTURE_IDENTITY);
   ws.rememberLastRepository(repo);
   await page.goto(ws.url);
   await expect(graphRow(page, "Add profile list")).toBeVisible();
@@ -233,7 +235,7 @@ for (const size of sizes) {
   }) => {
     await page.setViewportSize(size);
     const repo = ws.rebaseRepo("pushed");
-    // Rattaché à Work : « Force push » n'est pas masqué par « No profile » (Start rebase, lui, n'a pas de garde ici).
+    // Rattaché à Work : « Force push » n'est pas masqué par « No profile » (Start rebase refuse aussi « No profile. »).
     ws.attachWork(repo, FIXTURE_IDENTITY);
     ws.rememberRecent([repo]);
     await page.goto(ws.urlWithFetchInterval(3_600_000));
@@ -317,6 +319,7 @@ for (const size of sizes) {
   }) => {
     await page.setViewportSize(size);
     const repo = ws.rebaseRepo("conflict");
+    ws.attachWork(repo, FIXTURE_IDENTITY);
     ws.rememberLastRepository(repo);
     await page.goto(ws.url);
     await expect(graphRow(page, "Edit notes two")).toBeVisible();
@@ -348,6 +351,7 @@ for (const size of sizes) {
   }) => {
     await page.setViewportSize(size);
     const repo = ws.rebaseRepo("slow");
+    ws.attachWork(repo, FIXTURE_IDENTITY);
     ws.rememberLastRepository(repo);
     await page.goto(ws.url);
     await expect(graphRow(page, "Add profile list")).toBeVisible();

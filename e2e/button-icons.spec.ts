@@ -167,7 +167,10 @@ test("choisir-l-apparence CA-15 : ConflictResolver porte une icône devant chaqu
 test("choisir-l-apparence CA-15 : InteractiveRebase porte une icône devant chaque bouton à libellé", async ({
   page,
 }) => {
-  ws.rememberLastRepository(ws.repo("rebase-interactive"));
+  const repo = ws.repo("rebase-interactive");
+  // Dépôt conforme (S-50) : sans profil, l'entrée « Interactive rebase from here » est désactivée.
+  ws.attachWork(repo, FIXTURE_IDENTITY);
+  ws.rememberLastRepository(repo);
   await page.goto(ws.url);
   await expect(graphRow(page, "Add profile list")).toBeVisible();
   await graphRow(page, "wip ssh").click({ button: "right" });

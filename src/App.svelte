@@ -527,6 +527,12 @@
     const current = operation as { path: string } | null;
     return current !== null && current.path === openPath;
   });
+  /**
+   * Une opération du dépôt ouvert est en cours (merge, rebase, cherry-pick, revert, y compris lancée au terminal, ou
+   * conflit de Pop ou d'Apply) : checkout, Branch, Rename, Delete, Stash, Pop, merge, rebase, cherry-pick, revert,
+   * reset, Fetch All, Pull et Push sont désactivés ; le cœur les refuse aussi.
+   */
+  const operationBlocked = $derived(merging);
   /** `ConflictResolver` est l'écran visible (ni `DiffView` ni `ProfileSettings` par-dessus). */
   const resolverShown = $derived(merging && resolverOpen && !settingsOpen);
 
@@ -807,7 +813,7 @@
   /** Clic sur `SyncButton` : lance l'action par défaut (Fetch All, Pull ff-only ou Pull rebase), une seule à la fois. */
   async function sync() {
     const path = openPath;
-    if (path === null || syncingPath !== null) return;
+    if (path === null || syncingPath !== null || operationBlocked) return;
     syncNotice = null;
     syncingPath = path;
     try {
@@ -831,7 +837,8 @@
    */
   async function push() {
     const path = openPath;
-    if (path === null || pushingPath !== null || fixingCommitsPath !== null) return;
+    if (path === null || pushingPath !== null || fixingCommitsPath !== null || operationBlocked)
+      return;
     pushNotice = null;
     pushingPath = path;
     try {
@@ -873,7 +880,7 @@
    */
   async function openForcePush() {
     const path = openPath;
-    if (path === null || forceDialog !== null || pushingPath !== null) return;
+    if (path === null || forceDialog !== null || pushingPath !== null || operationBlocked) return;
     const view = await commands.getForcePushCheck(path);
     if (openPath !== path) return;
     rewriteState = { path, view };
@@ -887,7 +894,13 @@
    */
   async function forcePush() {
     const dialog = forceDialog;
-    if (dialog === null || dialog.busy || pushingPath !== null || fixingCommitsPath !== null)
+    if (
+      dialog === null ||
+      dialog.busy ||
+      pushingPath !== null ||
+      fixingCommitsPath !== null ||
+      operationBlocked
+    )
       return;
     const { path } = dialog;
     forceDialog = { ...dialog, busy: true, error: null };
@@ -1154,7 +1167,7 @@
   async function runStash(run: (path: string) => ReturnType<typeof commands.stashChanges>) {
     const path = openPath;
     if (path === null || screen?.screen !== "history") return;
-    if (checkoutPath !== null) throw "Operation in progress.";
+    if (checkoutPath !== null || operationBlocked) throw "Operation in progress.";
     checkoutNotice = null;
     checkoutPath = path;
     try {
@@ -1219,7 +1232,7 @@
     try {
       if (mode === "hard") {
         if (branch === undefined) return;
-        if (checkoutPath !== null) throw "Operation in progress.";
+        if (checkoutPath !== null || operationBlocked) throw "Operation in progress.";
         // Aperçu en lecture seule : rien n'est modifié avant la confirmation.
         const preview = await commands.previewResetHard(path, target);
         if (preview.status !== "ok") throw preview.error;
@@ -1341,7 +1354,8 @@
    */
   async function checkout(name: string, choice: CheckoutChoiceView | null = null) {
     const path = openPath;
-    if (path === null || checkoutPath !== null || screen?.screen !== "history") return;
+    if (path === null || checkoutPath !== null || operationBlocked || screen?.screen !== "history")
+      return;
     const target = screen.repository.refs.find((r) => r.name === name);
     if (target?.kind !== "branch" && target?.kind !== "remote") return;
     checkoutNotice = null;
@@ -1413,6 +1427,7 @@
   }
 
   function openInteractiveRebase(commit: string) {
+    if (operationBlocked) return;
     if (menuPlan !== null && menuPlan.commit === commit && menuPlan.path === openPath) {
       const { path, plan } = menuPlan;
       rebase = { path, plan, pushed: null };
@@ -1508,7 +1523,8 @@
    */
   async function createBranch(name: string, commit: string) {
     const path = openPath;
-    if (path === null || checkoutPath !== null || screen?.screen !== "history") return;
+    if (path === null || checkoutPath !== null || operationBlocked || screen?.screen !== "history")
+      return;
     checkoutNotice = null;
     checkoutPath = path;
     checkoutStarts += 1;
@@ -1577,14 +1593,18 @@
   }
 
   /** Rename : la branche locale `from` devient `to` (lien de suivi gardé, `origin/…` intacte, la courante reste courante). */
-  const renameBranch = (from: string, to: string) =>
-    writeBranches((path) => commands.renameBranchRepository(path, from, to));
+  const renameBranch = async (from: string, to: string) => {
+    if (!operationBlocked)
+      await writeBranches((path) => commands.renameBranchRepository(path, from, to));
+  };
 
   /** Confirmation de « Delete local » d'une branche non fusionnée dans la courante, avec le dépôt concerné. */
   let deleteConfirm: (DeleteConfirm & { path: string }) | null = $state(null);
 
-  const deleteBranch = (name: string) =>
-    writeBranches((path) => commands.deleteBranchRepository(path, name));
+  const deleteBranch = async (name: string) => {
+    if (!operationBlocked)
+      await writeBranches((path) => commands.deleteBranchRepository(path, name));
+  };
 
   /**
    * « Delete local » : le plan est lu d'abord (lecture seule). Fusionnée dans la courante : supprimée sans
@@ -1592,7 +1612,8 @@
    */
   async function askDeleteBranch(name: string) {
     const path = openPath;
-    if (path === null || checkoutPath !== null || screen?.screen !== "history") return;
+    if (path === null || checkoutPath !== null || operationBlocked || screen?.screen !== "history")
+      return;
     checkoutNotice = null;
     try {
       const plan = await commands.planDeleteBranch(path, name);
@@ -1699,7 +1720,7 @@
   async function askDeleteRemoteBranch(branch: string) {
     const path = openPath;
     if (path === null || checkoutPath !== null || screen?.screen !== "history") return;
-    if (deleteRemoteBlocked !== null) return;
+    if (deleteRemoteBlocked !== null || operationBlocked) return;
     checkoutNotice = null;
     try {
       const plan = await commands.planDeleteRemoteBranch(path, branch);
@@ -2137,6 +2158,8 @@
       {commitEmail}
       {blocked}
       merging={merging && operation?.kind === "merge"}
+      {operationBlocked}
+      identityReason={deleteRemoteBlocked}
       onfixidentity={fixIdentity}
       {profiles}
       {manualProfile}
@@ -2245,6 +2268,7 @@
           baseShort={rebase.plan.baseShort}
           commits={rebase.plan.commits}
           pushed={rebase.pushed}
+          identityReason={deleteRemoteBlocked}
           onstart={startRebase}
           onback={() => (rebase = null)}
         />
@@ -2379,8 +2403,14 @@
     ondropstash={askDropStash}
     confirm={checkoutConfirm !== null && checkoutConfirm.path === openPath ? checkoutConfirm : null}
     oncheckout={(name) => checkout(name)}
-    oncreatebranch={(commit) => (branchInput = { commit, source: "row" })}
-    onrenamebranch={(name) => (branchInput = { rename: name })}
+    oncreatebranch={(commit) => {
+      if (!operationBlocked) branchInput = { commit, source: "row" };
+    }}
+    onrenamebranch={(name) => {
+      if (!operationBlocked) branchInput = { rename: name };
+    }}
+    {operationBlocked}
+    identityBlocked={deleteRemoteBlocked}
     ondeletebranch={askDeleteBranch}
     deleteConfirm={deleteConfirm !== null && deleteConfirm.path === openPath ? deleteConfirm : null}
     ondeleteconfirm={confirmDeleteBranch}

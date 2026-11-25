@@ -15,6 +15,7 @@ pub fn fetch_repository(path: &Path) -> Result<Option<RepositoryView>, String> {
 
 /// Fetch All de `SyncButton` : comme `fetch_repository`, pour tous les remotes.
 pub fn fetch_all_repository(path: &Path) -> Result<Option<RepositoryView>, String> {
+    crate::working_tree::ensure_no_operation(path)?;
     run_and_reread(path, octogit_git::fetch_all)
 }
 
@@ -31,6 +32,7 @@ pub struct PullView {
 /// bougé (le pull récupère aussi la distante). L'erreur est le message d'une ligne affiché près du bouton ;
 /// la sortie brute de Git reste dans le crate `git`.
 pub fn pull_repository(path: &Path, rebase: bool) -> Result<PullView, String> {
+    crate::working_tree::ensure_no_operation(path)?;
     let mode = if rebase {
         octogit_git::PullMode::Rebase
     } else {
@@ -96,6 +98,7 @@ pub fn checkout_repository(
     name: &str,
     choice: Option<CheckoutChoiceView>,
 ) -> Result<CheckoutOutcomeView, String> {
+    crate::working_tree::ensure_no_operation(path)?;
     if choice.is_none() {
         if let octogit_git::CheckoutPlan::Confirm {
             branch,
@@ -169,6 +172,7 @@ pub fn create_branch_repository(
     name: &str,
     commit: &str,
 ) -> Result<RepositoryView, String> {
+    crate::working_tree::ensure_no_operation(path)?;
     octogit_git::create_branch(path, name, commit, octogit_git::FETCH_TIMEOUT)
         .map_err(branch_message)?;
     repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
@@ -215,6 +219,7 @@ pub fn plan_delete_branch(path: &Path, name: &str) -> Result<DeletePlanView, Str
 
 /// Supprime la branche locale `name` (confirmée au besoin par l'interface) puis relit le dépôt.
 pub fn delete_branch_repository(path: &Path, name: &str) -> Result<RepositoryView, String> {
+    crate::working_tree::ensure_no_operation(path)?;
     octogit_git::delete_branch(path, name, octogit_git::FETCH_TIMEOUT).map_err(branch_message)?;
     repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
 }
@@ -225,6 +230,7 @@ pub fn rename_branch_repository(
     old: &str,
     new: &str,
 ) -> Result<RepositoryView, String> {
+    crate::working_tree::ensure_no_operation(path)?;
     octogit_git::rename_branch(path, old, new, octogit_git::FETCH_TIMEOUT)
         .map_err(branch_message)?;
     repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
@@ -244,6 +250,7 @@ pub fn delete_remote_branch_repository(
     path: &Path,
     branch: &str,
 ) -> Result<RepositoryView, String> {
+    crate::working_tree::ensure_no_operation(path)?;
     crate::attach::ensure_conform(store, path, home)?;
     octogit_git::delete_remote_branch(path, branch, octogit_git::FETCH_TIMEOUT)
         .map_err(remote_delete_message)?;
@@ -362,6 +369,7 @@ fn branch_message(error: octogit_git::BranchError) -> String {
 pub fn push_repository(store: &Store, home: &Path, path: &Path) -> Result<RepositoryView, String> {
     // Garde d'identité refait ici, avant tout `git push` (publication comprise) : un refus ne lance rien.
     // Puis garde des commits à pousser : un fautif (auteur ou committer) refuse aussi, avec sa raison.
+    crate::working_tree::ensure_no_operation(path)?;
     crate::attach::ensure_pushable(store, path, home)?;
     octogit_git::push(path, octogit_git::FETCH_TIMEOUT).map_err(|e| match e {
         octogit_git::PushError::TimedOut { .. } => "Push timed out.".to_string(),
@@ -433,6 +441,7 @@ pub fn force_push_repository(
     path: &Path,
     expected: &str,
 ) -> Result<ForcePushOutcomeView, String> {
+    crate::working_tree::ensure_no_operation(path)?;
     crate::attach::ensure_pushable(store, path, home)?;
     match octogit_git::force_push(path, expected, octogit_git::FETCH_TIMEOUT) {
         Ok(_) => {}

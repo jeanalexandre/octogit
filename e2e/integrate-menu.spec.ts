@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { Workspace } from "./helpers";
+import { FIXTURE_IDENTITY, Workspace } from "./helpers";
 
 let ws: Workspace;
 test.beforeEach(() => {
@@ -24,6 +24,8 @@ const graphRow = (page: Page, summary: string) =>
 async function open(page: Page, checkedOut = "develop") {
   const repo = ws.repo("refs");
   if (checkedOut !== "develop") ws.git(repo, "checkout", "-q", checkedOut);
+  // Dépôt conforme (S-50) : sans profil, merge et rebase sont désactivés avec « No profile. ».
+  ws.attachWork(repo, FIXTURE_IDENTITY);
   ws.rememberLastRepository(repo);
   await page.goto(ws.url);
   await expect(sidebar(page).locator("h2", { hasText: "Local" })).toBeVisible();
@@ -149,14 +151,17 @@ for (const size of sizes) {
     await section(page, 0).getByRole("button", { name: "develop" }).click({ button: "right" });
     await page.getByRole("menuitem", { name: merge }).click();
     await expect.poll(() => current(repo)).toBe("feature/profiles");
-    expect(ws.git(repo, "rev-list", "--all", "--count")).toBe(commits);
+    // Dépôt conforme (S-50) : le merge a lieu après le checkout, il crée son commit de merge.
+    const merged = String(Number(commits) + 1);
+    await expect.poll(() => ws.git(repo, "rev-list", "--all", "--count")).toBe(merged);
 
-    // Déjà courante : aucun checkout, la branche reste courante.
+    // Déjà courante : aucun checkout, la branche reste courante ; le rebase est « Already up to date. ».
     await section(page, 0).getByRole("button", { name: "develop" }).click({ button: "right" });
     await page.getByRole("menuitem", { name: rebase }).click();
+    await expect(page.getByText("Already up to date.")).toBeVisible();
     expect(current(repo)).toBe("feature/profiles");
     expect(() => ws.git(repo, "symbolic-ref", "-q", "HEAD")).not.toThrow();
-    expect(ws.git(repo, "rev-list", "--all", "--count")).toBe(commits);
+    expect(ws.git(repo, "rev-list", "--all", "--count")).toBe(merged);
   });
 
   test(`integrer-une-branche CA-5 : au clavier (Maj+F10, flèches, Entrée) sur une branche source (${size.width}x${size.height})`, async ({

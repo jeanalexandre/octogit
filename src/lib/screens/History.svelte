@@ -82,6 +82,8 @@
     commitEmail = null,
     blocked = null,
     merging = false,
+    operationBlocked = false,
+    identityReason = null,
     onfixidentity,
     profiles = [],
     manualProfile = false,
@@ -205,6 +207,13 @@
     blocked?: MismatchView | null;
     /** Un merge est en cours : Commit et Amend de `WorkingChanges` sont désactivés (« Merge in progress »). */
     merging?: boolean;
+    /**
+     * Une opération (merge, rebase, cherry-pick, revert, conflit de Pop ou d'Apply) est en cours dans le dépôt : checkout,
+     * Branch, Stash, Pop, Fetch All, Pull et Push sont désactivés, et plus aucune saisie en ligne ne se valide.
+     */
+    operationBlocked?: boolean;
+    /** Raison d'identité (« Identity does not match profile X. », « No profile. ») de Cherry-pick et Revert de `CommitDetail`, ou `null`. */
+    identityReason?: string | null;
     /** « Fix repository identity » : écrit les valeurs du profil ; rejette avec un message si l'écriture échoue. */
     onfixidentity?: () => Promise<void>;
     /** Fichiers non indexés et indexés du dépôt (ligne WIP, `WorkingChanges`), ou `null` tant qu'ils ne sont pas lus. */
@@ -477,8 +486,14 @@
   }
 
   function startBranch(commit: string, source: "toolbar" | "row" | "detail") {
+    if (operationBlocked) return;
     branchInput = { commit, source };
   }
+
+  // Une opération détectée pendant une saisie (Branch, « Create branch here », Rename) la ferme : rien ne se valide.
+  $effect(() => {
+    if (operationBlocked && untrack(() => branchInput) !== null) branchInput = null;
+  });
 
   /** D'où vient le dernier menu de branche : le graphe ou `BranchSidebar` (Rename y ouvre son champ). */
   let menuSource: "graph" | "sidebar" = "graph";
@@ -561,10 +576,10 @@
   /** Entrée : le nom est revérifié avant tout, puis la branche se crée si rien ne l'empêche. */
   async function submitBranchName(name: string) {
     const input = branchInput;
-    if (name === "" || input === null) return;
+    if (name === "" || input === null || operationBlocked) return;
     const seq = ++checkSeq;
     const message = await messageFor(name);
-    if (seq !== checkSeq || branchInput !== input) return;
+    if (seq !== checkSeq || branchInput !== input || operationBlocked) return;
     if (message !== null) {
       inputMessage = message;
       return;
@@ -757,6 +772,7 @@
       refs={repository.refs}
       onselect={(name) => oncheckout?.(name)}
       onbranch={() => current && startBranch(current.target, "toolbar")}
+      {operationBlocked}
     />
     <span class="path">{repository.path}</span>
     <div class="end">
@@ -764,6 +780,7 @@
         {stashReason}
         {popReason}
         popName={selectedStash?.name ?? null}
+        {operationBlocked}
         onstash={async (message) => onstash?.(message)}
         onpop={async (name) => onpopstash?.(name)}
       />
@@ -782,6 +799,7 @@
         busy={syncing}
         published={current?.upstream != null}
         notice={syncNotice}
+        {operationBlocked}
         onrun={() => onsync?.()}
         onchoose={onsyncaction}
       />
@@ -789,6 +807,7 @@
         ahead={current?.ahead ?? 0}
         published={current === undefined || current.upstream != null}
         busy={pushing}
+        {operationBlocked}
         notice={pushNotice}
         {blocked}
         noProfile={!repository.profile}
@@ -864,7 +883,7 @@
       {onsectiontoggle}
       {onrefclick}
       {selectedRef}
-      {onrefdblclick}
+      onrefdblclick={operationBlocked ? undefined : onrefdblclick}
       onrefcontextmenu={fromSidebar}
       {renaming}
       {checkoutStarts}
@@ -881,7 +900,7 @@
       onselect={select}
       {onhidecolumns}
       {onrefclick}
-      {onrefdblclick}
+      onrefdblclick={operationBlocked ? undefined : onrefdblclick}
       onrefcontextmenu={fromGraph}
       {oncommitcontextmenu}
       {inline}
@@ -930,6 +949,8 @@
             noProfile={!repository.profile}
             onfix={async () => onfixidentity?.()}
             refs={detailRefs}
+            {operationBlocked}
+            {identityReason}
             oncheckout={(name) => oncheckout?.(name)}
             oncreatebranch={(commit) => startBranch(commit, "detail")}
             {oncherrypick}

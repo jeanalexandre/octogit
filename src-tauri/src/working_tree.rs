@@ -135,9 +135,20 @@ fn committed(path: &Path, tree: octogit_git::WorkingTree) -> Result<CommittedVie
     })
 }
 
+/// Garde « opération en cours » : refuse tant qu'un merge, un rebase, un cherry-pick ou un revert est en cours dans
+/// `path` (lancé par Octogit ou au terminal). Refait par le cœur avant tout sous-processus Git des gestes qui la
+/// gêneraient, sans se fier à l'interface. Une lecture impossible ne refuse pas : le geste échoue de lui-même.
+pub fn ensure_no_operation(path: &Path) -> Result<(), String> {
+    match octogit_git::read_operation(path) {
+        Ok(Some(_)) => Err("Operation in progress.".to_string()),
+        _ => Ok(()),
+    }
+}
+
 /// Stash (message optionnel, fichiers non suivis compris) ; rend l'arbre propre et le dépôt relu (le stash
 /// est une ref). Aucun commit de l'historique n'est écrit : pas de contrôle d'identité.
 pub fn stash_changes(path: &Path, message: Option<&str>) -> Result<CommittedView, String> {
+    ensure_no_operation(path)?;
     let tree = octogit_git::stash_push(path, message).map_err(|e| e.to_string())?;
     committed(path, tree)
 }
@@ -145,6 +156,7 @@ pub fn stash_changes(path: &Path, message: Option<&str>) -> Result<CommittedView
 /// Pop du stash `stash` (`stash@{n}`), sinon du dernier. Un conflit n'est pas une erreur : le stash reste,
 /// et les fichiers en conflit sont dans l'arbre rendu.
 pub fn pop_stash(path: &Path, stash: Option<&str>) -> Result<CommittedView, String> {
+    ensure_no_operation(path)?;
     let tree = octogit_git::stash_pop(path, stash).map_err(|e| e.to_string())?;
     committed(path, tree)
 }
@@ -184,6 +196,7 @@ pub fn reset_branch(
     target: &str,
     mode: ResetModeView,
 ) -> Result<CommittedView, String> {
+    ensure_no_operation(path)?;
     let mode = match mode {
         ResetModeView::Soft => octogit_git::ResetMode::Soft,
         ResetModeView::Mixed => octogit_git::ResetMode::Mixed,
@@ -228,6 +241,7 @@ pub fn reset_hard_preview(path: &Path, target: &str) -> Result<ResetLossView, St
 /// Hard reset de la branche courante sur `target` ; rend l'arbre et le dépôt relus. Aucun commit n'est créé :
 /// pas de contrôle d'identité.
 pub fn reset_hard(path: &Path, target: &str) -> Result<CommittedView, String> {
+    ensure_no_operation(path)?;
     let tree = octogit_git::reset_hard(path, target).map_err(|e| e.to_string())?;
     committed(path, tree)
 }
@@ -262,6 +276,7 @@ pub fn cherry_pick_checked(
     path: &Path,
     commit: &str,
 ) -> Result<OperationOutcomeView, String> {
+    ensure_no_operation(path)?;
     crate::attach::ensure_conform(store, path, home)?;
     let outcome = octogit_git::cherry_pick(path, commit).map_err(|e| e.to_string())?;
     outcome_view(path, outcome)
@@ -274,6 +289,7 @@ pub fn revert_checked(
     path: &Path,
     commit: &str,
 ) -> Result<OperationOutcomeView, String> {
+    ensure_no_operation(path)?;
     crate::attach::ensure_conform(store, path, home)?;
     let outcome = octogit_git::revert(path, commit).map_err(|e| e.to_string())?;
     outcome_view(path, outcome)
@@ -360,6 +376,7 @@ pub fn merge_checked(
     source: &str,
     receiving: &str,
 ) -> Result<OperationOutcomeView, String> {
+    ensure_no_operation(path)?;
     crate::attach::ensure_conform(store, path, home)?;
     let outcome = octogit_git::merge(path, source, receiving).map_err(|e| e.to_string())?;
     outcome_view(path, outcome)
@@ -395,6 +412,7 @@ pub fn rebase_checked(
     onto: &str,
     receiving: &str,
 ) -> Result<OperationOutcomeView, String> {
+    ensure_no_operation(path)?;
     crate::attach::ensure_conform(store, path, home)?;
     let outcome = octogit_git::rebase(path, onto, receiving).map_err(|e| e.to_string())?;
     outcome_view(path, outcome)

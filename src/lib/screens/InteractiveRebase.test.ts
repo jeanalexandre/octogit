@@ -54,6 +54,26 @@ async function press(summary: string, key: string, init: KeyboardEventInit = {})
   await fireEvent.keyDown(target, { key, ...init });
 }
 
+describe("InteractiveRebase identité", () => {
+  it("proteger-l-identite CA-16: Start rebase is disabled with the identity reason and runs nothing", async () => {
+    for (const reason of ["Identity does not match profile Work.", "No profile."]) {
+      const { props, unmount } = open({ identityReason: reason });
+      const start = screen.getByRole("button", { name: "Start rebase" });
+      expect(start).toBeDisabled();
+      expect(start).toHaveAccessibleDescription(reason);
+      await fireEvent.click(start);
+      expect(props.onstart).not.toHaveBeenCalled();
+      unmount();
+    }
+  });
+
+  it("proteger-l-identite CA-16: without an identity block Start rebase runs", async () => {
+    const { props } = open();
+    await fireEvent.click(screen.getByRole("button", { name: "Start rebase" }));
+    expect(props.onstart).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("InteractiveRebase", () => {
   it("nettoyer-une-branche CA-1: the title names the branch and the base, every commit is a pick, oldest first", () => {
     open();

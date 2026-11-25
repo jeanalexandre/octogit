@@ -29,7 +29,10 @@
     pushed = null,
     onstart,
     onback,
+    identityReason = null,
   }: {
+    /** Raison d'identité (« Identity does not match profile X. », « No profile. ») : Start rebase est désactivé avec elle, ou `null`. */
+    identityReason?: string | null;
     /** Branche courante. */
     branch: string;
     /** SHA abrégé de la base : le parent du premier commit de la liste. */
@@ -56,7 +59,8 @@
   let done: { before: number; after: number } | null = $state(null);
 
   const view = $derived(preview(commits, plan, baseShort));
-  const blocker = $derived(startBlocker(plan));
+  /** L'identité passe avant le blocage de la composition. */
+  const blocker = $derived(identityReason ?? startBlocker(plan));
 
   async function start() {
     if (running || blocker !== null || done !== null) return;

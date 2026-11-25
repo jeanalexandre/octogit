@@ -27,7 +27,10 @@
     onrun,
     onfix,
     onforce,
+    operationBlocked = false,
   }: {
+    /** Un merge, un rebase, un cherry-pick ou un revert est en cours : bouton désactivé, « Operation in progress. » d'abord. */
+    operationBlocked?: boolean;
     /** Des commits déjà poussés ont été réécrits en local : le bouton devient « Force push ». */
     rewrite?: boolean;
     /** Clic sur « Force push » : ouvre `ForcePushDialog`, ne pousse rien. */
@@ -56,15 +59,17 @@
 
   /** Raison lisible du bouton désactivé, ou `null` s'il est actif. L'identité passe avant le reste. */
   const reason = $derived(
-    blocked
-      ? `Identity does not match profile ${blocked.profileName}.`
-      : noProfile
-        ? "No profile."
-        : check?.reason
-          ? check.reason
-          : published && ahead === 0
-            ? "Nothing to push."
-            : null,
+    operationBlocked
+      ? "Operation in progress."
+      : blocked
+        ? `Identity does not match profile ${blocked.profileName}.`
+        : noProfile
+          ? "No profile."
+          : check?.reason
+            ? check.reason
+            : published && ahead === 0
+              ? "Nothing to push."
+              : null,
   );
   /** La liste des commits à pousser accompagne la raison des commits fautifs, et elle seule. */
   const faulty = $derived(!blocked && !noProfile && !!check?.reason);
@@ -72,7 +77,7 @@
    * « Force push » : des commits déjà poussés ont été réécrits en local. L'identité (écart, « No profile », commit
    * fautif) garde la priorité : l'état bloqué reste celui de S-21 et S-22.
    */
-  const force = $derived(rewrite && !blocked && !noProfile && !faulty);
+  const force = $derived(rewrite && !blocked && !noProfile && !faulty && !operationBlocked);
   const inactive = $derived(busy || fixing || (!force && reason !== null));
 
   function run() {

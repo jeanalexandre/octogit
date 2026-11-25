@@ -120,8 +120,9 @@ test("gerer-les-branches CA-3 : clic droit › Checkout sur une branche locale d
   // `develop` (courante) reçoit : la source `feature/profiles` propose Merge et Rebase (S-36).
   await expect(page.getByRole("menuitem")).toHaveText([
     "Checkout",
-    "Merge feature/profiles into develop",
-    "Rebase develop onto feature/profiles",
+    // Dépôt sans profil (S-50) : merge et rebase sont désactivés avec la raison d'identité.
+    /^Merge feature\/profiles into develop\s*No profile\.$/,
+    /^Rebase develop onto feature\/profiles\s*No profile\.$/,
     "Rename",
     "Delete local",
     "Reset develop to here ›",

@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use octogit_store::Store;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -51,13 +52,18 @@ pub fn range_length(path: &Path, base: &str) -> Result<u32, String> {
     octogit_git::read_range_length(path, base).map_err(|e| e.to_string())
 }
 
-/// Lance le rebase interactif composé ; pas de garde d'identité ici (S-50).
+/// Lance le rebase interactif composé. Gardes refaits ici, avant tout sous-processus Git : une opération déjà en
+/// cours, puis l'identité (le rebase crée des commits : non conforme ou « No profile » refusent, rien ne change).
 pub fn start_rebase(
+    store: &Store,
+    home: &Path,
     path: &Path,
     base: &str,
     branch: &str,
     entries: &[TodoEntryView],
 ) -> Result<OperationOutcomeView, String> {
+    crate::working_tree::ensure_no_operation(path)?;
+    crate::attach::ensure_conform(store, path, home)?;
     let todo: Vec<octogit_git::TodoEntry> = entries
         .iter()
         .map(|e| octogit_git::TodoEntry {

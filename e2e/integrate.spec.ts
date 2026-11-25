@@ -240,9 +240,13 @@ test("décision 2 : un dépôt à l'identité non conforme refuse Merge et Rebas
 
   await section(page, 0).getByRole("button", { name: "profiles" }).click();
   await section(page, 0).getByRole("button", { name: "develop" }).click({ button: "right" });
-  await menuItem(page, merge).click();
+  // S-50 : Merge et Rebase sont désactivés d'emblée avec la raison d'identité ; un clic forcé ne lance rien.
+  const entry = page.getByRole("menuitem", { name: new RegExp(`^${merge}`) });
+  await expect(entry).toHaveAttribute("aria-disabled", "true");
+  await expect(entry).toContainText("Identity does not match profile Work.");
+  await entry.click({ force: true });
 
-  await expect(page.getByRole("alert")).toContainText("Identity does not match profile Work.");
+  await expect(page.getByRole("alert")).toHaveCount(0);
   expect(ws.git(repo, "for-each-ref", "refs/heads")).toBe(heads);
   expect(ws.git(repo, "status", "--porcelain")).toBe("");
 });

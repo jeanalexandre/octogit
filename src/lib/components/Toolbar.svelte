@@ -12,7 +12,10 @@
     refs,
     onselect,
     onbranch,
+    operationBlocked = false,
   }: {
+    /** Un merge, un rebase, un cherry-pick ou un revert est en cours : sélecteur (checkout) et Branch désactivés. */
+    operationBlocked?: boolean;
     refs: RefView[];
     /** Un choix dans la liste : le nom de la branche (le checkout est fait par l'appelant). */
     onselect: (name: string) => void;
@@ -53,8 +56,13 @@
 
   function choose(name: string) {
     close(true);
-    onselect(name);
+    if (!operationBlocked) onselect(name);
   }
+
+  /** Une opération détectée pendant que la liste est ouverte la referme : plus aucun choix ne lance de checkout. */
+  $effect(() => {
+    if (operationBlocked) open = false;
+  });
 
   function focusOnMount(node: HTMLElement) {
     node.focus();
@@ -89,6 +97,8 @@
     type="button"
     class="trigger"
     bind:this={trigger}
+    disabled={operationBlocked}
+    title={operationBlocked ? "Operation in progress." : undefined}
     aria-haspopup="listbox"
     aria-expanded={open}
     aria-label="Switch branch: {current ?? 'no branch'}"
@@ -102,10 +112,11 @@
     type="button"
     class="trigger branch"
     data-branch-button
-    disabled={current === null}
+    disabled={current === null || operationBlocked}
+    title={operationBlocked ? "Operation in progress." : undefined}
     onclick={() => {
       close(false);
-      onbranch?.();
+      if (!operationBlocked) onbranch?.();
     }}
   >
     <GitBranchPlus size={16} strokeWidth={1.8} aria-hidden="true" />

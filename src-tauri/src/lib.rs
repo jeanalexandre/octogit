@@ -160,6 +160,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::fix_commit_identity,
             commands::get_sync_action,
             commands::set_sync_action,
+            commands::get_theme,
+            commands::set_theme,
             commands::list_profiles,
             commands::save_profile,
             commands::list_profile_repositories,

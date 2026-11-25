@@ -12,7 +12,7 @@ pub const REPOSITORIES_FILE: &str = "repositories.json";
 pub const REPOSITORIES_VERSION: u32 = 6;
 
 pub const PREFERENCES_FILE: &str = "preferences.json";
-pub const PREFERENCES_VERSION: u32 = 4;
+pub const PREFERENCES_VERSION: u32 = 5;
 
 pub const PROFILES_FILE: &str = "profiles.json";
 pub const PROFILES_VERSION: u32 = 2;
@@ -44,10 +44,16 @@ struct PreferencesFile {
     /// absente avant : Fetch All).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sync_action: Option<String>,
+    /// Thème de l'interface : `dark`, `light` ou `system` (version 5 ; absent avant : System).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    theme: Option<String>,
 }
 
 /// Action par défaut de `SyncButton` tant que rien n'est mémorisé.
 pub const DEFAULT_SYNC_ACTION: &str = "fetch_all";
+
+/// Thème de l'interface tant que rien n'est mémorisé.
+pub const DEFAULT_THEME: &str = "system";
 
 /// Mise en page mémorisée des sections de `BranchSidebar`, commune à tous les dépôts.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -288,7 +294,7 @@ impl Store {
             return PreferencesFile::default();
         };
         match serde_json::from_str::<PreferencesFile>(&content) {
-            Ok(file) if matches!(file.version, 1..=4) => file,
+            Ok(file) if matches!(file.version, 1..=PREFERENCES_VERSION) => file,
             _ => PreferencesFile::default(),
         }
     }
@@ -363,6 +369,20 @@ impl Store {
     pub fn set_sync_action(&self, action: &str) -> io::Result<()> {
         let mut file = self.read_preferences();
         file.sync_action = Some(action.to_string());
+        self.write_preferences(file)
+    }
+
+    /// Thème de l'interface, commun à tous les dépôts ; absent : System.
+    pub fn theme(&self) -> String {
+        self.read_preferences()
+            .theme
+            .unwrap_or_else(|| DEFAULT_THEME.to_string())
+    }
+
+    /// Mémorise le thème de l'interface.
+    pub fn set_theme(&self, theme: &str) -> io::Result<()> {
+        let mut file = self.read_preferences();
+        file.theme = Some(theme.to_string());
         self.write_preferences(file)
     }
 
@@ -665,7 +685,7 @@ mod tests {
             let json: serde_json::Value =
                 serde_json::from_str(&fs::read_to_string(tmp.0.join(PREFERENCES_FILE)).unwrap())
                     .unwrap();
-            assert_eq!(json["version"], 4, "{name}");
+            assert_eq!(json["version"], PREFERENCES_VERSION, "{name}");
             assert_eq!(json["sync_action"], "pull_ff_only", "{name}");
             assert!(!store.hidden_columns().is_empty(), "{name}");
         }
@@ -680,6 +700,45 @@ mod tests {
             include_str!("../tests-data/preferences-v4.json"),
         )
         .unwrap();
+        assert_eq!(store.sync_action(), "pull_rebase");
+        assert!(store.panel_collapsed());
+        assert_eq!(store.hidden_columns(), ["date"]);
+        assert_eq!(store.section_layout().collapsed, ["tags"]);
+    }
+
+    #[test]
+    fn choisir_l_apparence_ca_5_ca_10_theme_defaults_to_system_and_survives_a_new_store() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        assert_eq!(Store::new(&data).theme(), "system");
+        let store = Store::new(&data);
+        store.set_hidden_columns(&["sha".to_string()]).unwrap();
+        store.set_sync_action("pull_rebase").unwrap();
+        store.set_theme("light").unwrap();
+        assert_eq!(Store::new(&data).theme(), "light");
+        assert_eq!(Store::new(&data).hidden_columns(), ["sha"]);
+        assert_eq!(Store::new(&data).sync_action(), "pull_rebase");
+        Store::new(&data).set_theme("dark").unwrap();
+        assert_eq!(Store::new(&data).theme(), "dark");
+    }
+
+    #[test]
+    fn choisir_l_apparence_ca_10_version_4_preferences_are_read_without_loss_and_written_as_version_5(
+    ) {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(PREFERENCES_FILE),
+            include_str!("../tests-data/preferences-v4.json"),
+        )
+        .unwrap();
+        assert_eq!(store.theme(), "system");
+        store.set_theme("dark").unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(tmp.0.join(PREFERENCES_FILE)).unwrap())
+                .unwrap();
+        assert_eq!(json["version"], 5);
+        assert_eq!(json["theme"], "dark");
         assert_eq!(store.sync_action(), "pull_rebase");
         assert!(store.panel_collapsed());
         assert_eq!(store.hidden_columns(), ["date"]);

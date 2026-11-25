@@ -77,6 +77,39 @@ pub fn set_sync_action(store: &Store, action: SyncAction) {
     let _ = store.set_sync_action(action.name());
 }
 
+/// Thème de l'interface : Dark, Light ou System (apparence de macOS).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum Theme {
+    Dark,
+    Light,
+    System,
+}
+
+impl Theme {
+    fn name(self) -> &'static str {
+        match self {
+            Theme::Dark => "dark",
+            Theme::Light => "light",
+            Theme::System => "system",
+        }
+    }
+}
+
+/// Thème de l'interface, commun à tous les dépôts ; une valeur absente ou inconnue du fichier donne System.
+pub fn theme(store: &Store) -> Theme {
+    match store.theme().as_str() {
+        "dark" => Theme::Dark,
+        "light" => Theme::Light,
+        _ => Theme::System,
+    }
+}
+
+/// Mémorise le thème. Une préférence est une aide : un échec d'écriture est ignoré.
+pub fn set_theme(store: &Store, theme: Theme) {
+    let _ = store.set_theme(theme.name());
+}
+
 /// Hauteurs (pixels, par identifiant de section) et sections repliées de `BranchSidebar`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub struct SectionLayoutView {
@@ -152,6 +185,20 @@ mod tests {
         assert_eq!(sync_action(&store), SyncAction::PullFfOnly);
         store.set_sync_action("rebase-everything").unwrap();
         assert_eq!(sync_action(&store), SyncAction::FetchAll);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn choisir_l_apparence_ca_5_ca_10_theme_is_system_then_remembered_and_an_unknown_value_means_system(
+    ) {
+        let (store, dir) = store("theme");
+        assert_eq!(theme(&store), Theme::System);
+        set_theme(&store, Theme::Light);
+        assert_eq!(theme(&Store::new(store.dir())), Theme::Light);
+        set_theme(&store, Theme::Dark);
+        assert_eq!(theme(&store), Theme::Dark);
+        store.set_theme("sepia").unwrap();
+        assert_eq!(theme(&store), Theme::System);
         let _ = std::fs::remove_dir_all(dir);
     }
 

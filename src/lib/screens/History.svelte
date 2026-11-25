@@ -10,6 +10,7 @@
     RecentView,
     RepositoryView,
     SyncAction,
+    Theme,
     WorkingTreeView,
   } from "../bindings";
   import {
@@ -30,6 +31,7 @@
   import { searchResults, shaTarget, stepPosition } from "../search";
   import StashButtons from "../components/StashButtons.svelte";
   import SyncButton from "../components/SyncButton.svelte";
+  import ThemeSwitch from "../components/ThemeSwitch.svelte";
   import Toolbar from "../components/Toolbar.svelte";
   import WorkingChanges from "../components/WorkingChanges.svelte";
 
@@ -105,7 +107,13 @@
     onpopstash,
     oncherrypick,
     onrevert,
+    theme = "system",
+    onthemechange,
   }: {
+    /** Thème choisi, global (`ThemeSwitch` de la seconde ligne de l'en-tête). */
+    theme?: Theme;
+    /** Clic sur un segment de `ThemeSwitch`. */
+    onthemechange?: (theme: Theme) => void;
     /** Boutons Cherry-pick et Revert de `CommitDetail` : l'identifiant complet du commit, sans dialogue. */
     oncherrypick?: (commit: string) => void;
     onrevert?: (commit: string) => void;
@@ -809,6 +817,7 @@
       onprevious={() => stepSearch(-1)}
       onmatchesonly={(checked) => (matchesOnly = checked)}
     />
+    <span class="appearance"><ThemeSwitch {theme} onchange={onthemechange} /></span>
   </div>
 
   {#if error}
@@ -848,6 +857,7 @@
       {hiddenColumns}
       {openId}
       savedWidth={graphWidth}
+      settled={workingTree !== null}
       onwidth={ongraphwidth}
       onselect={select}
       {onhidecolumns}
@@ -918,6 +928,9 @@
       </aside>
     {:else if detailError}
       <aside class="panel"><p class="error" role="alert">{detailError}</p></aside>
+    {:else if selected !== null}
+      <!-- Détail en cours de lecture : le panneau garde sa place, la zone du graphe ne s'élargit pas puis ne rétrécit pas. -->
+      <aside class="panel" aria-busy="true"></aside>
     {/if}
   </div>
 </main>
@@ -942,9 +955,15 @@
 
   .searchbar {
     display: flex;
+    align-items: center;
     padding: 6px 16px;
     background: var(--surface-raised);
     border-bottom: 1px solid var(--border);
+  }
+
+  .appearance {
+    margin-left: auto;
+    padding-left: 16px;
   }
 
   .visually-hidden {

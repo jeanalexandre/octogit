@@ -322,6 +322,10 @@ export const commands = {
 	getSyncAction: () => __TAURI_INVOKE<SyncAction>("get_sync_action"),
 	/**  Mémorise l'action par défaut de `SyncButton`. Un échec d'écriture est ignoré. */
 	setSyncAction: (action: SyncAction) => __TAURI_INVOKE<void>("set_sync_action", { action }),
+	/**  Thème de l'interface, commun à tous les dépôts (System au premier lancement). */
+	getTheme: () => __TAURI_INVOKE<Theme>("get_theme"),
+	/**  Mémorise le thème de l'interface. Un échec d'écriture est ignoré. */
+	setTheme: (theme: Theme) => __TAURI_INVOKE<void>("set_theme", { theme }),
 	/**  Profils dans l'ordre de `ProfileSettings`. */
 	listProfiles: () => __TAURI_INVOKE<ProfileView[]>("list_profiles"),
 	/**
@@ -1161,6 +1165,9 @@ export type TagNameCheckView = "valid" |
 "exists" | 
 /**  « Invalid tag name. » */
 "invalid";
+
+/**  Thème de l'interface : Dark, Light ou System (apparence de macOS). */
+export type Theme = "dark" | "light" | "system";
 
 export type TodoActionView = "pick" | "reword" | "squash" | "fixup" | "drop";
 

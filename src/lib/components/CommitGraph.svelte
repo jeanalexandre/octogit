@@ -22,6 +22,7 @@
     hiddenColumns,
     openId = 0,
     savedWidth = null,
+    settled = true,
     onselect,
     onhidecolumns,
     onwidth,
@@ -71,6 +72,8 @@
     openId?: number;
     /** Largeur du graphe réglée pour ce dépôt (pixels), ou `null` : défaut calculé. */
     savedWidth?: number | null;
+    /** Faux tant que la disposition de la zone peut encore changer à l'ouverture (panneau de droite) : le défaut n'est pas figé avant. */
+    settled?: boolean;
     onselect: (id: string) => void;
     onhidecolumns: (columns: Column[]) => void;
     /** Fin d'un glisser ou geste clavier sur le séparateur : la largeur réglée, ou `null` (retour au défaut). */
@@ -191,10 +194,11 @@
   $effect.pre(() => {
     const open = openId;
     const measured = zone;
+    const ready = settled;
     untrack(() => {
       if (open !== lastOpen) frozen = null;
       lastOpen = open;
-      if (frozen === null && measured > 0) frozen = defaultGraphWidth(lanes, measured);
+      if (frozen === null && ready && measured > 0) frozen = defaultGraphWidth(lanes, measured);
     });
   });
   /** Repart de la préférence du dépôt, puis suit les gestes (le parent la mémorise aussi). */
@@ -743,10 +747,9 @@
     font-weight: 600;
   }
 
-  @media (prefers-color-scheme: light) {
-    .row {
-      --tint: color-mix(in srgb, var(--lane) 10%, var(--surface));
-    }
+  /* Teinte à 10 % en clair : suit le thème effectif posé sur la racine par `App`. */
+  :global(:root[data-theme="light"]) .row {
+    --tint: color-mix(in srgb, var(--lane) 10%, var(--surface));
   }
 
   .lanes {

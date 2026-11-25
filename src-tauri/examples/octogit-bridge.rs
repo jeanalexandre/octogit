@@ -118,6 +118,11 @@ struct ForcePushArgs {
 }
 
 #[derive(Deserialize)]
+struct ThemeArgs {
+    theme: octogit_app::preferences::Theme,
+}
+
+#[derive(Deserialize)]
 struct SyncActionArgs {
     action: octogit_app::preferences::SyncAction,
 }
@@ -1169,6 +1174,15 @@ fn main() {
         "set_sync_action" => {
             let args: SyncActionArgs = serde_json::from_str(&input).expect("arguments { action }");
             octogit_app::commands::set_sync_action(args.action);
+            (serde_json::to_string(&()), 0)
+        }
+        "get_theme" => (
+            serde_json::to_string(&octogit_app::commands::get_theme()),
+            0,
+        ),
+        "set_theme" => {
+            let args: ThemeArgs = serde_json::from_str(&input).expect("arguments { theme }");
+            octogit_app::commands::set_theme(args.theme);
             (serde_json::to_string(&()), 0)
         }
         "list_profiles" => (

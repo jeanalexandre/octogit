@@ -1,10 +1,12 @@
 /*
- * Tokens de couleur d'Octogit : thème par défaut Neon, sombre et clair selon le système.
+ * Tokens de couleur d'Octogit : palette Neon, sombre ou claire selon l'attribut `data-theme` de la racine
+ * (posé par `App` : le thème effectif, jamais « system »). Sans attribut (avant le premier rendu), sombre.
  * Écrit à partir de `ux/tokens.md`, seule source des couleurs. Aucune couleur brute ailleurs.
- * Le choix de thème, palette et Halo arrive en S-47 / S-48.
+ * La palette Kraken et le Halo arrivent en S-48.
  */
-:root {
-  color-scheme: dark light;
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
   --surface: #141518;
   --surface-raised: #1b1c20;
   --border: #2a2c31;
@@ -29,29 +31,28 @@
   --node-ink: #111316;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --surface: #ffffff;
-    --surface-raised: #f7f8fa;
-    --border: #e3e6eb;
-    --border-strong: #848a95;
-    --ink: #1f2328;
-    --muted: #5c6370;
-    --brand: #2563eb;
-    --on-brand: #ffffff;
-    --link: #1d5bd8;
-    --selection: #e6eeff;
-    --focus: #2563eb;
-    --success: #126b31;
-    --warning: #9a4708;
-    --danger: #c81e1e;
-    --lane-1: #1d4ed8;
-    --lane-2: #0f766e;
-    --lane-3: #9a4708;
-    --lane-4: #be185d;
-    --lane-5: #6d28d9;
-    --lane-6: #126b31;
-    --on-label: #ffffff;
-    --node-ink: #111827;
-  }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --surface: #ffffff;
+  --surface-raised: #f7f8fa;
+  --border: #e3e6eb;
+  --border-strong: #848a95;
+  --ink: #1f2328;
+  --muted: #5c6370;
+  --brand: #2563eb;
+  --on-brand: #ffffff;
+  --link: #1d5bd8;
+  --selection: #e6eeff;
+  --focus: #2563eb;
+  --success: #126b31;
+  --warning: #9a4708;
+  --danger: #c81e1e;
+  --lane-1: #1d4ed8;
+  --lane-2: #0f766e;
+  --lane-3: #9a4708;
+  --lane-4: #be185d;
+  --lane-5: #6d28d9;
+  --lane-6: #126b31;
+  --on-label: #ffffff;
+  --node-ink: #111827;
 }

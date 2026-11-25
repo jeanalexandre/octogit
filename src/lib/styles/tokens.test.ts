@@ -24,11 +24,14 @@ function neonTokens(): Map<string, [string, string]> {
   return tokens;
 }
 
-/** Corps de la déclaration CSS `:root { … }` : le premier est sombre, celui du média clair est clair. */
+/** Déclarations sous `:root[data-theme="dark"]` (sombre) et sous `:root[data-theme="light"]` (clair). */
 function blocks(): { dark: string; light: string } {
-  const lightStart = css.indexOf("prefers-color-scheme: light");
-  expect(lightStart).toBeGreaterThan(0);
-  return { dark: css.slice(0, lightStart), light: css.slice(lightStart) };
+  const darkStart = css.indexOf(':root[data-theme="dark"]');
+  const lightStart = css.indexOf(':root[data-theme="light"]');
+  expect(darkStart).toBeGreaterThan(0);
+  expect(lightStart).toBeGreaterThan(darkStart);
+  expect(css).not.toContain("prefers-color-scheme");
+  return { dark: css.slice(darkStart, lightStart), light: css.slice(lightStart) };
 }
 
 function walk(dir: string, out: string[] = []): string[] {

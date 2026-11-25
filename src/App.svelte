@@ -24,8 +24,10 @@
     type RepositoryView,
     type ResetModeView,
     type SyncAction,
+    type Theme,
     type WorkingTreeView,
   } from "./lib/bindings";
+  import { applyWindowTheme, effectiveTheme, systemIsDark, watchSystem } from "./lib/theme";
   import type { BranchInput, BranchNameVerdict, TagNameVerdict } from "./lib/branchInput";
   import { runFetchNow, scheduleFetch } from "./lib/fetchScheduler";
   import { sshApi } from "./lib/sshKeys";
@@ -738,6 +740,36 @@
     sectionLayout = { ...sectionLayout, collapsed: collapsed ? [...others, section] : others };
     await commands.setSectionCollapsed(section, collapsed);
   }
+
+  /** Thème choisi, global : lu au lancement, écrit à chaque clic de `ThemeSwitch` ; System tant que rien n'est lu. */
+  let theme: Theme = $state("system");
+  /** Apparence de macOS (suivie à chaud) ; avant la lecture de la fenêtre, celle du moteur web. */
+  let systemDark = $state(window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  /** Le thème effectif est posé sur la racine du document, au-dessus de tous les écrans et dialogues. */
+  $effect(() => {
+    document.documentElement.dataset.theme = effectiveTheme(theme, systemDark);
+  });
+
+  async function chooseTheme(next: Theme) {
+    theme = next;
+    await commands.setTheme(next);
+    await applyWindowTheme(next);
+    systemDark = await systemIsDark();
+  }
+
+  onMount(() => {
+    let stop = () => {};
+    let gone = false;
+    void watchSystem((dark) => (systemDark = dark)).then((unwatch) => {
+      if (gone) unwatch();
+      else stop = unwatch;
+    });
+    return () => {
+      gone = true;
+      stop();
+    };
+  });
 
   /** Action par défaut de `SyncButton`, globale : lue au lancement, écrite à chaque choix du menu. */
   let syncAction: SyncAction = $state("fetchAll");
@@ -1690,6 +1722,9 @@
   }
 
   onMount(async () => {
+    theme = await commands.getTheme();
+    await applyWindowTheme(theme);
+    systemDark = await systemIsDark();
     recent = await commands.listRecentRepositories();
     hiddenColumns = await commands.getHiddenColumns();
     sectionLayout = await commands.getSectionLayout();
@@ -2063,6 +2098,8 @@
       syncNotice={syncNotice !== null && syncNotice.path === openPath ? syncNotice.text : null}
       onsync={sync}
       onsyncaction={chooseSyncAction}
+      {theme}
+      onthemechange={chooseTheme}
       pushing={pushingPath !== null && pushingPath === openPath}
       pushNotice={pushNotice !== null && pushNotice.path === openPath ? pushNotice.text : null}
       onpush={push}

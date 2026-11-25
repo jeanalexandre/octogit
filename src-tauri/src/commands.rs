@@ -14,7 +14,7 @@ use crate::detail::{self, CommitDetailView};
 use crate::fetch;
 use crate::launch::{self, LaunchState, RepositoryView};
 use crate::open::{self, OpenError, RecentView};
-use crate::preferences::{self, Column, SectionLayoutView, SyncAction};
+use crate::preferences::{self, Column, SectionLayoutView, SyncAction, Theme};
 use crate::profiles::{self, ProfileView};
 use crate::propagate::{self, SavedProfileView};
 use crate::rebase_plan::{self, RebasePlanView};
@@ -1240,6 +1240,20 @@ pub fn get_sync_action() -> SyncAction {
 #[specta::specta]
 pub fn set_sync_action(action: SyncAction) {
     preferences::set_sync_action(&Store::new(data_dir()), action);
+}
+
+/// Thème de l'interface, commun à tous les dépôts (System au premier lancement).
+#[tauri::command]
+#[specta::specta]
+pub fn get_theme() -> Theme {
+    preferences::theme(&Store::new(data_dir()))
+}
+
+/// Mémorise le thème de l'interface. Un échec d'écriture est ignoré.
+#[tauri::command]
+#[specta::specta]
+pub fn set_theme(theme: Theme) {
+    preferences::set_theme(&Store::new(data_dir()), theme);
 }
 
 /// Sélecteur de fichier natif ouvert dans le dossier SSH ; `None` si annulé. En mode test, le pont répond à sa place.

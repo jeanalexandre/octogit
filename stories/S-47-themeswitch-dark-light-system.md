@@ -79,8 +79,14 @@ Part de ces critères qui revient à S-48 : palette et Halo (choix, mémorisatio
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `12cc4af`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; tests, lint, build, e2e liés verts ; écarts : ThemeSwitch sur la seconde ligne de l'en-tête, permission `core:window:allow-set-theme`, `read_preferences` jusqu'à `PREFERENCES_VERSION` | |
+| 1 | reviewer | validé, sans mineur ; pour information : position de ThemeSwitch | validé |
+| fin | run de fin | `pnpm e2e` : 449 passés, 3 échecs. `badge-menu.spec.ts` CA-11 instable (passe seul, test non touché) ; `graph-width.spec.ts` CA-11 échoue seul (largeur 372 au lieu de 508) → passage 2 ; `pnpm audit:deps` non lancé (aucun verrou modifié) | |
+| 2 | dev | terminé ; `settled` dans CommitGraph et panneau vide `aria-busy` dans History ; tests, lint, build, e2e liés verts | |
+| 2 | reviewer | validé, sans mineur | validé |
+| fin | run de fin | `pnpm e2e` complet vert ; audit non lancé (aucun verrou modifié) | |

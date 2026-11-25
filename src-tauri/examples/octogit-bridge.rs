@@ -91,6 +91,12 @@ struct CreateBranchArgs {
 }
 
 #[derive(Deserialize)]
+struct RemoteBranchArgs {
+    path: String,
+    branch: String,
+}
+
+#[derive(Deserialize)]
 struct RenameBranchArgs {
     path: String,
     from: String,
@@ -1020,6 +1026,30 @@ fn main() {
                 std::path::Path::new(&args.path),
                 &args.from,
                 &args.to,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "plan_delete_remote_branch" => {
+            let args: RemoteBranchArgs =
+                serde_json::from_str(&input).expect("arguments { path, branch }");
+            match octogit_app::fetch::plan_delete_remote_branch(
+                std::path::Path::new(&args.path),
+                &args.branch,
+            ) {
+                Ok(locals) => (serde_json::to_string(&locals), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "delete_remote_branch_repository" => {
+            let args: RemoteBranchArgs =
+                serde_json::from_str(&input).expect("arguments { path, branch }");
+            match octogit_app::fetch::delete_remote_branch_repository(
+                &octogit_store::Store::new(octogit_app::data_dir()),
+                &octogit_app::home_dir(),
+                std::path::Path::new(&args.path),
+                &args.branch,
             ) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),

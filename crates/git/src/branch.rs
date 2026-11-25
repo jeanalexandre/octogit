@@ -220,6 +220,125 @@ pub fn delete_branch(path: &Path, name: &str, timeout: Duration) -> Result<Strin
     git(path, timeout, &["branch", "-D", name]).map_err(map_fetch)
 }
 
+/// Refuse sans rien lancer d'écrit un nom qui n'est pas une branche de `origin` : vide, option, `HEAD`, ou sans
+/// ref de suivi `refs/remotes/origin/<name>` (un tag, une branche d'un autre remote).
+fn valid_remote_branch(path: &Path, name: &str) -> Result<(), BranchError> {
+    if name.is_empty() || name.starts_with('-') || name == "HEAD" {
+        return Err(BranchError::Invalid);
+    }
+    let tracking = format!("refs/remotes/origin/{name}");
+    git(
+        path,
+        FETCH_TIMEOUT,
+        &["rev-parse", "--verify", "-q", &tracking],
+    )
+    .map(|_| ())
+    .map_err(|e| match e {
+        FetchError::Failed { .. } => BranchError::Invalid,
+        other => map_fetch(other),
+    })
+}
+
+/// Branches locales qui suivent `origin/<branch>` (`branch.<nom>.remote` = `origin` et `.merge` =
+/// `refs/heads/<branch>`), par ordre alphabétique. Le nom de la locale peut différer de `branch` (Rename).
+fn tracking_locals(path: &Path, branch: &str) -> Result<Vec<String>, BranchError> {
+    let merge = format!("refs/heads/{branch}");
+    let out = git(
+        path,
+        FETCH_TIMEOUT,
+        &[
+            "config",
+            "--local",
+            "--get-regexp",
+            r"^branch\..*\.(remote|merge)$",
+        ],
+    );
+    let out = match out {
+        Ok(out) => out,
+        // Aucune clé : `git config` sort en échec sans rien dire.
+        Err(FetchError::Failed { output }) if output.trim().is_empty() => String::new(),
+        Err(other) => return Err(map_fetch(other)),
+    };
+    let mut remote_ok = std::collections::BTreeSet::new();
+    let mut merge_ok = std::collections::BTreeSet::new();
+    for line in out.lines() {
+        let Some((key, value)) = line.split_once(' ') else {
+            continue;
+        };
+        let Some(rest) = key.strip_prefix("branch.") else {
+            continue;
+        };
+        if let Some(name) = rest.strip_suffix(".remote") {
+            if value == "origin" {
+                remote_ok.insert(name.to_string());
+            }
+        } else if let Some(name) = rest.strip_suffix(".merge") {
+            if value == merge {
+                merge_ok.insert(name.to_string());
+            }
+        }
+    }
+    let locals: Vec<String> = read_refs(path)
+        .map_err(|e| BranchError::Read(e.to_string()))?
+        .into_iter()
+        .filter(|r| r.kind == RefKind::Branch)
+        .map(|r| r.name)
+        .collect();
+    Ok(remote_ok
+        .intersection(&merge_ok)
+        .filter(|name| locals.contains(name))
+        .cloned()
+        .collect())
+}
+
+/// Lit les branches locales qui suivent `origin/<branch>` : ce que la confirmation de « Delete from origin »
+/// nomme. N'écrit rien.
+pub fn plan_delete_remote_branch(path: &Path, branch: &str) -> Result<Vec<String>, BranchError> {
+    valid_remote_branch(path, branch)?;
+    tracking_locals(path, branch)
+}
+
+/// Supprime `branch` sur `origin` (`git push --no-recurse-submodules origin --delete <branch>`), puis retire le
+/// suivi des locales qui la suivaient (`git branch --unset-upstream`) ; elles sont gardées, au même commit, HEAD
+/// inchangé. Rend leurs noms. Si Git refuse (injoignable, branche absente), rien n'a changé.
+pub fn delete_remote_branch(
+    path: &Path,
+    branch: &str,
+    timeout: Duration,
+) -> Result<Vec<String>, BranchError> {
+    valid_remote_branch(path, branch)?;
+    let locals = tracking_locals(path, branch)?;
+    let target = format!("refs/heads/{branch}");
+    // Branche déjà absente de `origin` (ou `origin` injoignable) : échec sans rien changer. Git ne refuse pas
+    // toujours de supprimer une ref distante absente quand on la nomme en entier.
+    git(
+        path,
+        timeout,
+        &["ls-remote", "--exit-code", "origin", &target],
+    )
+    .map_err(map_fetch)?;
+    git(
+        path,
+        timeout,
+        &[
+            "push",
+            "--no-recurse-submodules",
+            "origin",
+            "--delete",
+            &target,
+        ],
+    )
+    .map_err(map_fetch)?;
+    // La suppression sur `origin` a eu lieu : le nettoyage local est au mieux, l'appelant relit le dépôt de toute
+    // façon (une erreur ici ne doit pas laisser croire que rien n'a changé).
+    let tracking = format!("refs/remotes/origin/{branch}");
+    let _ = git(path, timeout, &["update-ref", "-d", &tracking]);
+    for local in &locals {
+        let _ = git(path, timeout, &["branch", "--unset-upstream", local]);
+    }
+    Ok(locals)
+}
+
 /// Renomme la branche locale `old` en `new` (`git branch -m`) : le lien de suivi est gardé, `origin/…` reste
 /// intacte, la courante renommée reste courante. `new` suit les règles de `check_branch_name`.
 pub fn rename_branch(

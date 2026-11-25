@@ -39,8 +39,13 @@ async function open(page: Page, repo: string) {
   await expect(row(page, "Signed work")).toBeVisible();
 }
 
-const menuOf = (page: Page, name: string) =>
-  local(page).getByRole("button", { name, exact: true }).click({ button: "right" });
+/** Une ligne de la section Local : son nom, suivi de « Not published » quand la locale n'a pas de suivi. */
+const localRow = (page: Page, name: string) =>
+  local(page).getByRole("button", {
+    name: new RegExp(`^${name}( Not published)?$`),
+  });
+
+const menuOf = (page: Page, name: string) => localRow(page, name).click({ button: "right" });
 
 test("gerer-les-branches CA-12 : Rename depuis le graphe met le champ à la place de l'étiquette, Entrée renomme, lien de suivi gardé, origin intacte", async ({
   page,
@@ -95,11 +100,8 @@ test("gerer-les-branches CA-12 : Rename depuis la barre latérale de la branche 
   await expect.poll(() => current(repo)).toBe("dev");
   expect(hasBranch(repo, "develop")).toBe(false);
   expect(ws.git(repo, "rev-parse", "--abbrev-ref", "dev@{upstream}")).toBe("origin/develop");
-  await expect(local(page).getByRole("button", { name: "dev", exact: true })).toBeVisible();
-  await expect(local(page).getByRole("button", { name: "dev", exact: true })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
+  await expect(localRow(page, "dev")).toBeVisible();
+  await expect(localRow(page, "dev")).toHaveAttribute("aria-current", "true");
   expectSafe(repo, before);
 });
 
@@ -204,7 +206,7 @@ test("gerer-les-branches CA-14 : une branche entièrement dans la courante est s
   await page.getByRole("menuitem", { name: /Delete local/ }).click();
   await expect.poll(() => hasBranch(repo, "feature/profiles")).toBe(false);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(local(page).getByRole("button", { name: "profiles", exact: true })).toHaveCount(0);
+  await expect(localRow(page, "profiles")).toHaveCount(0);
   expect(ws.git(repo, "branch", "-r")).toContain("origin/feature/profiles");
   expectSafe(repo, before);
 });
@@ -238,7 +240,7 @@ test("gerer-les-branches CA-15 : des commits portés par aucune autre branche de
   await dialog.getByRole("button", { name: "Delete local" }).click();
   await expect.poll(() => hasBranch(repo, "wip/lanes")).toBe(false);
   await expect(dialog).toHaveCount(0);
-  await expect(local(page).getByRole("button", { name: "lanes", exact: true })).toHaveCount(0);
+  await expect(localRow(page, "lanes")).toHaveCount(0);
   expect(current(repo)).toBe("develop");
   // Les 3 commits n'étaient portés que par la branche supprimée : le compte `--all` baisse de 3, rien n'est créé.
   expect(() => ws.git(repo, "symbolic-ref", "-q", "HEAD")).not.toThrow();

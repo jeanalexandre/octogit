@@ -26,8 +26,8 @@ use std::fmt;
 use std::path::Path;
 
 pub use branch::{
-    check_branch_name, create_branch, delete_branch, plan_delete_branch, rename_branch,
-    BranchError, BranchNameCheck, DeletePlan,
+    check_branch_name, create_branch, delete_branch, delete_remote_branch, plan_delete_branch,
+    plan_delete_remote_branch, rename_branch, BranchError, BranchNameCheck, DeletePlan,
 };
 pub use checkout::{
     checkout, plan_checkout, CheckoutChoice, CheckoutError, CheckoutPlan, LocalCommit,

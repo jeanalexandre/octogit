@@ -147,6 +147,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::plan_delete_branch,
             commands::delete_branch_repository,
             commands::rename_branch_repository,
+            commands::plan_delete_remote_branch,
+            commands::delete_remote_branch_repository,
             commands::push_repository,
             commands::get_force_push_check,
             commands::force_push_repository,

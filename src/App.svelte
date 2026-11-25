@@ -39,6 +39,7 @@
     type CheckoutConfirm,
     type DeleteConfirm,
     type RefMenuTarget,
+    type RemoteDeleteConfirm,
   } from "./lib/components/RefContextMenu.svelte";
   import {
     activeSelection,
@@ -1556,6 +1557,48 @@
     if (pending !== null && pending.path === openPath) void deleteBranch(pending.branch);
   }
 
+  /** Confirmation de « Delete from origin » : la branche (sans `origin/`), les locales qui la suivent, le dépôt concerné. */
+  let remoteDeleteConfirm: (RemoteDeleteConfirm & { path: string }) | null = $state(null);
+
+  /** Pourquoi « Delete from origin » est refusé : la raison de Push (identité non conforme ou « No profile »). */
+  const deleteRemoteBlocked = $derived.by(() => {
+    const mismatch = blocked as MismatchView | null;
+    const current = screen as LaunchState | null;
+    if (mismatch) return `Identity does not match profile ${mismatch.profileName}.`;
+    return current?.screen === "history" && !current.repository.profile ? "No profile." : null;
+  });
+
+  /**
+   * « Delete from origin » : la confirmation est toujours demandée ; les locales qui suivent la branche sont lues
+   * d'abord (lecture seule), rien n'est écrit avant d'être confirmée. Le garde Rust refuse de toute façon.
+   */
+  async function askDeleteRemoteBranch(branch: string) {
+    const path = openPath;
+    if (path === null || checkoutPath !== null || screen?.screen !== "history") return;
+    if (deleteRemoteBlocked !== null) return;
+    checkoutNotice = null;
+    try {
+      const plan = await commands.planDeleteRemoteBranch(path, branch);
+      if (openPath !== path) return;
+      if (plan.status !== "ok") {
+        checkoutNotice = { path, text: plan.error };
+        return;
+      }
+      remoteDeleteConfirm = { path, branch, locals: plan.data };
+    } catch {
+      // Lecture impossible : rien n'est supprimé.
+    }
+  }
+
+  /** « Delete from origin » de la confirmation : la branche est supprimée sur `origin`. */
+  function confirmDeleteRemoteBranch() {
+    const pending = remoteDeleteConfirm;
+    remoteDeleteConfirm = null;
+    if (pending !== null && pending.path === openPath) {
+      void writeBranches((path) => commands.deleteRemoteBranchRepository(path, pending.branch));
+    }
+  }
+
   /** « Reset and checkout » ou « Checkout local as is » : lève la confirmation, puis le checkout a lieu. */
   function resolveCheckout(choice: CheckoutChoiceView) {
     const pending = checkoutConfirm;
@@ -2167,6 +2210,13 @@
     deleteConfirm={deleteConfirm !== null && deleteConfirm.path === openPath ? deleteConfirm : null}
     ondeleteconfirm={confirmDeleteBranch}
     ondeletecancel={() => (deleteConfirm = null)}
+    ondeleteremote={askDeleteRemoteBranch}
+    remoteDeleteConfirm={remoteDeleteConfirm !== null && remoteDeleteConfirm.path === openPath
+      ? remoteDeleteConfirm
+      : null}
+    ondeleteremoteconfirm={confirmDeleteRemoteBranch}
+    ondeleteremotecancel={() => (remoteDeleteConfirm = null)}
+    {deleteRemoteBlocked}
     ondiscard={(file, untracked) => {
       if (openPath !== null)
         discardDialog = { path: openPath, file, untracked, busy: false, error: null };

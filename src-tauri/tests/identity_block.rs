@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use octogit_app::attach::{current_mismatch, ensure_conform, overwrite_identity};
-use octogit_app::fetch::{force_push_repository, push_repository};
+use octogit_app::fetch::{delete_remote_branch_repository, force_push_repository, push_repository};
 use octogit_app::open::open_repository_in;
 use octogit_app::working_tree::commit_checked;
 use octogit_identity::{MatchingRule, Profile, RuleKind};
@@ -218,6 +218,60 @@ fn proteger_l_identite_ca_19_push_is_refused_on_a_mismatch_and_on_no_profile_wit
 
     assert!(!marker.exists(), "git push must not have been started");
     assert_eq!(origin_develop(&repo), remote);
+}
+
+fn origin_heads(repo: &Path) -> String {
+    let bare = format!("{}-origin.git", repo.display());
+    git(Path::new(&bare), &["for-each-ref", "refs/heads"])
+}
+
+#[test]
+fn proteger_l_identite_ca_19_delete_from_origin_is_refused_on_a_mismatch_and_on_no_profile_without_running_git_push(
+) {
+    let sb = Sandbox::new("ca19-delete");
+    let repo = sb.conform_repo();
+    let marker = sb.spy_on_push(&repo);
+    let heads = origin_heads(&repo);
+    let config = fs::read(repo.join(".git/config")).unwrap();
+    assert!(heads.contains("refs/heads/develop"));
+
+    git(
+        &repo,
+        &["config", "--local", "user.email", "perso@example.org"],
+    );
+    let config_mismatch = fs::read(repo.join(".git/config")).unwrap();
+    assert_ne!(config, config_mismatch);
+    assert_eq!(
+        delete_remote_branch_repository(&sb.store, &sb.home, &repo, "develop").map(|_| ()),
+        Err("Identity does not match profile Work.".to_string())
+    );
+    sb.store.set_manual_profile(&repo, Some("gone")).unwrap();
+    assert_eq!(
+        delete_remote_branch_repository(&sb.store, &sb.home, &repo, "develop").map(|_| ()),
+        Err("No profile.".to_string())
+    );
+
+    assert!(!marker.exists(), "git push must not have been started");
+    assert_eq!(origin_heads(&repo), heads);
+    assert_eq!(fs::read(repo.join(".git/config")).unwrap(), config_mismatch);
+}
+
+#[test]
+fn gerer_les_branches_ca_18_delete_from_origin_on_a_conform_repository_removes_the_branch_and_unsets_the_tracking(
+) {
+    let sb = Sandbox::new("ca18-delete");
+    let repo = sb.conform_repo();
+    assert!(origin_heads(&repo).contains("refs/heads/develop"));
+
+    let view = delete_remote_branch_repository(&sb.store, &sb.home, &repo, "develop").unwrap();
+
+    assert!(!origin_heads(&repo).contains("refs/heads/develop"));
+    assert!(view.refs.iter().all(|r| r.name != "origin/develop"));
+    assert!(view
+        .refs
+        .iter()
+        .any(|r| r.name == "develop" && r.upstream.is_none()));
+    assert_eq!(git(&repo, &["symbolic-ref", "HEAD"]), "refs/heads/develop");
 }
 
 #[test]

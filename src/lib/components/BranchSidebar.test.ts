@@ -14,7 +14,7 @@ const ref = (name: string, kind: RefView["kind"], current = false): RefView => (
 });
 
 const refs: RefView[] = [
-  ref("main", "branch", true),
+  { ...ref("main", "branch", true), upstream: "origin/main" },
   ref("origin/main", "remote"),
   ref("upstream/dev", "remote"),
   ref("v1.0.0", "tag"),
@@ -103,6 +103,27 @@ describe("BranchSidebar collapse and floating pane", () => {
     const pane = screen.getByRole("region", { name: "Local" });
     await fireEvent.click(pane.querySelector(".section-toggle") as HTMLElement);
     expect(onsectiontoggle).toHaveBeenCalledWith("local", true);
+  });
+});
+
+describe("BranchSidebar Not published", () => {
+  it("gerer-les-branches CA-18: a local branch without tracking shows Not published, a tracked one and remotes do not", () => {
+    const tracked: RefView = { ...ref("develop", "branch"), upstream: "origin/develop" };
+    render(BranchSidebar, {
+      refs: [
+        ref("main", "branch", true),
+        ref("feature/profiles", "branch"),
+        tracked,
+        ref("origin/develop", "remote"),
+      ],
+      stashTitles: {},
+    });
+    const row = (name: string) =>
+      document.querySelector(`[data-ref-name="${name}"]`) as HTMLElement;
+    expect(within(row("feature/profiles")).getByText("Not published")).toBeVisible();
+    expect(within(row("main")).getByText("Not published")).toBeVisible();
+    expect(within(row("develop")).queryByText("Not published")).toBeNull();
+    expect(within(row("origin/develop")).queryByText("Not published")).toBeNull();
   });
 });
 

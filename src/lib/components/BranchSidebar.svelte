@@ -260,11 +260,16 @@
 
 {#snippet rowBody(node: RefNode)}
   <span class="mark" aria-hidden="true">{node.ref.current ? "●" : ""}</span>
-  <span class="name">{node.text}</span>
+  <span class="name" class:whole={node.ref.kind === "stash" && !!stashTitles[node.ref.name]}
+    >{node.text}</span
+  >
   {#if selectedRef === node.ref.name}<span class="recv" data-receiving aria-hidden="true">▸</span
     >{/if}
   {#if node.ref.kind === "stash" && stashTitles[node.ref.name]}
     <span class="note">{stashTitles[node.ref.name]}</span>
+  {:else if node.ref.kind === "branch" && !node.ref.upstream}
+    <!-- Locale sans suivi (jamais publiée ou suivi retiré par « Delete from origin ») : Git ne les distingue pas. -->
+    <span class="note keep">Not published</span>
   {/if}
 {/snippet}
 
@@ -663,8 +668,17 @@
   }
 
   /* Avec une note (stash), le nom est l'identifiant de la ref : il reste entier, la note se tronque. */
-  .name:not(:last-child) {
+  .name.whole {
     flex: none;
+  }
+
+  /* « Not published » reste entière : c'est le nom qui se tronque. */
+  .note.keep {
+    flex: none;
+  }
+
+  .name {
+    min-width: 0;
   }
 
   .note {

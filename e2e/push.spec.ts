@@ -84,7 +84,7 @@ for (const size of sizes) {
     await page.goto(ws.urlWithFetchInterval(3_600_000));
 
     // À la place du compteur ; le bouton reste actif.
-    await expect(page.getByText("Not published")).toBeVisible();
+    await expect(page.locator("header .sync").getByText("Not published")).toBeVisible();
     await expect(tracking(page)).toHaveCount(0);
     await expect(page.getByText(/↑|↓/)).toHaveCount(0);
     await expect(pushButton(page)).toHaveText("Push");
@@ -94,7 +94,7 @@ for (const size of sizes) {
 
     await pushButton(page).click();
 
-    await expect(page.getByText("Not published")).toHaveCount(0);
+    await expect(page.locator("header .sync").getByText("Not published")).toHaveCount(0);
     await expect(branchLabel(page, "local-only")).toHaveAttribute("data-variant", "synced");
     await expect(tracking(page).getByLabel("0 commits ahead")).toBeVisible();
     expect(originHead(repo, "local-only")).toBe(head);
@@ -140,11 +140,11 @@ test("synchroniser CA-14 (décision S-20) : sans remote origin, le push d'une br
   const repo = pushRepo("no-origin");
   ws.rememberRecent([repo]);
   await page.goto(ws.urlWithFetchInterval(3_600_000));
-  await expect(page.getByText("Not published")).toBeVisible();
+  await expect(page.locator("header .sync").getByText("Not published")).toBeVisible();
   await expect(pushButton(page)).toHaveAttribute("aria-disabled", "false");
   await pushButton(page).click();
   await expect(page.getByRole("alert")).toHaveText("No origin remote.");
-  await expect(page.getByText("Not published")).toBeVisible();
+  await expect(page.locator("header .sync").getByText("Not published")).toBeVisible();
 });
 
 test("synchroniser CA-13 : origin existe sans aucune ref origin/…, le bouton est actif et le clic publie la branche", async ({
@@ -160,7 +160,7 @@ test("synchroniser CA-13 : origin existe sans aucune ref origin/…, le bouton e
   ws.git(repo, "branch", "-q", "-m", "local-only");
   ws.rememberRecent([repo]);
   await page.goto(ws.urlWithFetchInterval(3_600_000));
-  await expect(page.getByText("Not published")).toBeVisible();
+  await expect(page.locator("header .sync").getByText("Not published")).toBeVisible();
   // Le classement des commits à pousser est lu : le bouton actif n'est pas celui d'avant sa lecture.
   await expect(page.locator("[data-push-checked]")).toHaveCount(1);
   await expect(pushButton(page)).toHaveAttribute("aria-disabled", "false");
@@ -169,7 +169,7 @@ test("synchroniser CA-13 : origin existe sans aucune ref origin/…, le bouton e
 
   await pushButton(page).click();
 
-  await expect(page.getByText("Not published")).toHaveCount(0);
+  await expect(page.locator("header .sync").getByText("Not published")).toHaveCount(0);
   await expect(page.getByRole("alert")).toHaveCount(0);
   expect(originHead(repo, "local-only")).toBe(head);
   expect(ws.git(repo, "config", "branch.local-only.remote")).toBe("origin");

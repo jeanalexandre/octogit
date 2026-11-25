@@ -230,6 +230,37 @@ pub fn rename_branch_repository(
     repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
 }
 
+/// Lit les branches locales qui suivent `origin/<branch>` : la confirmation de « Delete from origin » les nomme.
+/// N'écrit rien.
+pub fn plan_delete_remote_branch(path: &Path, branch: &str) -> Result<Vec<String>, String> {
+    octogit_git::plan_delete_remote_branch(path, branch).map_err(remote_delete_message)
+}
+
+/// Supprime `branch` sur `origin`, puis retire le suivi des locales qui la suivaient et relit le dépôt. Le garde
+/// d'identité est refait ici, avant tout sous-processus Git : un refus ne lance rien, `origin` reste inchangé.
+pub fn delete_remote_branch_repository(
+    store: &Store,
+    home: &Path,
+    path: &Path,
+    branch: &str,
+) -> Result<RepositoryView, String> {
+    crate::attach::ensure_conform(store, path, home)?;
+    octogit_git::delete_remote_branch(path, branch, octogit_git::FETCH_TIMEOUT)
+        .map_err(remote_delete_message)?;
+    repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
+}
+
+fn remote_delete_message(error: octogit_git::BranchError) -> String {
+    match error {
+        octogit_git::BranchError::TimedOut { .. } => "Push timed out.".to_string(),
+        octogit_git::BranchError::Failed { .. } => "Delete from origin failed.".to_string(),
+        octogit_git::BranchError::Spawn(_) => "Git could not run.".to_string(),
+        octogit_git::BranchError::Read(_) => "Could not read the repository.".to_string(),
+        octogit_git::BranchError::Invalid => "Invalid branch name.".to_string(),
+        other => other.to_string(),
+    }
+}
+
 fn branch_message(error: octogit_git::BranchError) -> String {
     match error {
         octogit_git::BranchError::TimedOut { .. } => "Branch operation timed out.".to_string(),

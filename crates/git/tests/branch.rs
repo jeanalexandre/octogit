@@ -7,8 +7,9 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use octogit_git::{
-    check_branch_name, create_branch, delete_branch, plan_delete_branch, read_refs, rename_branch,
-    BranchError, BranchNameCheck, DeletePlan, RefKind, FETCH_TIMEOUT,
+    check_branch_name, create_branch, delete_branch, delete_remote_branch, plan_delete_branch,
+    plan_delete_remote_branch, read_refs, rename_branch, BranchError, BranchNameCheck, DeletePlan,
+    RefKind, FETCH_TIMEOUT,
 };
 
 struct Fixture(PathBuf);
@@ -433,4 +434,202 @@ fn gerer_les_branches_ca_16_a_local_branch_is_named_before_remote_ones_and_the_u
         }
         other => panic!("{other:?}"),
     }
+}
+
+fn ls_remote(fx: &Fixture) -> String {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(fx.repo())
+        .args(["ls-remote", "origin"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{out:?}");
+    String::from_utf8_lossy(&out.stdout).into_owned()
+}
+
+#[test]
+fn gerer_les_branches_ca_17_remote_delete_plan_names_the_local_branches_that_track_it_and_writes_nothing(
+) {
+    let fx = Fixture::with("branch-delete.sh");
+    let before = fx.state();
+    let config = fx.git(&["config", "--local", "--list"]);
+    let remote = ls_remote(&fx);
+    assert_eq!(
+        plan_delete_remote_branch(&fx.repo(), "feature/profiles").unwrap(),
+        vec!["feature/profiles".to_string()]
+    );
+    assert_eq!(
+        plan_delete_remote_branch(&fx.repo(), "spike/gix").unwrap(),
+        Vec::<String>::new()
+    );
+    assert_eq!(before, fx.state());
+    assert_eq!(config, fx.git(&["config", "--local", "--list"]));
+    assert_eq!(remote, ls_remote(&fx));
+}
+
+#[test]
+fn gerer_les_branches_ca_17_remote_delete_plan_names_every_local_branch_that_tracks_the_ref() {
+    let fx = Fixture::with("branch-delete.sh");
+    fx.git(&["branch", "second", "feature/profiles"]);
+    fx.git(&[
+        "branch",
+        "--set-upstream-to=origin/feature/profiles",
+        "second",
+    ]);
+    assert_eq!(
+        plan_delete_remote_branch(&fx.repo(), "feature/profiles").unwrap(),
+        vec!["feature/profiles".to_string(), "second".to_string()]
+    );
+}
+
+#[test]
+fn gerer_les_branches_ca_18_delete_from_origin_removes_the_remote_branch_and_the_tracking_of_locals(
+) {
+    let fx = Fixture::with("branch-delete.sh");
+    // Une locale renommée suit encore l'ancien nom.
+    rename_branch(&fx.repo(), "feature/profiles", "renamed", FETCH_TIMEOUT).unwrap();
+    let tip = fx.git(&["rev-parse", "renamed"]);
+    let heads = fx.git(&[
+        "for-each-ref",
+        "refs/heads",
+        "--format=%(refname) %(objectname)",
+    ]);
+    let current = fx.git(&["symbolic-ref", "HEAD"]);
+    let remotes_before = fx.git(&["for-each-ref", "refs/remotes", "--format=%(refname)"]);
+    assert!(ls_remote(&fx).contains("refs/heads/feature/profiles"));
+
+    let untracked = delete_remote_branch(&fx.repo(), "feature/profiles", FETCH_TIMEOUT).unwrap();
+
+    assert_eq!(untracked, vec!["renamed".to_string()]);
+    assert!(!ls_remote(&fx).contains("refs/heads/feature/profiles"));
+    assert!(ls_remote(&fx).contains("refs/heads/spike/gix"));
+    assert!(!fx.succeeds(&[
+        "rev-parse",
+        "--verify",
+        "-q",
+        "refs/remotes/origin/feature/profiles"
+    ]));
+    assert!(!fx.succeeds(&["rev-parse", "--abbrev-ref", "renamed@{upstream}"]));
+    // Le suivi est retiré de `.git/config` (pas seulement invisible parce que la ref a disparu).
+    assert!(!fx.succeeds(&["config", "--local", "--get", "branch.renamed.merge"]));
+    assert!(!fx.succeeds(&["config", "--local", "--get", "branch.renamed.remote"]));
+    assert_eq!(fx.git(&["rev-parse", "renamed"]), tip);
+    assert_eq!(
+        fx.git(&[
+            "for-each-ref",
+            "refs/heads",
+            "--format=%(refname) %(objectname)"
+        ]),
+        heads
+    );
+    assert_eq!(
+        fx.git(&["for-each-ref", "refs/remotes", "--format=%(refname)"]),
+        remotes_before
+            .replace("refs/remotes/origin/feature/profiles\n", "")
+            .replace("\nrefs/remotes/origin/feature/profiles", "")
+    );
+    // CA-23 : HEAD toujours sur une branche, aucune autre ref poussée.
+    assert_eq!(fx.git(&["symbolic-ref", "HEAD"]), current);
+    let read = read_refs(&fx.repo()).unwrap();
+    let local = read.iter().find(|r| r.name == "renamed").unwrap();
+    assert_eq!(local.upstream, None);
+}
+
+#[test]
+fn gerer_les_branches_ca_18_delete_from_origin_without_local_tracker_changes_no_local_branch() {
+    let fx = Fixture::with("branch-delete.sh");
+    let heads = fx.git(&["for-each-ref", "refs/heads"]);
+    let config = fx.git(&["config", "--local", "--list"]);
+    assert_eq!(
+        delete_remote_branch(&fx.repo(), "spike/gix", FETCH_TIMEOUT).unwrap(),
+        Vec::<String>::new()
+    );
+    assert!(!ls_remote(&fx).contains("spike/gix"));
+    assert_eq!(heads, fx.git(&["for-each-ref", "refs/heads"]));
+    assert_eq!(config, fx.git(&["config", "--local", "--list"]));
+}
+
+#[test]
+fn gerer_les_branches_ca_22_a_branch_already_absent_on_origin_fails_and_changes_nothing() {
+    let fx = Fixture::with("branch-delete.sh");
+    // Supprimée par un autre clone : la ref de suivi locale existe encore, `origin` ne l'a plus.
+    let origin = fx.0.join("repo-origin.git");
+    let status = Command::new("git")
+        .arg("-C")
+        .arg(&origin)
+        .args(["branch", "-D", "feature/profiles"])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let before = fx.state();
+    let config = fx.git(&["config", "--local", "--list"]);
+    let error = delete_remote_branch(&fx.repo(), "feature/profiles", FETCH_TIMEOUT).unwrap_err();
+    assert!(matches!(error, BranchError::Failed { .. }), "{error:?}");
+    assert_eq!(before, fx.state());
+    assert_eq!(config, fx.git(&["config", "--local", "--list"]));
+}
+
+#[test]
+fn gerer_les_branches_ca_18_a_tag_name_is_refused_and_the_tag_stays_on_origin() {
+    let fx = Fixture::with("branch-delete.sh");
+    fx.git(&["tag", "v1"]);
+    fx.git(&["push", "origin", "v1"]);
+    let remote = ls_remote(&fx);
+    assert!(remote.contains("refs/tags/v1"));
+    let config = fx.git(&["config", "--local", "--list"]);
+    assert_eq!(
+        delete_remote_branch(&fx.repo(), "v1", FETCH_TIMEOUT),
+        Err(BranchError::Invalid)
+    );
+    assert_eq!(
+        plan_delete_remote_branch(&fx.repo(), "v1"),
+        Err(BranchError::Invalid)
+    );
+    assert_eq!(remote, ls_remote(&fx));
+    assert_eq!(config, fx.git(&["config", "--local", "--list"]));
+}
+
+#[test]
+fn gerer_les_branches_ca_18_a_ref_of_another_remote_is_refused_and_origin_is_unchanged() {
+    let fx = Fixture::with("branch-delete.sh");
+    let origin = fx.0.join("repo-origin.git");
+    fx.git(&["remote", "add", "upstream", origin.to_str().unwrap()]);
+    fx.git(&["fetch", "upstream"]);
+    assert!(fx.succeeds(&[
+        "rev-parse",
+        "--verify",
+        "-q",
+        "refs/remotes/upstream/spike/gix"
+    ]));
+    let remote = ls_remote(&fx);
+    assert_eq!(
+        delete_remote_branch(&fx.repo(), "upstream/spike/gix", FETCH_TIMEOUT),
+        Err(BranchError::Invalid)
+    );
+    assert_eq!(remote, ls_remote(&fx));
+}
+
+#[test]
+fn gerer_les_branches_ca_22_an_unreachable_origin_fails_and_keeps_the_tracking() {
+    let fx = Fixture::with("branch-delete.sh");
+    std::fs::remove_dir_all(fx.0.join("repo-origin.git")).unwrap();
+    let refs = fx.git(&["for-each-ref"]);
+    let config = fx.git(&["config", "--local", "--list"]);
+    let error = delete_remote_branch(&fx.repo(), "feature/profiles", FETCH_TIMEOUT).unwrap_err();
+    assert!(matches!(error, BranchError::Failed { .. }), "{error:?}");
+    assert_eq!(refs, fx.git(&["for-each-ref"]));
+    assert_eq!(config, fx.git(&["config", "--local", "--list"]));
+}
+
+#[test]
+fn gerer_les_branches_ca_18_a_name_that_looks_like_an_option_is_refused_without_running_git() {
+    let fx = Fixture::with("branch-delete.sh");
+    assert_eq!(
+        delete_remote_branch(&fx.repo(), "--all", FETCH_TIMEOUT),
+        Err(BranchError::Invalid)
+    );
+    assert_eq!(
+        delete_remote_branch(&fx.repo(), "", FETCH_TIMEOUT),
+        Err(BranchError::Invalid)
+    );
 }

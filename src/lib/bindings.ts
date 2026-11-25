@@ -264,6 +264,13 @@ export const commands = {
 	 *  relecture du dépôt. L'erreur est un message d'une ligne.
 	 */
 	renameBranchRepository: (path: string, from: string, to: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("rename_branch_repository", { path, from, to })),
+	/**  Lit les branches locales qui suivent `origin/<branch>` (confirmation de « Delete from origin »). Lecture seule. */
+	planDeleteRemoteBranch: (path: string, branch: string) => typedError<string[], string>(__TAURI_INVOKE("plan_delete_remote_branch", { path, branch })),
+	/**
+	 *  Supprime `branch` sur `origin` (garde d'identité refait ici) en tâche de fond, puis relecture du dépôt. Les
+	 *  locales qui la suivaient sont gardées et ne suivent plus rien. L'erreur est un message d'une ligne.
+	 */
+	deleteRemoteBranchRepository: (path: string, branch: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("delete_remote_branch_repository", { path, branch })),
 	/**
 	 *  Push de `PushButton` en tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne
 	 *  (distante en avance, pas d'`origin`…).

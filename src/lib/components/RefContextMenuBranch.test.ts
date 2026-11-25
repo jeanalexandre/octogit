@@ -37,7 +37,7 @@ describe("RefContextMenu Rename and Delete local", () => {
     unmount();
     render(RefContextMenu, props({ menu: remote }));
     expect(labels()).not.toContain("Rename");
-    expect(labels().some((l) => l?.startsWith("Delete"))).toBe(false);
+    expect(labels().some((l) => l?.startsWith("Delete local"))).toBe(false);
   });
 
   it("gerer-les-branches CA-12: choosing Rename closes the menu and asks the inline input for that branch", async () => {

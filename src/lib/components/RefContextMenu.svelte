@@ -23,6 +23,19 @@
     mergedInto: string | null;
   };
 
+  /** « Delete from origin » : la branche (sans `origin/`) et les locales qui la suivent, qui seront gardées. */
+  export type RemoteDeleteConfirm = { branch: string; locals: string[] };
+
+  /** Ligne des locales gardées de la confirmation de « Delete from origin » ; `null` quand aucune ne suit. */
+  export function remoteDeleteLocalsText(locals: string[]): string | null {
+    if (locals.length === 0) return null;
+    if (locals.length === 1) {
+      return `Local branch ${locals[0]} is kept and will no longer track it.`;
+    }
+    const names = `${locals.slice(0, -1).join(", ")} and ${locals[locals.length - 1]}`;
+    return `Local branches ${names} are kept and will no longer track it.`;
+  }
+
   /** Texte de la confirmation de « Delete local ». */
   export function deleteConfirmText(confirm: DeleteConfirm): string {
     if (confirm.unmerged > 0) {
@@ -69,7 +82,22 @@
     deleteConfirm = null,
     ondeleteconfirm,
     ondeletecancel,
+    ondeleteremote,
+    remoteDeleteConfirm = null,
+    ondeleteremoteconfirm,
+    ondeleteremotecancel,
+    deleteRemoteBlocked = null,
   }: {
+    /** Entrée « Delete from origin » d'une `origin/…` : le nom de la branche sans `origin/` (le parent lit le plan et ouvre la confirmation). */
+    ondeleteremote?: (branch: string) => void;
+    /** Confirmation de « Delete from origin » à résoudre (la branche et les locales qui la suivent), ou `null`. */
+    remoteDeleteConfirm?: RemoteDeleteConfirm | null;
+    /** « Delete from origin » de la confirmation : la branche est supprimée sur `origin`. */
+    ondeleteremoteconfirm?: () => void;
+    /** Cancel ou Échap de la confirmation de « Delete from origin » : rien ne change. */
+    ondeleteremotecancel?: () => void;
+    /** Raison du refus d'identité (celle de Push : « Identity does not match profile X. », « No profile. »), ou `null`. */
+    deleteRemoteBlocked?: string | null;
     /** Entrée Rename d'une branche locale : son nom (le parent ouvre la saisie en ligne). */
     onrenamebranch?: (name: string) => void;
     /** Entrée « Delete local » d'une branche locale non courante : son nom (le parent lit le plan : suppression ou confirmation). */
@@ -179,7 +207,21 @@
             },
           ]
         : [];
-    if (menu.kind === "remote") return [checkout, ...integrate, ...pick];
+    if (menu.kind === "remote") {
+      // « Delete from origin » seulement sur une ref de `origin` : jamais sur celle d'un autre remote.
+      const branch = name.slice("origin/".length);
+      const fromOrigin: Entry[] = name.startsWith("origin/")
+        ? [
+            {
+              id: "delete-remote",
+              label: "Delete from origin",
+              run: () => ondeleteremote?.(branch),
+              disabled: deleteRemoteBlocked ?? undefined,
+            },
+          ]
+        : [];
+      return [checkout, ...integrate, ...pick, ...fromOrigin];
+    }
     const isCurrent = currentBranch === name;
     return [
       checkout,
@@ -262,11 +304,12 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (confirm !== null || deleteConfirm !== null) {
+    if (confirm !== null || deleteConfirm !== null || remoteDeleteConfirm !== null) {
       if (event.key === "Escape") {
         event.preventDefault();
         if (confirm !== null) oncancel();
-        else ondeletecancel?.();
+        else if (deleteConfirm !== null) ondeletecancel?.();
+        else ondeleteremotecancel?.();
       } else if (event.key === "Tab") {
         const buttons = [
           ...(dialog?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []),
@@ -381,6 +424,31 @@
         <button type="button" use:focusOnMount onclick={() => ondeletecancel?.()}>Cancel</button>
         <button type="button" class="primary" onclick={() => ondeleteconfirm?.()}
           >Delete local</button
+        >
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if remoteDeleteConfirm}
+  <div class="backdrop">
+    <div
+      class="dialog"
+      bind:this={dialog}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="remote-delete-confirm-title"
+    >
+      <h2 id="remote-delete-confirm-title">Delete {remoteDeleteConfirm.branch} from origin?</h2>
+      {#if remoteDeleteLocalsText(remoteDeleteConfirm.locals) !== null}
+        <p class="muted">{remoteDeleteLocalsText(remoteDeleteConfirm.locals)}</p>
+      {/if}
+      <div class="choices">
+        <button type="button" use:focusOnMount onclick={() => ondeleteremotecancel?.()}
+          >Cancel</button
+        >
+        <button type="button" class="primary" onclick={() => ondeleteremoteconfirm?.()}
+          >Delete from origin</button
         >
       </div>
     </div>

@@ -1058,6 +1058,40 @@ pub async fn rename_branch_repository(
     .map_err(|_| "Branch rename was interrupted.".to_string())?
 }
 
+/// Lit les branches locales qui suivent `origin/<branch>` (confirmation de « Delete from origin »). Lecture seule.
+#[tauri::command]
+#[specta::specta]
+pub async fn plan_delete_remote_branch(
+    path: String,
+    branch: String,
+) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fetch::plan_delete_remote_branch(Path::new(&path), &branch)
+    })
+    .await
+    .map_err(|_| "Branch check was interrupted.".to_string())?
+}
+
+/// Supprime `branch` sur `origin` (garde d'identité refait ici) en tâche de fond, puis relecture du dépôt. Les
+/// locales qui la suivaient sont gardées et ne suivent plus rien. L'erreur est un message d'une ligne.
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_remote_branch_repository(
+    path: String,
+    branch: String,
+) -> Result<RepositoryView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fetch::delete_remote_branch_repository(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+            &branch,
+        )
+    })
+    .await
+    .map_err(|_| "Delete from origin was interrupted.".to_string())?
+}
+
 /// Push de `PushButton` en tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne
 /// (distante en avance, pas d'`origin`…).
 #[tauri::command]

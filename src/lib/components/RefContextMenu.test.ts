@@ -81,6 +81,7 @@ describe("RefContextMenu merge and rebase", () => {
       "Rebase feature/profiles onto origin/develop",
       "Cherry-pick",
       "Revert",
+      "Delete from origin",
     ]);
   });
 
@@ -201,7 +202,13 @@ describe("RefContextMenu reset", () => {
           .map((i) => i.textContent?.trim()),
       ).toEqual(
         target === remote
-          ? ["Checkout", "Cherry-pick", "Revert", "Reset feature/profiles to here ›"]
+          ? [
+              "Checkout",
+              "Cherry-pick",
+              "Revert",
+              "Delete from origin",
+              "Reset feature/profiles to here ›",
+            ]
           : ["Checkout", "Rename", "Delete local", "Reset feature/profiles to here ›"],
       );
       await fireEvent.click(trigger());
@@ -253,12 +260,13 @@ describe("RefContextMenu cherry-pick and revert", () => {
     ]);
   });
 
-  it("revenir-en-arriere CA-1: the menu of an origin/… ref offers Checkout, Cherry-pick, Revert, then Reset", () => {
+  it("revenir-en-arriere CA-1: the menu of an origin/… ref offers Checkout, Cherry-pick, Revert, Delete from origin, then Reset", () => {
     render(RefContextMenu, props({ menu: remote, currentBranch: "feature/profiles" }));
     expect(labels()).toEqual([
       "Checkout",
       "Cherry-pick",
       "Revert",
+      "Delete from origin",
       "Reset feature/profiles to here ›",
     ]);
   });
@@ -320,7 +328,7 @@ describe("RefContextMenu menu", () => {
       const items = within(menu).getAllByRole("menuitem");
       expect(items.map((i) => i.textContent?.trim())).toEqual(
         target === remote
-          ? ["Checkout", "Cherry-pick", "Revert"]
+          ? ["Checkout", "Cherry-pick", "Revert", "Delete from origin"]
           : ["Checkout", "Rename", "Delete local"],
       );
       await fireEvent.click(items[0]);

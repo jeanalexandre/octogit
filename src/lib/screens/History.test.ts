@@ -763,7 +763,9 @@ describe("History", () => {
       History,
       props({ repository: { ...repository, refs: untracked, profile: attached }, onpush }),
     );
-    expect(screen.getByText("Not published")).toBeVisible();
+    // L'en-tête, pas la barre latérale (qui l'affiche aussi sur la ligne de toute locale sans suivi).
+    const header = document.querySelector("header") as HTMLElement;
+    expect(within(header).getByText("Not published")).toBeVisible();
     expect(screen.queryByRole("group", { name: "Ahead and behind" })).toBeNull();
     expect(screen.queryByText(/↑|↓/)).toBeNull();
     const push = screen.getByRole("button", { name: "Push" });
@@ -775,7 +777,9 @@ describe("History", () => {
   it("explorer-l-historique CA-11: a tracked branch shows no Not published, both numbers stay visible and PushButton counts the commits ahead", async () => {
     const onpush = vi.fn();
     render(History, props({ repository: { ...repository, profile: attached }, onpush }));
-    expect(screen.queryByText("Not published")).toBeNull();
+    expect(
+      within(document.querySelector("header") as HTMLElement).queryByText("Not published"),
+    ).toBeNull();
     const group = screen.getByRole("group", { name: "Ahead and behind" });
     expect(within(group).getByLabelText("2 commits ahead")).toBeVisible();
     expect(within(group).getByLabelText("3 commits behind")).toBeVisible();

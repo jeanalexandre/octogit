@@ -24,6 +24,12 @@ Repris aussi (cas de fond de la spec, vérifiés ici pour ce geste) : `gerer-les
 ### Fiche (24/11/2026)
 1. Plusieurs locales suivent la même `origin/…` : texte de la confirmation : 1a — une ligne qui nomme toutes les locales (« Local branches a and b are kept and will no longer track it. »), le suivi est retiré à toutes
 
+### Après la revue 1
+- Point « à décider » (« Not published » dans `BranchSidebar`) : (d'office) traiter, indicateur affiché pour toute locale sans suivi (seule option sans état : Git ne distingue pas « jamais publiée » de « suivi retiré »), conformément à `gerer-les-branches` CA-18 et à la maquette ; à rechallenger par l'humain.
+- Mineur 4 (texte « Could not read the repository. ») : (d'office) traiter.
+- Mineur 5 (relire le dépôt après un push réussi, message fidèle) : (d'office) traiter.
+- Contre-épreuve du reviewer partageant `target/` (`cargo clean`) : pris en compte (pour information).
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test, dépôts d'exemple ; port et données par `.env.local` en worktree)
@@ -77,8 +83,15 @@ Repris aussi (cas de fond de la spec, vérifiés ici pour ce geste) : `gerer-les
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `1381252`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : tests, lint, build, e2e liés verts ; rouge non constaté sur identity_block (2) et e2e (8) | — |
+| 1 | reviewer (opus) | 3 bloquants (suivi non prouvé retiré, suppression d'un tag ou d'un autre remote possible, « Not published » absent de la barre latérale), 2 mineurs | à corriger |
+| 2 | dev | terminé (passage 2 après revue 1) : tests, lint, build, e2e liés verts ; rouge non constaté sur la plupart des nouveaux tests | — |
+| 2 | reviewer (opus) | bloquants 1-3 de la revue 1 levés ; 1 nouveau bloquant : nom long tronqué net et « Not published » invisible dans BranchSidebar | à corriger |
+| 3 | dev | terminé (passage 3 après revue 2) : tests, lint, build, e2e liés (34) verts ; rouge non constaté sur le test e2e nom long | — |
+| 3 | reviewer (opus) | aucun problème ; bloquant de la revue 2 levé (contre-épreuves rouges) | validé |
+| Fin | story-runner | `pnpm e2e` complet : 438 passés, 1 échec `e2e/badge-menu.spec.ts:178` (timeout), repassé seul (11 verts), test et badge non touchés par la story : instable préexistant, pour information. `pnpm audit:deps` non lancé (lockfiles inchangés). | — |

@@ -33,6 +33,7 @@ pub struct PullView {
 /// la sortie brute de Git reste dans le crate `git`.
 pub fn pull_repository(path: &Path, rebase: bool) -> Result<PullView, String> {
     crate::working_tree::ensure_no_operation(path)?;
+    crate::working_tree::ensure_clean(path, crate::working_tree::DIRTY_PULLING)?;
     let mode = if rebase {
         octogit_git::PullMode::Rebase
     } else {
@@ -92,7 +93,7 @@ pub enum CheckoutOutcomeView {
 
 /// Checkout de `name` (branche locale ou `origin/…`) sans jamais détacher HEAD, puis relecture du dépôt. Sans
 /// `choice`, une locale de même nom sur un autre commit rend `Confirm` et rien n'est écrit ; avec `choice`, le
-/// checkout a lieu. L'erreur est un message d'une ligne (refus de Git : S-51 en fixera le texte, S-53 « Details »).
+/// checkout a lieu. L'erreur est un message d'une ligne (modifications écrasées : « Commit or stash… », S-53 « Details »).
 pub fn checkout_repository(
     path: &Path,
     name: &str,
@@ -124,13 +125,24 @@ pub fn checkout_repository(
         CheckoutChoiceView::Reset => octogit_git::CheckoutChoice::Reset,
         CheckoutChoiceView::AsIs => octogit_git::CheckoutChoice::AsIs,
     });
-    octogit_git::checkout(path, name, choice, octogit_git::FETCH_TIMEOUT)
-        .map_err(checkout_message)?;
+    octogit_git::checkout(path, name, choice, octogit_git::FETCH_TIMEOUT).map_err(|error| {
+        match &error {
+            octogit_git::CheckoutError::Failed { output } if would_overwrite(output) => {
+                crate::working_tree::DIRTY_SWITCHING.to_string()
+            }
+            _ => checkout_message(error),
+        }
+    })?;
     repository_view(path)
         .map(|repository| CheckoutOutcomeView::CheckedOut {
             repository: Box::new(repository),
         })
         .ok_or_else(|| "Could not read the repository.".to_string())
+}
+
+/// Git a refusé parce que des modifications seraient écrasées (sortie en anglais : `LC_ALL=C` du sous-processus).
+fn would_overwrite(output: &str) -> bool {
+    output.contains("would be overwritten")
 }
 
 fn checkout_message(error: octogit_git::CheckoutError) -> String {
@@ -166,15 +178,21 @@ pub fn check_branch_name(path: &Path, name: &str) -> Result<BranchNameCheckView,
 }
 
 /// Crée la branche locale `name` sur `commit`, la rend courante (sans HEAD détachée ni suivi) puis relit le dépôt.
-/// L'erreur est un message d'une ligne (refus de Git : S-51 en fixera le texte, S-53 « Details »).
+/// L'erreur est un message d'une ligne (modifications écrasées : « Commit or stash… », S-53 « Details »).
 pub fn create_branch_repository(
     path: &Path,
     name: &str,
     commit: &str,
 ) -> Result<RepositoryView, String> {
     crate::working_tree::ensure_no_operation(path)?;
-    octogit_git::create_branch(path, name, commit, octogit_git::FETCH_TIMEOUT)
-        .map_err(branch_message)?;
+    octogit_git::create_branch(path, name, commit, octogit_git::FETCH_TIMEOUT).map_err(
+        |error| match &error {
+            octogit_git::BranchError::Failed { output } if would_overwrite(output) => {
+                crate::working_tree::DIRTY_SWITCHING.to_string()
+            }
+            _ => branch_message(error),
+        },
+    )?;
     repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
 }
 

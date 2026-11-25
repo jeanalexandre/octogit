@@ -296,7 +296,7 @@ test("gerer-les-branches CA-21 : la confirmation s'ouvre aussi depuis le menu et
   expect(current(repo)).toBe("main");
 });
 
-test("gerer-les-branches CA-23 : un refus de Git laisse l'affichage tel quel et montre un message d'une ligne", async ({
+test("gerer-les-branches CA-6, CA-23 : un checkout qui écraserait une modification est refusé, message d'une ligne, rien ne change", async ({
   page,
 }) => {
   const repo = ws.repo("refs");
@@ -308,7 +308,9 @@ test("gerer-les-branches CA-23 : un refus de Git laisse l'affichage tel quel et 
 
   await section(page, 0).getByRole("button", { name: "profiles" }).dblclick();
 
-  const notice = page.getByRole("alert").filter({ hasText: "Checkout failed." });
+  const notice = page
+    .getByRole("alert")
+    .filter({ hasText: "Commit or stash your changes before switching branches." });
   await expect(notice).toHaveCount(1);
   expect(current(repo)).toBe("develop");
   expect(ws.git(repo, "status", "--porcelain")).toBe(status);

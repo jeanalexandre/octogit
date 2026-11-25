@@ -50,6 +50,20 @@ describe("runIntegrate (CA-5)", () => {
     await t.run();
     expect(t.calls).toEqual(["checkout feature/profiles"]);
   });
+
+  it("modifications non commitées (integrer-une-branche CA-12) : aucun checkout, l'intégration part seule et le cœur la refuse", async () => {
+    const calls: string[] = [];
+    await runIntegrate({
+      receiving: "feature/profiles",
+      currentBranch: () => "main",
+      checkout: async (name) => {
+        calls.push(`checkout ${name}`);
+      },
+      integrate: () => calls.push("integrate"),
+      dirty: () => true,
+    });
+    expect(calls).toEqual(["integrate"]);
+  });
 });
 
 describe("sélection de la branche qui reçoit (décision 1)", () => {

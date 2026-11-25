@@ -156,6 +156,26 @@ fn run_git(path: &Path, args: &[&str]) -> Result<(), GitError> {
     }
 }
 
+/// Vrai si des fichiers suivis ont des modifications non commitées, indexées ou non (les fichiers non suivis ne
+/// comptent pas). Lecture seule : aucun verrou optionnel, l'index n'est pas réécrit. Seule lecture partagée de
+/// ce refus (checkout, merge, rebase, cherry-pick, revert, pull).
+pub fn has_uncommitted_changes(path: &Path) -> Result<bool, GitError> {
+    let output = Command::new("git")
+        .arg("--no-optional-locks")
+        .arg("-C")
+        .arg(path)
+        .args(["status", "--porcelain", "--untracked-files=no"])
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| GitError::Read(format!("cannot run git: {e}")))?;
+    if !output.status.success() {
+        return Err(GitError::Read(
+            String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        ));
+    }
+    Ok(!output.stdout.iter().all(u8::is_ascii_whitespace))
+}
+
 /// Stage all : tout l'arbre de travail passe dans l'index (fichiers non suivis compris), puis
 /// relit l'état. Écriture d'Octogit : le watcher ne la signale pas.
 pub fn stage_all(path: &Path) -> Result<WorkingTree, GitError> {

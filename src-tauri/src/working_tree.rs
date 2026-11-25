@@ -145,6 +145,23 @@ pub fn ensure_no_operation(path: &Path) -> Result<(), String> {
     }
 }
 
+/// Garde « modifications non commitées » : refuse avec `reason` (texte exact de la spec) tant que des fichiers
+/// suivis ont des modifications, indexées ou non (les fichiers non suivis ne comptent pas). Refait par le cœur
+/// avant tout sous-processus Git qui écrit. Une lecture impossible ne refuse pas : le geste échoue de lui-même.
+pub fn ensure_clean(path: &Path, reason: &str) -> Result<(), String> {
+    match octogit_git::has_uncommitted_changes(path) {
+        Ok(true) => Err(reason.to_string()),
+        _ => Ok(()),
+    }
+}
+
+pub const DIRTY_MERGING: &str = "Commit or stash your changes before merging.";
+pub const DIRTY_REBASING: &str = "Commit or stash your changes before rebasing.";
+pub const DIRTY_CHERRY_PICKING: &str = "Commit or stash your changes before cherry-picking.";
+pub const DIRTY_REVERTING: &str = "Commit or stash your changes before reverting.";
+pub const DIRTY_PULLING: &str = "Commit or stash your changes before pulling.";
+pub const DIRTY_SWITCHING: &str = "Commit or stash your changes before switching branches.";
+
 /// Stash (message optionnel, fichiers non suivis compris) ; rend l'arbre propre et le dépôt relu (le stash
 /// est une ref). Aucun commit de l'historique n'est écrit : pas de contrôle d'identité.
 pub fn stash_changes(path: &Path, message: Option<&str>) -> Result<CommittedView, String> {
@@ -278,6 +295,7 @@ pub fn cherry_pick_checked(
 ) -> Result<OperationOutcomeView, String> {
     ensure_no_operation(path)?;
     crate::attach::ensure_conform(store, path, home)?;
+    ensure_clean(path, DIRTY_CHERRY_PICKING)?;
     let outcome = octogit_git::cherry_pick(path, commit).map_err(|e| e.to_string())?;
     outcome_view(path, outcome)
 }
@@ -291,6 +309,7 @@ pub fn revert_checked(
 ) -> Result<OperationOutcomeView, String> {
     ensure_no_operation(path)?;
     crate::attach::ensure_conform(store, path, home)?;
+    ensure_clean(path, DIRTY_REVERTING)?;
     let outcome = octogit_git::revert(path, commit).map_err(|e| e.to_string())?;
     outcome_view(path, outcome)
 }
@@ -378,6 +397,7 @@ pub fn merge_checked(
 ) -> Result<OperationOutcomeView, String> {
     ensure_no_operation(path)?;
     crate::attach::ensure_conform(store, path, home)?;
+    ensure_clean(path, DIRTY_MERGING)?;
     let outcome = octogit_git::merge(path, source, receiving).map_err(|e| e.to_string())?;
     outcome_view(path, outcome)
 }
@@ -414,6 +434,7 @@ pub fn rebase_checked(
 ) -> Result<OperationOutcomeView, String> {
     ensure_no_operation(path)?;
     crate::attach::ensure_conform(store, path, home)?;
+    ensure_clean(path, DIRTY_REBASING)?;
     let outcome = octogit_git::rebase(path, onto, receiving).map_err(|e| e.to_string())?;
     outcome_view(path, outcome)
 }

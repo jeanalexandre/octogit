@@ -1126,6 +1126,9 @@
       currentBranch: currentBranchName,
       checkout: (name) => checkout(name),
       integrate: () => integrate(kind, source, receivingName),
+      dirty: () =>
+        workingTree !== null &&
+        (workingTree.staged.length > 0 || workingTree.unstaged.some((f) => f.status !== "added")),
     });
   }
 

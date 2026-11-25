@@ -74,8 +74,8 @@ pub use tag::{
 };
 pub use unpushed::{read_unpushed, UnpushedCommit};
 pub use working_tree::{
-    amend_message, amend_message_with_home, commit, commit_with_home, read_working_tree, stage_all,
-    unstage_all, WorkingTree, WorkingTreeWatcher,
+    amend_message, amend_message_with_home, commit, commit_with_home, has_uncommitted_changes,
+    read_working_tree, stage_all, unstage_all, WorkingTree, WorkingTreeWatcher,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

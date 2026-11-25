@@ -44,15 +44,17 @@ export function resolveReceiving(
 
 /**
  * Checkout de la branche qui reçoit si elle n'est pas la courante (relue après le checkout : un refus, une
- * confirmation ou un échec arrête là), puis l'opération.
+ * confirmation ou un échec arrête là), puis l'opération. Avec des modifications non commitées de fichiers suivis
+ * (`dirty`), aucun checkout n'est lancé : l'opération part seule et le cœur la refuse (« Commit or stash… »).
  */
 export async function runIntegrate(options: {
   receiving: string;
   currentBranch: () => string | null;
   checkout: (name: string) => Promise<void>;
   integrate: () => void;
+  dirty?: () => boolean;
 }): Promise<void> {
-  if (options.currentBranch() !== options.receiving) {
+  if (options.currentBranch() !== options.receiving && !options.dirty?.()) {
     await options.checkout(options.receiving);
     if (options.currentBranch() !== options.receiving) return;
   }

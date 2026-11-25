@@ -23,6 +23,11 @@ Avec des modifications non commitées (indexées ou non), le checkout (tous gest
 ### Fiche (à remplir)
 1. Fichiers non suivis (untracked) : a) seuls les fichiers suivis comptent, indexés ou non (recommandation retenue par l'humain, 25/11/2026)
 
+### Après la revue 1
+- Mineur 1 (`fetch.rs` : message « switching branches » posé sur tout échec avec modifications) : traiter (d'office). Le refus ne doit couvrir que le cas « écraserait » ; la détection ne doit pas dépendre de la langue de Git.
+- Mineur 2 (règle `dirty` dupliquée côté interface) : pris en compte (pour information) ; aucun changement exigé.
+- Mineur 3 (README : pas de checkout avant merge/rebase avec arbre modifié) : traiter (d'office), une phrase.
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test aux vraies commandes du crate `app`, dépôts d'exemple versionnés ; port et données par `.env.local` en worktree)
@@ -74,8 +79,13 @@ Avec des modifications non commitées (indexées ou non), le checkout (tous gest
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `ed875c7`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé (tests, lint, build, e2e liés ✅) ; écarts : saut du checkout avant merge/rebase (option `dirty` de `runIntegrate`), refus checkout posé sur `Failed` + modifications | — |
+| 1 | reviewer | revue 1 : 3 mineurs, 0 bloquant (`stories/S-51-revue-1.md`) | validé |
+| 2 | dev | terminé (tests, lint, build, e2e liés ✅) ; mineurs 1 et 3 traités ; `LC_ALL=C` dans `run` de `crates/git/src/fetch.rs` | — |
+| 2 | reviewer | revue 2 : mineurs 1 et 3 levés, 2 inchangé (pour information) (`stories/S-51-revue-2.md`) | validé |
+| fin | story-runner | run de fin : `pnpm e2e` (491 tests) vert ; `pnpm audit:deps` non lancé (aucun verrou changé depuis la référence) | — |

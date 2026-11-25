@@ -64,6 +64,7 @@ pub fn start_rebase(
 ) -> Result<OperationOutcomeView, String> {
     crate::working_tree::ensure_no_operation(path)?;
     crate::attach::ensure_conform(store, path, home)?;
+    crate::working_tree::ensure_clean(path, crate::working_tree::DIRTY_REBASING)?;
     let todo: Vec<octogit_git::TodoEntry> = entries
         .iter()
         .map(|e| octogit_git::TodoEntry {

@@ -92,6 +92,8 @@ fn run(
         .arg(path)
         .args(args)
         .env("GIT_TERMINAL_PROMPT", "0")
+        // Sortie en anglais : les appelants reconnaissent des phrases de Git (« would be overwritten »).
+        .env("LC_ALL", "C")
         .stdin(Stdio::null())
         .stdout(Stdio::from(stdout))
         .stderr(Stdio::from(stderr))

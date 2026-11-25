@@ -7,6 +7,7 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+use crate::failure::failure_text;
 use crate::integrate::OperationOutcome;
 use crate::working_tree::{read_working_tree, remember};
 use crate::{read_error, GitError};
@@ -147,7 +148,7 @@ fn apply(
         if started {
             run(path, &[verb, "--abort"], home)?;
         }
-        if started || raw.contains("nothing to commit") {
+        if raw.contains("nothing to commit") || raw.contains("now empty") {
             let short =
                 resolved.map_or_else(|| commit.chars().take(7).collect(), |(short, _)| short);
             // Cherry-pick : la raison de la spec, sur une ligne. Revert vide : le message d'origine, inchangé.
@@ -160,7 +161,14 @@ fn apply(
                 "{short} conflicts or brings no changes. Nothing was changed.\n{raw}"
             )));
         }
-        return Err(GitError::Read(raw));
+        // Autre refus de Git (ex. fichier non suivi écrasé) : rien ne reste en cours (annulé plus haut si Git
+        // avait commencé), message d'une ligne et sortie brute (S-53).
+        let fallback = if verb == "revert" {
+            "Revert failed."
+        } else {
+            "Cherry-pick failed."
+        };
+        return Err(GitError::Read(failure_text(fallback, &raw)));
     }
     let tree = read_working_tree(path)?;
     remember(path, &tree);

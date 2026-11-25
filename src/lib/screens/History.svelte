@@ -24,6 +24,7 @@
   import BranchSidebar from "../components/BranchSidebar.svelte";
   import CommitDetail from "../components/CommitDetail.svelte";
   import CommitGraph from "../components/CommitGraph.svelte";
+  import ErrorDetails from "../components/ErrorDetails.svelte";
   import FetchStatus from "../components/FetchStatus.svelte";
   import ProfileBadge from "../components/ProfileBadge.svelte";
   import PushButton from "../components/PushButton.svelte";
@@ -863,7 +864,7 @@
   {/if}
   {#if checkoutNotice}
     <p class={checkoutNotice === "Already up to date." ? "notice" : "error"} role="alert">
-      {checkoutNotice}
+      <ErrorDetails text={checkoutNotice} />
     </p>
   {/if}
 

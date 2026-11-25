@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+use crate::failure::failure_text;
 use crate::integrate::{abort_merge, continue_merge, continue_merge_with_home, OperationOutcome};
 use crate::working_tree::{read_working_tree, remember};
 use crate::{GitError, WorkingTree};
@@ -227,7 +228,7 @@ fn continue_in(path: &Path, home: Option<&Path>) -> Result<OperationOutcome, Git
         let again = read_operation(path)?
             .is_some_and(|next| next.kind == OperationKind::Rebase && next.step > op.step);
         if !again {
-            return Err(GitError::Read(raw));
+            return Err(GitError::Read(failure_text("Continue failed.", &raw)));
         }
         conflict = true;
     }

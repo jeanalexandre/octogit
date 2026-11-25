@@ -5,6 +5,7 @@
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type { SyncAction } from "../bindings";
+  import ErrorDetails from "./ErrorDetails.svelte";
 
   /**
    * Bouton à deux zones : le libellé de l'action par défaut (un clic la lance) et la flèche, qui ouvre le menu
@@ -95,7 +96,7 @@
   {#if notice}
     <span class="notice" role="alert">
       <TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
-      {notice}
+      <ErrorDetails text={notice} floating />
     </span>
   {/if}
   <span class="split" role="group" aria-label="Synchronize">

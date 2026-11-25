@@ -10,13 +10,14 @@ use crate::launch::{repository_view, RepositoryView};
 /// Rend `None` si les refs sont les mêmes qu'avant (cas courant : rien à redessiner, rien à relire),
 /// sinon le dépôt relu. L'erreur est le message d'une ligne ; la sortie brute de Git reste dans le crate `git`.
 pub fn fetch_repository(path: &Path) -> Result<Option<RepositoryView>, String> {
-    run_and_reread(path, octogit_git::fetch)
+    run_and_reread(path, octogit_git::fetch, false)
 }
 
-/// Fetch All de `SyncButton` : comme `fetch_repository`, pour tous les remotes.
+/// Fetch All de `SyncButton` : comme `fetch_repository`, pour tous les remotes. Un échec de Git rend son message
+/// d'une ligne et sa sortie brute (`octogit_git::failure_text`, « Details » ; S-53).
 pub fn fetch_all_repository(path: &Path) -> Result<Option<RepositoryView>, String> {
     crate::working_tree::ensure_no_operation(path)?;
-    run_and_reread(path, octogit_git::fetch_all)
+    run_and_reread(path, octogit_git::fetch_all, true)
 }
 
 /// Issue d'un Pull : le dépôt relu, et `conflict` vrai si le Pull (rebase) s'est arrêté sur un conflit (le rebase
@@ -43,7 +44,9 @@ pub fn pull_repository(path: &Path, rebase: bool) -> Result<PullView, String> {
         Ok(_) => false,
         Err(octogit_git::PullError::Conflict) => true,
         Err(octogit_git::PullError::TimedOut { .. }) => return Err("Pull timed out.".to_string()),
-        Err(octogit_git::PullError::Failed { .. }) => return Err("Pull failed.".to_string()),
+        Err(octogit_git::PullError::Failed { output }) => {
+            return Err(octogit_git::failure_text("Pull failed.", &output))
+        }
         Err(octogit_git::PullError::Spawn(_)) => return Err("Git could not run.".to_string()),
         Err(refusal) => return Err(refusal.to_string()),
     };
@@ -148,7 +151,9 @@ fn would_overwrite(output: &str) -> bool {
 fn checkout_message(error: octogit_git::CheckoutError) -> String {
     match error {
         octogit_git::CheckoutError::TimedOut { .. } => "Checkout timed out.".to_string(),
-        octogit_git::CheckoutError::Failed { .. } => "Checkout failed.".to_string(),
+        octogit_git::CheckoutError::Failed { output } => {
+            octogit_git::failure_text("Checkout failed.", &output)
+        }
         octogit_git::CheckoutError::Spawn(_) => "Git could not run.".to_string(),
         octogit_git::CheckoutError::Read(_) => "Could not read the repository.".to_string(),
         other => other.to_string(),
@@ -363,7 +368,9 @@ fn tag_message(error: octogit_git::TagError, what: &str) -> String {
 fn remote_delete_message(error: octogit_git::BranchError) -> String {
     match error {
         octogit_git::BranchError::TimedOut { .. } => "Push timed out.".to_string(),
-        octogit_git::BranchError::Failed { .. } => "Delete from origin failed.".to_string(),
+        octogit_git::BranchError::Failed { output } => {
+            octogit_git::failure_text("Delete from origin failed.", &output)
+        }
         octogit_git::BranchError::Spawn(_) => "Git could not run.".to_string(),
         octogit_git::BranchError::Read(_) => "Could not read the repository.".to_string(),
         octogit_git::BranchError::Invalid => "Invalid branch name.".to_string(),
@@ -374,7 +381,9 @@ fn remote_delete_message(error: octogit_git::BranchError) -> String {
 fn branch_message(error: octogit_git::BranchError) -> String {
     match error {
         octogit_git::BranchError::TimedOut { .. } => "Branch operation timed out.".to_string(),
-        octogit_git::BranchError::Failed { .. } => "Branch operation failed.".to_string(),
+        octogit_git::BranchError::Failed { output } => {
+            octogit_git::failure_text("Branch operation failed.", &output)
+        }
         octogit_git::BranchError::Spawn(_) => "Git could not run.".to_string(),
         octogit_git::BranchError::Read(_) => "Could not read the repository.".to_string(),
         other => other.to_string(),
@@ -391,7 +400,9 @@ pub fn push_repository(store: &Store, home: &Path, path: &Path) -> Result<Reposi
     crate::attach::ensure_pushable(store, path, home)?;
     octogit_git::push(path, octogit_git::FETCH_TIMEOUT).map_err(|e| match e {
         octogit_git::PushError::TimedOut { .. } => "Push timed out.".to_string(),
-        octogit_git::PushError::Failed { .. } => "Push failed.".to_string(),
+        octogit_git::PushError::Failed { output } => {
+            octogit_git::failure_text("Push failed.", &output)
+        }
         octogit_git::PushError::Spawn(_) => "Git could not run.".to_string(),
         refusal => refusal.to_string(),
     })?;
@@ -526,10 +537,14 @@ pub fn fix_commit_identity(
 fn run_and_reread(
     path: &Path,
     fetch: fn(&Path, std::time::Duration) -> Result<String, octogit_git::FetchError>,
+    detailed: bool,
 ) -> Result<Option<RepositoryView>, String> {
     let before = octogit_git::read_refs(path).ok();
     fetch(path, octogit_git::FETCH_TIMEOUT).map_err(|e| match e {
         octogit_git::FetchError::TimedOut { .. } => "Fetch timed out.".to_string(),
+        octogit_git::FetchError::Failed { output } if detailed => {
+            octogit_git::failure_text("Fetch failed.", &output)
+        }
         octogit_git::FetchError::Failed { .. } => "Fetch failed.".to_string(),
         octogit_git::FetchError::Spawn(_) => "Git could not run.".to_string(),
     })?;

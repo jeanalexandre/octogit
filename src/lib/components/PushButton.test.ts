@@ -48,6 +48,25 @@ describe("PushButton", () => {
     expect(screen.getByRole("button", { name: "Push" })).toHaveAttribute("aria-disabled", "false");
   });
 
+  it("synchroniser CA-20: a failure of Git shows one line and Details reveals the raw output", async () => {
+    const raw =
+      "git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.";
+    render(PushButton, {
+      ahead: 1,
+      published: true,
+      notice: `git@github.com: Permission denied (publickey).\n${raw}`,
+      onrun: vi.fn(),
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "git@github.com: Permission denied (publickey).",
+    );
+    expect(screen.queryByText(/Could not read from remote repository/)).toBeNull();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Details" }));
+
+    expect(screen.getByText(/fatal: Could not read from remote repository\./)).toBeVisible();
+  });
+
   it("synchroniser CA-11: while the push runs, the button shows progress and a second click starts nothing", async () => {
     const onrun = vi.fn();
     render(PushButton, { ahead: 2, published: true, busy: true, onrun });

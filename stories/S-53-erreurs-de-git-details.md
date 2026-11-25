@@ -24,6 +24,13 @@ Quand Git refuse ou échoue (checkout, création, Rename, suppression, merge, re
 1. Périmètre des actions qui reçoivent « Details » : a) seulement les actions listées par les specs (recommandation retenue par l'humain, 25/11/2026)
 2. Une opération laissée par Git après un refus (autre qu'un conflit) : a) Octogit annule lui-même cet état si aucun fichier n'est en conflit (recommandation retenue par l'humain, 25/11/2026)
 
+### Après la revue 1
+- Mineur README renvoyant à S-53 : traité au passage 2 (d'office)
+- Pour information : `rerere` et Décision 2 (merge ou rebase annulé sans fichier en conflit) : pris en compte (pour information), reporté dans `notes-production.md`
+
+### Après la revue 2
+- Pour information : même point `rerere` : pris en compte (pour information)
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` (le crate `app` s'appelle `octogit-app`, ses tests sont dans `src-tauri/`) ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test aux vraies commandes du crate `app`, faux `ssh`, `origin` = dépôt `--bare` par chemin ; port et données par `.env.local` en worktree)
@@ -77,8 +84,16 @@ Quand Git refuse ou échoue (checkout, création, Rename, suppression, merge, re
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `cda6f0d`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 2 | reviewer | tous les problèmes de la revue 1 levés, aucun nouveau | validé |
+| 2 | run de fin | `pnpm e2e` : 507 verts, 1 rouge reproductible seul : `e2e/dirty-refusal.spec.ts:94` (Merge refusé avec modification indexée attend « Commit or stash your changes before merging. », reçoit « …before switching branches. ») ; audit non lancé (lockfiles inchangés) | rouge : passage 3 |
+| 3 | reviewer | correctif de test légitime, aucun problème | validé |
+| 3 | run de fin | `pnpm e2e` complet vert ; audit non lancé (lockfiles inchangés) | vert |
+| 3 | dev | terminé : course préexistante dans `e2e/dirty-refusal.spec.ts` (attente de « WIP 1 changed file » avant le Merge), code inchangé ; tests, lint, build, e2e liés (110) verts | — |
+| 2 | dev | terminé : bandeau + bloc d'échec dans le flux (`--banner-h` mesuré), « <Geste> failed: <ligne> », e2e cherry-pick / revert, `isOnTop`, README ; tests, lint, build, e2e liés (124) verts | — |
+| 1 | reviewer | 3 bloquants (bloc Continue en position fixe qui recouvre l'interface ; messages sans « <Geste> failed: » comme la maquette ; pas d'e2e cherry-pick / revert), 1 mineur (README renvoie encore à S-53) | à corriger |
+| 1 | dev | terminé : contrat `String` conservée (première ligne = message, suite = sortie brute, `failure_text` / `splitGitError`), `ErrorDetails`, Fetch All alimente `syncNotice`, Décision 2 appliquée ; tests, lint, build, e2e liés (198) verts | — |

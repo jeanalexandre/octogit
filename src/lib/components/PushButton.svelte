@@ -4,6 +4,7 @@
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type { MismatchView, PushCheckView } from "../bindings";
+  import ErrorDetails from "./ErrorDetails.svelte";
 
   /**
    * Push de la branche courante : « Push n » quand elle est en avance de n, désactivé avec sa raison sans commit
@@ -101,7 +102,7 @@
   {#snippet noticeLine(below: boolean)}
     <span class="notice" class:below role="alert">
       <TriangleAlert size={16} strokeWidth={1.8} aria-hidden="true" />
-      {notice}
+      <ErrorDetails text={notice ?? ""} floating={!below} />
     </span>
   {/snippet}
   {#if notice && !(faulty && !busy)}

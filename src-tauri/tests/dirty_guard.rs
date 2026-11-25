@@ -190,7 +190,7 @@ fn gerer_les_branches_ca_6_a_checkout_that_would_overwrite_changes_is_refused_an
 }
 
 #[test]
-fn gerer_les_branches_ca_6_another_git_failure_with_changes_keeps_its_generic_message() {
+fn gerer_les_branches_ca_6_another_git_failure_with_changes_gives_its_own_line_and_raw_output() {
     let sb = Sandbox::new("checkout-other");
     let repo = sb.conform_repo();
     dirty(&repo, false);
@@ -199,7 +199,12 @@ fn gerer_les_branches_ca_6_another_git_failure_with_changes_keeps_its_generic_me
     // Commit inconnu : Git échoue, sans rapport avec les modifications.
     let created = create_branch_repository(&repo, "fresh", "deadbeef").map(|_| ());
 
-    assert_eq!(created, Err("Branch operation failed.".to_string()));
+    // S-53 : la ligne de Git, puis sa sortie brute (« Details »), jamais le texte des modifications écrasées.
+    assert_eq!(
+        created,
+        Err("Branch operation failed: fatal: invalid reference: deadbeef\nfatal: invalid reference: deadbeef"
+            .to_string())
+    );
     assert_eq!(sb.snapshot(&repo), before);
 }
 

@@ -6,6 +6,7 @@ mod cherry_pick;
 mod clone;
 mod conflict;
 mod diff;
+mod failure;
 mod fetch;
 mod force_push;
 mod graph;
@@ -48,6 +49,7 @@ pub use conflict::{
 pub use diff::{
     read_file_diff, read_working_diff, DiffLine, DiffLineKind, FileDiff, FileDiffContent,
 };
+pub use failure::failure_text;
 pub use fetch::{fetch, fetch_all, FetchError, FETCH_TIMEOUT};
 pub use force_push::{force_push, read_rewrite, ForcePushError, OverwrittenCommit, Rewrite};
 pub use graph::{layout, Edge, EdgeKind, GraphRow, LANE_COLORS};

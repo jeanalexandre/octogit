@@ -32,6 +32,7 @@
   import type { BranchInput, BranchNameVerdict, TagNameVerdict } from "./lib/branchInput";
   import { runFetchNow, scheduleFetch } from "./lib/fetchScheduler";
   import { sshApi } from "./lib/sshKeys";
+  import { splitGitError } from "./lib/gitError";
   import { parentCount } from "./lib/graphParents";
   import CloneDialog from "./lib/components/CloneDialog.svelte";
   import DiscardDialog from "./lib/components/DiscardDialog.svelte";
@@ -113,7 +114,10 @@
   let operationBusy = $state(false);
   /** Start rebase en cours d'exécution, sans conflit : le bandeau n'a pas de Resolve. */
   let rebaseRunning = $state(false);
-  let operationError: string | null = $state(null);
+  /** `output` : sortie brute de Git d'un Continue refusé (trois éléments dans le bandeau) ; sinon une ligne. */
+  let operationError: { message: string; output: string | null } | null = $state(null);
+  /** Hauteur mesurée de `OperationBanner` (bandeau + bloc d'échec d'un Continue refusé). */
+  let bannerHeight = $state(0);
 
   function reportList(list: ConflictListView, seen: string[]) {
     if (operation === null) return;
@@ -168,7 +172,13 @@
       }
     } catch (e) {
       abortAsk = false;
-      operationError = (typeof e === "string" ? e : failure).split("\n")[0];
+      const text = typeof e === "string" ? e : failure;
+      const { details } = splitGitError(text);
+      // Seul Continue montre la sortie brute de Git ; Done et Abort gardent la première ligne.
+      operationError =
+        failure === "Continue failed." && details !== ""
+          ? { message: failure, output: details }
+          : { message: text.split("\n")[0], output: null };
     } finally {
       operationBusy = false;
     }
@@ -540,7 +550,7 @@
   // La hauteur du bandeau est retirée de celle des écrans (variable lue par chacun).
   $effect(() => {
     const root = document.documentElement;
-    if (merging) root.style.setProperty("--banner-h", "40px");
+    if (merging) root.style.setProperty("--banner-h", `${bannerHeight || 40}px`);
     else root.style.removeProperty("--banner-h");
     return () => root.style.removeProperty("--banner-h");
   });
@@ -1021,7 +1031,12 @@
     try {
       await runFetchNow(path, async () => {
         const result = await commands.fetchAllRepository(path);
-        if (result.status !== "ok") return;
+        if (result.status !== "ok") {
+          // Échec de Git : message d'une ligne et « Details » près du bouton ; le dernier âge est gardé.
+          if (screen?.screen === "history" && screen.repository.path === path)
+            syncNotice = { path, text: result.error };
+          return;
+        }
         if (screen?.screen !== "history" || screen.repository.path !== path) return;
         if (result.data !== null)
           screen = {
@@ -1125,7 +1140,7 @@
     } catch (e) {
       checkoutNotice = {
         path,
-        text: (typeof e === "string" ? e : "The action failed.").split("\n")[0],
+        text: typeof e === "string" ? e : "The action failed.",
       };
     }
   }
@@ -1298,7 +1313,7 @@
     } catch (e) {
       checkoutNotice = {
         path,
-        text: (typeof e === "string" ? e : "The action failed.").split("\n")[0],
+        text: typeof e === "string" ? e : "The action failed.",
       };
     }
   }
@@ -2132,7 +2147,9 @@
     left={operation.left}
     reason={isStashOperation(operation.kind) ? null : continueReason}
     busy={operationBusy}
-    error={operationError}
+    error={operationError?.message ?? null}
+    output={operationError?.output ?? null}
+    bind:height={bannerHeight}
     onresolve={(resolverShown && diff === null) || rebaseRunning ? undefined : resolveAgain}
     onback={resolverShown && diff === null ? backToGraph : undefined}
     oncontinue={continueOperation}

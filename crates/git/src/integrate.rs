@@ -7,6 +7,7 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+use crate::failure::failure_text;
 use crate::working_tree::{read_working_tree, remember};
 use crate::{GitError, WorkingTree};
 
@@ -113,7 +114,13 @@ fn finish_merge(path: &Path, args: &[&str], home: Option<&Path>) -> Result<Worki
     }
     let (ok, raw) = run(path, args, home)?;
     if !ok {
-        return Err(GitError::Read(raw));
+        // `commit` est le Continue d'un merge, `merge --abort` son Abort.
+        let gesture = if args[0] == "commit" {
+            "Continue failed."
+        } else {
+            "Abort failed."
+        };
+        return Err(GitError::Read(failure_text(gesture, &raw)));
     }
     let tree = read_working_tree(path)?;
     remember(path, &tree);
@@ -180,12 +187,26 @@ fn apply(
             return Err(GitError::Read(raw));
         }
         if in_progress(path, kind, home)? {
-            // Conflit : l'opération reste en cours, `ConflictResolver` prend le relais (S-38, S-40).
-            let tree = read_working_tree(path)?;
-            remember(path, &tree);
-            return Ok((tree, true));
+            // Un conflit laisse des fichiers non fusionnés : l'opération reste en cours, `ConflictResolver` prend
+            // le relais (S-38, S-40).
+            if !run(path, &["ls-files", "-u"], home)?.1.is_empty() {
+                let tree = read_working_tree(path)?;
+                remember(path, &tree);
+                return Ok((tree, true));
+            }
+            // Git s'est arrêté sans fichier en conflit (ex. un fichier non suivi serait écrasé au rejeu) : Octogit
+            // annule lui-même cet état, rien ne reste en cours (S-53).
+            let abort = match kind {
+                Kind::Merge => ["merge", "--abort"],
+                Kind::Rebase => ["rebase", "--abort"],
+            };
+            run(path, &abort, home)?;
         }
-        return Err(GitError::Read(raw));
+        let fallback = match kind {
+            Kind::Merge => "Merge failed.",
+            Kind::Rebase => "Rebase failed.",
+        };
+        return Err(GitError::Read(failure_text(fallback, &raw)));
     }
     let tree = read_working_tree(path)?;
     remember(path, &tree);

@@ -22,6 +22,8 @@
     reason = null,
     busy = false,
     error = null,
+    output = null,
+    height = $bindable(0),
     onresolve,
     onback,
     oncontinue,
@@ -43,6 +45,10 @@
     busy?: boolean;
     /** Refus de Git ou échec d'un geste (première ligne). */
     error?: string | null;
+    /** Sortie brute de Git d'un Continue refusé : `error` est alors « Continue failed. », le bandeau l'affiche en trois éléments. */
+    output?: string | null;
+    /** Hauteur de l'ensemble bandeau + bloc d'échec : le parent en retire autant de celle des écrans (`--banner-h`). */
+    height?: number;
     /** Absent dans `ConflictResolver`. */
     onresolve?: () => void;
     /** Présent dans `ConflictResolver` seulement : retour au graphe (Échap), à gauche d'Abort et Continue. */
@@ -50,6 +56,15 @@
     oncontinue: () => void;
     onabort: () => void;
   } = $props();
+
+  /** Garde `height` à la hauteur de l'ensemble (le bloc d'échec la change) ; sans `ResizeObserver` (tests), une lecture. */
+  function measure(element: HTMLElement) {
+    height = element.clientHeight;
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => (height = element.clientHeight));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }
 
   const ready = $derived(left === 0 && reason === null && !busy);
   /** Aucun clic ne lance Continue tant qu'il est désactivé. */
@@ -73,51 +88,65 @@
   );
 </script>
 
-<div class="banner" role="region" aria-label="Operation in progress">
-  <span class="text">{text}</span>
-  {#if reason !== null}
-    <span class="reason">{reason}</span>
-  {/if}
-  {#if error !== null}
-    <span class="error" role="alert">{error.split("\n")[0]}</span>
-  {/if}
-  <span class="grow"></span>
-  {#if onback}
-    <button type="button" onclick={onback}>
-      <ChevronLeft size={16} strokeWidth={1.8} aria-hidden="true" />Back to graph
-      <kbd aria-hidden="true">Esc</kbd>
-    </button>
-  {/if}
-  {#if onresolve}
-    <button type="button" onclick={onresolve}>
-      <GitMerge size={16} strokeWidth={1.8} aria-hidden="true" />Resolve
-    </button>
-  {/if}
-  <button type="button" disabled={busy} onclick={onabort}>
-    <X size={16} strokeWidth={1.8} aria-hidden="true" />Abort {name}
-  </button>
-  <button type="button" class="primary" disabled={!ready} onclick={continueNow}>
-    {#if stash}
-      <Check size={16} strokeWidth={1.8} aria-hidden="true" />Done
-    {:else}
-      <Play size={16} strokeWidth={1.8} aria-hidden="true" />Continue {name}
+<div class="top" {@attach measure}>
+  <div class="banner" role="region" aria-label="Operation in progress">
+    <span class="text">{text}</span>
+    {#if reason !== null}
+      <span class="reason">{reason}</span>
     {/if}
-  </button>
+    {#if error !== null && output === null}
+      <span class="error" role="alert">{error.split("\n")[0]}</span>
+    {/if}
+    <span class="grow"></span>
+    {#if onback}
+      <button type="button" onclick={onback}>
+        <ChevronLeft size={16} strokeWidth={1.8} aria-hidden="true" />Back to graph
+        <kbd aria-hidden="true">Esc</kbd>
+      </button>
+    {/if}
+    {#if onresolve}
+      <button type="button" onclick={onresolve}>
+        <GitMerge size={16} strokeWidth={1.8} aria-hidden="true" />Resolve
+      </button>
+    {/if}
+    <button type="button" disabled={busy} onclick={onabort}>
+      <X size={16} strokeWidth={1.8} aria-hidden="true" />Abort {name}
+    </button>
+    <button type="button" class="primary" disabled={!ready} onclick={continueNow}>
+      {#if stash}
+        <Check size={16} strokeWidth={1.8} aria-hidden="true" />Done
+      {:else}
+        <Play size={16} strokeWidth={1.8} aria-hidden="true" />Continue {name}
+      {/if}
+    </button>
+  </div>
+  {#if error !== null && output !== null}
+    <!-- Continue refusé par Git (S-53) : la ligne, la sortie brute montrée d'emblée, puis l'état du dépôt. -->
+    <div class="failure" role="alert">
+      <p class="error">{error.split("\n")[0]}</p>
+      <pre class="output">{output}</pre>
+      <p class="muted">Repository left as is. Resolve, then Continue again.</p>
+    </div>
+  {/if}
 </div>
 
 <style>
-  .banner {
+  /* Fixé en haut, au-dessus des écrans et de leurs calques, sous les dialogues. Le bloc d'échec est dans son flux :
+     il agrandit l'ensemble, dont la hauteur repousse les écrans (`--banner-h`) au lieu de les recouvrir. */
+  .top {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    /* Au-dessus des écrans et de leurs calques ; sous les dialogues. */
     z-index: 50;
+  }
+
+  .banner {
     box-sizing: border-box;
     display: flex;
     align-items: center;
     gap: 8px;
-    height: var(--banner-h, 40px);
+    height: 40px;
     padding: 0 12px;
     border-bottom: 2px solid var(--warning);
     background: var(--surface-raised);
@@ -146,6 +175,43 @@
 
   .grow {
     flex: 1;
+  }
+
+  /* Sous le bandeau : trois éléments (message, sortie brute, état du dépôt). */
+  .failure {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 40vh;
+    padding: 8px 12px;
+    overflow: auto;
+    border-bottom: 1px solid var(--border-strong);
+    background: var(--surface-raised);
+    color: var(--ink);
+    font-size: 12px;
+  }
+
+  .failure p {
+    margin: 0;
+  }
+
+  .failure .muted {
+    color: var(--muted);
+  }
+
+  .output {
+    margin: 0;
+    padding: 8px;
+    max-height: 200px;
+    overflow: auto;
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    background: var(--surface);
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   button {

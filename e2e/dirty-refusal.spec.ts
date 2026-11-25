@@ -117,6 +117,8 @@ test("integrer-une-branche CA-12 : Merge refusé avec une modification indexée,
   await page.goto(ws.urlWithFetchInterval(3_600_000));
   await expect(graphRow(page, "Local two")).toBeVisible();
   makeDirty(repo, true);
+  // L'écran doit avoir vu la modification (surveillance) : sinon le menu tente un checkout avant le merge.
+  await expect(page.getByRole("button", { name: "WIP 1 changed file" })).toBeVisible();
   const before = state(repo);
 
   await section(page, 0).getByRole("button", { name: "profiles" }).click();

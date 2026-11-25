@@ -21,6 +21,32 @@ function open(props: Record<string, unknown> = {}) {
 
 const continueButton = () => screen.getByRole("button", { name: "Continue merge" });
 
+describe("OperationBanner : Continue refusé par Git", () => {
+  it("resoudre-les-conflits CA-12: three elements in order, the raw output shown directly", () => {
+    const raw =
+      "error: Committing is not possible because you have unmerged files.\nhint: Fix them up in the work tree.";
+    open({ error: "Continue failed.", output: raw });
+
+    const alert = screen.getByRole("alert");
+    const text = alert.textContent ?? "";
+    expect(text.indexOf("Continue failed.")).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf(raw)).toBeGreaterThan(text.indexOf("Continue failed."));
+    expect(text.indexOf("Repository left as is. Resolve, then Continue again.")).toBeGreaterThan(
+      text.indexOf(raw),
+    );
+    expect(screen.queryByRole("button", { name: "Details" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Continue merge" })).toBeTruthy();
+  });
+
+  it("resoudre-les-conflits CA-12: a failure of Done or Abort keeps its single line", () => {
+    open({ error: "Abort failed.\nfatal: something", left: 0 });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Abort failed.");
+    expect(screen.queryByText(/something/)).toBeNull();
+    expect(screen.queryByText(/Repository left as is/)).toBeNull();
+  });
+});
+
 describe("OperationBanner : conflit de Pop ou d'Apply", () => {
   it("resoudre-les-conflits CA-17: a Pop names the stash and has Abort and Done, not Continue", () => {
     open({ kind: "pop", other: "stash@{0}", receiving: "main", left: 2 });

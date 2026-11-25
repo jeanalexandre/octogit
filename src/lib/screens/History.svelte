@@ -10,6 +10,7 @@
     RecentView,
     RepositoryView,
     SyncAction,
+    Palette,
     Theme,
     WorkingTreeView,
   } from "../bindings";
@@ -109,7 +110,16 @@
     onrevert,
     theme = "system",
     onthemechange,
+    palette = "neon",
+    onpalettechange,
+    halo = true,
+    onhalochange,
   }: {
+    /** Palette et Halo choisis, globaux (menu de la flèche de `ThemeSwitch`). */
+    palette?: Palette;
+    onpalettechange?: (palette: Palette) => void;
+    halo?: boolean;
+    onhalochange?: (halo: boolean) => void;
     /** Thème choisi, global (`ThemeSwitch` de la seconde ligne de l'en-tête). */
     theme?: Theme;
     /** Clic sur un segment de `ThemeSwitch`. */
@@ -817,7 +827,16 @@
       onprevious={() => stepSearch(-1)}
       onmatchesonly={(checked) => (matchesOnly = checked)}
     />
-    <span class="appearance"><ThemeSwitch {theme} onchange={onthemechange} /></span>
+    <span class="appearance"
+      ><ThemeSwitch
+        {theme}
+        {palette}
+        {halo}
+        onchange={onthemechange}
+        {onpalettechange}
+        {onhalochange}
+      /></span
+    >
   </div>
 
   {#if error}

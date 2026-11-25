@@ -52,7 +52,11 @@
 </script>
 
 <script lang="ts">
+  import Check from "@lucide/svelte/icons/check";
   import ListOrdered from "@lucide/svelte/icons/list-ordered";
+  import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import X from "@lucide/svelte/icons/x";
 
   /**
    * Menu d'une ref (clic droit, touche menu, Maj+F10) et confirmation du checkout d'une `origin/…` dont la locale
@@ -480,9 +484,11 @@
           : "It exists only in this repository."}
       </p>
       <div class="choices">
-        <button type="button" use:focusOnMount onclick={() => ontagdeletecancel?.()}>Cancel</button>
+        <button type="button" use:focusOnMount onclick={() => ontagdeletecancel?.()}
+          ><X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel</button
+        >
         <button type="button" class="primary" onclick={() => ontagdeleteconfirm?.()}
-          >Delete tag</button
+          ><Trash2 size={16} strokeWidth={1.8} aria-hidden="true" />Delete tag</button
         >
       </div>
     </div>
@@ -500,9 +506,11 @@
     >
       <h2 id="delete-confirm-title">{deleteConfirmText(deleteConfirm)}</h2>
       <div class="choices">
-        <button type="button" use:focusOnMount onclick={() => ondeletecancel?.()}>Cancel</button>
+        <button type="button" use:focusOnMount onclick={() => ondeletecancel?.()}
+          ><X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel</button
+        >
         <button type="button" class="primary" onclick={() => ondeleteconfirm?.()}
-          >Delete local</button
+          ><Trash2 size={16} strokeWidth={1.8} aria-hidden="true" />Delete local</button
         >
       </div>
     </div>
@@ -524,10 +532,10 @@
       {/if}
       <div class="choices">
         <button type="button" use:focusOnMount onclick={() => ondeleteremotecancel?.()}
-          >Cancel</button
+          ><X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel</button
         >
         <button type="button" class="primary" onclick={() => ondeleteremoteconfirm?.()}
-          >Delete from origin</button
+          ><Trash2 size={16} strokeWidth={1.8} aria-hidden="true" />Delete from origin</button
         >
       </div>
     </div>
@@ -560,9 +568,15 @@
         </ul>
       {/if}
       <div class="choices">
-        <button type="button" use:focusOnMount onclick={oncancel}>Cancel</button>
-        <button type="button" onclick={onasis}>Checkout local as is</button>
-        <button type="button" class="primary" onclick={onreset}>Reset and checkout</button>
+        <button type="button" use:focusOnMount onclick={oncancel}
+          ><X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel</button
+        >
+        <button type="button" onclick={onasis}
+          ><Check size={16} strokeWidth={1.8} aria-hidden="true" />Checkout local as is</button
+        >
+        <button type="button" class="primary" onclick={onreset}
+          ><RotateCcw size={16} strokeWidth={1.8} aria-hidden="true" />Reset and checkout</button
+        >
       </div>
     </div>
   </div>

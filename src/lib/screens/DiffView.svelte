@@ -3,6 +3,8 @@
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import Check from "@lucide/svelte/icons/check";
   import Columns2 from "@lucide/svelte/icons/columns-2";
+  import Minus from "@lucide/svelte/icons/minus";
+  import Plus from "@lucide/svelte/icons/plus";
   import Rows2 from "@lucide/svelte/icons/rows-2";
   import { untrack } from "svelte";
   import type {
@@ -250,6 +252,14 @@
 
 <svelte:window {onkeydown} onpointerup={() => (dragFrom = null)} />
 
+{#snippet verbIcon()}
+  {#if mode === "staged"}
+    <Minus size={16} strokeWidth={1.8} aria-hidden="true" />
+  {:else}
+    <Plus size={16} strokeWidth={1.8} aria-hidden="true" />
+  {/if}
+{/snippet}
+
 <section class="diff" aria-label="File diff" tabindex="-1" use:focusOnMount>
   <header>
     <button type="button" class="control back" onclick={() => onclose(index)}>
@@ -291,11 +301,11 @@
           type="button"
           class="control"
           disabled={selected.length === 0 || busy}
-          onclick={() => run(selected)}>{verb} selected lines</button
+          onclick={() => run(selected)}>{@render verbIcon()}{verb} selected lines</button
         >
       {/if}
       <button type="button" class="control primary" disabled={busy} onclick={() => run(null)}
-        >{verb} file</button
+        >{@render verbIcon()}{verb} file</button
       >
     {/if}
     <span class="segmented" role="radiogroup" aria-label="Diff layout" hidden={working}>
@@ -345,7 +355,7 @@
                 <div class="hunk bar">
                   <span>Hunk {blocks.indexOf(block) + 1} / {blocks.length}</span>
                   <button type="button" class="control" disabled={busy} onclick={() => run(block)}
-                    >{verb} hunk</button
+                    >{@render verbIcon()}{verb} hunk</button
                   >
                 </div>
               {/if}

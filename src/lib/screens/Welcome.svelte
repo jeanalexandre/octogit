@@ -204,6 +204,7 @@
     border: 0;
     border-radius: 6px;
     background: var(--brand);
+    box-shadow: var(--halo-brand);
     color: var(--on-brand);
     font: inherit;
     font-weight: 600;

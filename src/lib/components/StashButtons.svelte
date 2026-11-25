@@ -1,6 +1,7 @@
 <script lang="ts">
   import Archive from "@lucide/svelte/icons/archive";
   import ArchiveRestore from "@lucide/svelte/icons/archive-restore";
+  import X from "@lucide/svelte/icons/x";
 
   /**
    * Stash (message optionnel, fichiers non suivis compris) et Pop (le stash sélectionné, sinon le dernier).
@@ -127,8 +128,12 @@
           placeholder="Message (optional)"
           {onkeydown}
         />
-        <button type="button" disabled={busy} onclick={stash}>Stash changes</button>
-        <button type="button" disabled={busy} onclick={close}>Cancel</button>
+        <button type="button" disabled={busy} onclick={stash}>
+          <Archive size={16} strokeWidth={1.8} aria-hidden="true" />Stash changes
+        </button>
+        <button type="button" disabled={busy} onclick={close}>
+          <X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel
+        </button>
       {/if}
       {#if failure}
         <span class="failure" role="alert">{failure}</span>

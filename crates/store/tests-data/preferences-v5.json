@@ -1,0 +1,9 @@
+{
+  "version": 5,
+  "hidden_columns": ["date"],
+  "section_heights": { "local": 192, "remote:origin": 72 },
+  "collapsed_sections": ["tags"],
+  "panel_collapsed": true,
+  "sync_action": "pull_rebase",
+  "theme": "light"
+}

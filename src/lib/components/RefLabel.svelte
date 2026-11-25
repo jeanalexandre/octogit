@@ -270,6 +270,18 @@
       0 0 0 3.5px var(--lane);
   }
 
+  /* Lueur du Halo (thème sombre, case cochée) : étiquettes pleines, l'anneau « en avance » est conservé. */
+  :global(:root[data-halo="on"][data-theme="dark"]) .synced {
+    box-shadow: 0 0 8px color-mix(in srgb, var(--lane) 55%, transparent);
+  }
+
+  :global(:root[data-halo="on"][data-theme="dark"]) .ahead {
+    box-shadow:
+      0 0 0 2px var(--surface),
+      0 0 0 3.5px var(--lane),
+      0 0 10px var(--lane);
+  }
+
   .remote {
     border-style: dashed;
     border-color: var(--lane);

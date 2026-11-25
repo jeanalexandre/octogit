@@ -12,7 +12,7 @@ pub const REPOSITORIES_FILE: &str = "repositories.json";
 pub const REPOSITORIES_VERSION: u32 = 6;
 
 pub const PREFERENCES_FILE: &str = "preferences.json";
-pub const PREFERENCES_VERSION: u32 = 5;
+pub const PREFERENCES_VERSION: u32 = 6;
 
 pub const PROFILES_FILE: &str = "profiles.json";
 pub const PROFILES_VERSION: u32 = 2;
@@ -47,7 +47,16 @@ struct PreferencesFile {
     /// Thème de l'interface : `dark`, `light` ou `system` (version 5 ; absent avant : System).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     theme: Option<String>,
+    /// Palette : `neon` ou `kraken` (version 6 ; absente avant : Neon).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    palette: Option<String>,
+    /// Halo (lueur du thème sombre) coché ou non (version 6 ; absent avant : coché).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    halo: Option<bool>,
 }
+
+/// Palette de l'interface tant que rien n'est mémorisé.
+pub const DEFAULT_PALETTE: &str = "neon";
 
 /// Action par défaut de `SyncButton` tant que rien n'est mémorisé.
 pub const DEFAULT_SYNC_ACTION: &str = "fetch_all";
@@ -383,6 +392,32 @@ impl Store {
     pub fn set_theme(&self, theme: &str) -> io::Result<()> {
         let mut file = self.read_preferences();
         file.theme = Some(theme.to_string());
+        self.write_preferences(file)
+    }
+
+    /// Palette de l'interface, commune à tous les dépôts ; absente : Neon.
+    pub fn palette(&self) -> String {
+        self.read_preferences()
+            .palette
+            .unwrap_or_else(|| DEFAULT_PALETTE.to_string())
+    }
+
+    /// Mémorise la palette de l'interface.
+    pub fn set_palette(&self, palette: &str) -> io::Result<()> {
+        let mut file = self.read_preferences();
+        file.palette = Some(palette.to_string());
+        self.write_preferences(file)
+    }
+
+    /// Halo coché ? Commun à tous les dépôts ; absent : coché.
+    pub fn halo(&self) -> bool {
+        self.read_preferences().halo.unwrap_or(true)
+    }
+
+    /// Mémorise l'état de la case Halo.
+    pub fn set_halo(&self, halo: bool) -> io::Result<()> {
+        let mut file = self.read_preferences();
+        file.halo = Some(halo);
         self.write_preferences(file)
     }
 
@@ -737,8 +772,63 @@ mod tests {
         let json: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(tmp.0.join(PREFERENCES_FILE)).unwrap())
                 .unwrap();
-        assert_eq!(json["version"], 5);
+        assert_eq!(json["version"], PREFERENCES_VERSION);
         assert_eq!(json["theme"], "dark");
+        assert_eq!(store.sync_action(), "pull_rebase");
+        assert!(store.panel_collapsed());
+        assert_eq!(store.hidden_columns(), ["date"]);
+        assert_eq!(store.section_layout().collapsed, ["tags"]);
+    }
+
+    #[test]
+    fn choisir_l_apparence_ca_5_palette_defaults_to_neon_and_halo_to_checked() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        assert_eq!(Store::new(&data).palette(), "neon");
+        assert!(Store::new(&data).halo());
+        let store = Store::new(&data);
+        store.set_theme("dark").unwrap();
+        assert_eq!(store.palette(), "neon");
+        assert!(store.halo());
+    }
+
+    #[test]
+    fn choisir_l_apparence_ca_10_palette_and_halo_survive_a_new_store_halo_off_included() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        let store = Store::new(&data);
+        store.set_theme("light").unwrap();
+        store.set_palette("kraken").unwrap();
+        store.set_halo(false).unwrap();
+        assert_eq!(Store::new(&data).palette(), "kraken");
+        assert!(!Store::new(&data).halo());
+        assert_eq!(Store::new(&data).theme(), "light");
+        Store::new(&data).set_halo(true).unwrap();
+        Store::new(&data).set_palette("neon").unwrap();
+        assert!(Store::new(&data).halo());
+        assert_eq!(Store::new(&data).palette(), "neon");
+    }
+
+    #[test]
+    fn choisir_l_apparence_ca_10_version_5_preferences_are_read_without_loss_and_written_as_version_6(
+    ) {
+        let tmp = TempDir::new();
+        let store = Store::new(&tmp.0);
+        fs::write(
+            tmp.0.join(PREFERENCES_FILE),
+            include_str!("../tests-data/preferences-v5.json"),
+        )
+        .unwrap();
+        assert_eq!(store.palette(), "neon");
+        assert!(store.halo());
+        assert_eq!(store.theme(), "light");
+        store.set_palette("kraken").unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(tmp.0.join(PREFERENCES_FILE)).unwrap())
+                .unwrap();
+        assert_eq!(json["version"], 6);
+        assert_eq!(json["palette"], "kraken");
+        assert_eq!(json["theme"], "light");
         assert_eq!(store.sync_action(), "pull_rebase");
         assert!(store.panel_collapsed());
         assert_eq!(store.hidden_columns(), ["date"]);

@@ -1,4 +1,8 @@
 <script lang="ts">
+  import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
+  import Minus from "@lucide/svelte/icons/minus";
+  import Plus from "@lucide/svelte/icons/plus";
+  import Wrench from "@lucide/svelte/icons/wrench";
   import type {
     ChangeStatusView,
     FileChangeView,
@@ -197,10 +201,13 @@
           <p>Expected: {row.profile}</p>
           <p>Found in .git/config: {row.local ?? "(not set)"}</p>
         {/each}
-        <button type="button" disabled={fixing} onclick={fix}>Fix repository identity</button>
+        <button type="button" disabled={fixing} onclick={fix}>
+          <Wrench size={16} strokeWidth={1.8} aria-hidden="true" />Fix repository identity
+        </button>
       </div>
     {/if}
     <button type="button" class="commit" disabled={reason !== null || busy} onclick={commit}>
+      <GitCommitHorizontal size={16} strokeWidth={1.8} aria-hidden="true" />
       {branch ? `Commit to ${branch}` : "Commit"}
       <kbd aria-hidden="true">⌘↵</kbd>
     </button>
@@ -222,7 +229,14 @@
   {@const id = title === "Staged" ? "staged" : "unstaged"}
   <div class="head">
     <h3>{title} · {files.length}</h3>
-    <button type="button" class="all" disabled={files.length === 0} onclick={run}>{action}</button>
+    <button type="button" class="all" disabled={files.length === 0} onclick={run}>
+      {#if id === "staged"}
+        <Minus size={16} strokeWidth={1.8} aria-hidden="true" />
+      {:else}
+        <Plus size={16} strokeWidth={1.8} aria-hidden="true" />
+      {/if}
+      {action}
+    </button>
   </div>
   <ul class="files" aria-label={title}>
     {#each files as file, i (file.path)}
@@ -391,12 +405,17 @@
   }
 
   .commit {
+    justify-content: center;
     padding: 6px 10px;
     border-color: var(--brand);
     background: var(--brand);
     color: var(--on-brand);
     font-size: 13px;
     font-weight: 600;
+  }
+
+  .commit:not(:disabled) {
+    box-shadow: var(--halo-brand);
   }
 
   .commit:disabled {

@@ -6,33 +6,38 @@ const root = process.cwd();
 const tokensMd = readFileSync(join(root, "ux/tokens.md"), "utf8");
 const css = readFileSync(join(root, "src/lib/styles/tokens.css"), "utf8");
 
-/** Valeurs Neon (sombre, clair) par nom de token, lues dans le tableau de `ux/tokens.md`. */
-function neonTokens(): Map<string, [string, string]> {
-  const tokens = new Map<string, [string, string]>();
+/**
+ * Valeurs par nom de token, lues dans le tableau de `ux/tokens.md` : `col` est la colonne de la palette
+ * (0 Neon sombre, 1 Neon clair, 2 Kraken sombre, 3 Kraken clair).
+ */
+function tableTokens(col: number): Map<string, string> {
+  const tokens = new Map<string, string>();
   for (const line of tokensMd.split("\n")) {
     if (!line.startsWith("| `")) continue;
     const cells = line.split("|").map((c) => c.trim());
     const names: string[] = cells[1].match(/[a-z0-9-]+/g) ?? [];
-    const dark: string[] = cells[2].match(/#[0-9a-f]{6}/gi) ?? [];
-    const light: string[] = cells[3].match(/#[0-9a-f]{6}/gi) ?? [];
+    const values: string[] = cells[2 + col].match(/#[0-9a-f]{6}/gi) ?? [];
     if (cells[1].includes("…")) {
-      for (let i = 0; i < 6; i++) tokens.set(`lane-${i + 1}`, [dark[i], light[i]]);
+      for (let i = 0; i < 6; i++) tokens.set(`lane-${i + 1}`, values[i]);
     } else {
-      tokens.set(names[0], [dark[0], light[0]]);
+      tokens.set(names[0], values[0]);
     }
   }
   return tokens;
 }
 
-/** Déclarations sous `:root[data-theme="dark"]` (sombre) et sous `:root[data-theme="light"]` (clair). */
-function blocks(): { dark: string; light: string } {
-  const darkStart = css.indexOf(':root[data-theme="dark"]');
-  const lightStart = css.indexOf(':root[data-theme="light"]');
-  expect(darkStart).toBeGreaterThan(0);
-  expect(lightStart).toBeGreaterThan(darkStart);
-  expect(css).not.toContain("prefers-color-scheme");
-  return { dark: css.slice(darkStart, lightStart), light: css.slice(lightStart) };
+/** Déclarations du bloc dont le sélecteur est exactement `selector` (premier sélecteur de la liste du bloc). */
+function block(selector: string): string {
+  const start = css.indexOf(selector);
+  expect(start, selector).toBeGreaterThanOrEqual(0);
+  const open = css.indexOf("{", start);
+  return css.slice(open, css.indexOf("}", open));
 }
+
+const DARK = ':root[data-theme="dark"]';
+const LIGHT = ':root[data-theme="light"]';
+const KRAKEN_DARK = ':root[data-palette="kraken"][data-theme="dark"]';
+const KRAKEN_LIGHT = ':root[data-palette="kraken"][data-theme="light"]';
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -44,20 +49,37 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 describe("tokens.css", () => {
-  const tokens = neonTokens();
-
-  it("reads the whole Neon table of ux/tokens.md", () => {
-    expect(tokens.size).toBe(22);
-    expect(tokens.get("brand")).toEqual(["#2563eb", "#2563eb"]);
-    expect(tokens.get("lane-6")).toEqual(["#5fd068", "#126b31"]);
+  it("reads the whole table of ux/tokens.md, Neon then Kraken", () => {
+    expect(tableTokens(0).size).toBe(22);
+    expect(tableTokens(0).get("brand")).toBe("#2563eb");
+    expect(tableTokens(1).get("lane-6")).toBe("#126b31");
+    expect(tableTokens(2).size).toBe(22);
+    expect(tableTokens(2).get("brand")).toBe("#2dd4bf");
+    expect(tableTokens(3).get("lane-6")).toBe("#11692f");
   });
 
-  it("defines every Neon value under its token name, dark then light", () => {
-    const { dark, light } = blocks();
-    for (const [name, [darkValue, lightValue]] of tokens) {
-      expect(dark, `--${name} dark`).toMatch(new RegExp(`--${name}:\\s*${darkValue}\\b`, "i"));
-      expect(light, `--${name} light`).toMatch(new RegExp(`--${name}:\\s*${lightValue}\\b`, "i"));
+  it("defines every value of the four combinations under its selector", () => {
+    expect(css).not.toContain("prefers-color-scheme");
+    const combos: [number, string][] = [
+      [0, DARK],
+      [1, LIGHT],
+      [2, KRAKEN_DARK],
+      [3, KRAKEN_LIGHT],
+    ];
+    for (const [col, selector] of combos) {
+      const declarations = block(selector);
+      for (const [name, value] of tableTokens(col)) {
+        expect(declarations, `${selector} --${name}`).toMatch(
+          new RegExp(`--${name}:\\s*${value}\\b`, "i"),
+        );
+      }
     }
+  });
+
+  it("keeps Neon as the value without palette attribute", () => {
+    const rootBlock = css.slice(css.indexOf(":root,"), css.indexOf("}", css.indexOf(":root,")));
+    expect(rootBlock).toContain(':root[data-theme="dark"]');
+    expect(rootBlock).not.toContain("data-palette");
   });
 
   it("keeps raw colors out of the S-1 components and styles", () => {

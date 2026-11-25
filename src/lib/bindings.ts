@@ -326,6 +326,14 @@ export const commands = {
 	getTheme: () => __TAURI_INVOKE<Theme>("get_theme"),
 	/**  Mémorise le thème de l'interface. Un échec d'écriture est ignoré. */
 	setTheme: (theme: Theme) => __TAURI_INVOKE<void>("set_theme", { theme }),
+	/**  Palette de l'interface, commune à tous les dépôts (Neon au premier lancement). */
+	getPalette: () => __TAURI_INVOKE<Palette>("get_palette"),
+	/**  Mémorise la palette de l'interface. Un échec d'écriture est ignoré. */
+	setPalette: (palette: Palette) => __TAURI_INVOKE<void>("set_palette", { palette }),
+	/**  Case Halo (lueur du thème sombre), commune à tous les dépôts (cochée au premier lancement). */
+	getHalo: () => __TAURI_INVOKE<boolean>("get_halo"),
+	/**  Mémorise l'état de la case Halo. Un échec d'écriture est ignoré. */
+	setHalo: (halo: boolean) => __TAURI_INVOKE<void>("set_halo", { halo }),
 	/**  Profils dans l'ordre de `ProfileSettings`. */
 	listProfiles: () => __TAURI_INVOKE<ProfileView[]>("list_profiles"),
 	/**
@@ -839,6 +847,9 @@ export type OverwrittenCommitView = {
 	shortId: string,
 	summary: string,
 };
+
+/**  Palette de l'interface : Neon (défaut) ou Kraken. */
+export type Palette = "neon" | "kraken";
 
 /**  Profil rattaché à un dépôt, tel que `ProfileBadge` l'affiche. */
 export type ProfileBadgeView = {

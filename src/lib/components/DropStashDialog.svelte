@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import X from "@lucide/svelte/icons/x";
+
   /**
    * Confirmation de Drop : nomme le stash. Cancel (Échap) ne change rien. Le parent garde l'état et fait l'action.
    */
@@ -70,9 +73,11 @@
       <p class="error" role="alert">{error}</p>
     {/if}
     <div class="choices">
-      <button type="button" use:focusOnMount onclick={oncancel}>Cancel</button>
+      <button type="button" use:focusOnMount onclick={oncancel}>
+        <X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel
+      </button>
       <button type="button" class="danger" aria-disabled={busy} aria-busy={busy} onclick={drop}>
-        {busy ? "Dropping…" : "Drop"}
+        <Trash2 size={16} strokeWidth={1.8} aria-hidden="true" />{busy ? "Dropping…" : "Drop"}
       </button>
     </div>
   </div>

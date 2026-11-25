@@ -1,6 +1,10 @@
 <script lang="ts">
+  import Check from "@lucide/svelte/icons/check";
   import Cherry from "@lucide/svelte/icons/cherry";
+  import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
+  import Pencil from "@lucide/svelte/icons/pencil";
   import Undo2 from "@lucide/svelte/icons/undo-2";
+  import Wrench from "@lucide/svelte/icons/wrench";
   import type { ChangeStatusView, CommitDetailView, MismatchView, RefView } from "../bindings";
   import { formatAbsolute, formatRelative } from "../relativeTime";
 
@@ -190,7 +194,8 @@
           bind:this={checkoutButton}
           aria-haspopup={targets.length > 1 ? "menu" : undefined}
           aria-expanded={targets.length > 1 ? choosing : undefined}
-          onclick={checkout}>Checkout</button
+          onclick={checkout}
+          ><Check size={16} strokeWidth={1.8} aria-hidden="true" />Checkout</button
         >
         {#if choosing}
           <!-- svelte-ignore a11y_interactive_supports_focus -->
@@ -218,7 +223,8 @@
       type="button"
       class="action"
       data-create-branch
-      onclick={() => oncreatebranch?.(detail.id)}>Create branch here</button
+      onclick={() => oncreatebranch?.(detail.id)}
+      ><GitBranchPlus size={16} strokeWidth={1.8} aria-hidden="true" />Create branch here</button
     >
     <button type="button" class="action" onclick={() => oncherrypick?.(detail.id)}
       ><Cherry size={16} strokeWidth={1.8} aria-hidden="true" />Cherry-pick</button
@@ -247,6 +253,7 @@
           onkeydown={keydown}></textarea>
       </label>
       <button type="button" class="amend" {disabled} onclick={amend}>
+        <Pencil size={16} strokeWidth={1.8} aria-hidden="true" />
         Amend {detail.id.slice(0, 7)}
         <kbd aria-hidden="true">⌘↵</kbd>
       </button>
@@ -254,7 +261,7 @@
         <div class="blocked">
           <p><strong>{reason}</strong></p>
           <button type="button" class="fixlink" disabled={fixing} onclick={fix}
-            >Fix repository identity</button
+            ><Wrench size={16} strokeWidth={1.8} aria-hidden="true" />Fix repository identity</button
           >
         </div>
       {:else}

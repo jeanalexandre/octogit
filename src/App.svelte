@@ -23,6 +23,7 @@
     type SectionLayoutView,
     type RepositoryView,
     type ResetModeView,
+    type Palette,
     type SyncAction,
     type Theme,
     type WorkingTreeView,
@@ -750,6 +751,26 @@
   $effect(() => {
     document.documentElement.dataset.theme = effectiveTheme(theme, systemDark);
   });
+
+  /** Palette et Halo choisis, globaux : lus au lancement ; Neon et coché tant que rien n'est lu. */
+  let palette: Palette = $state("neon");
+  let halo = $state(true);
+
+  /** Simples attributs de la racine : ni le dépôt ni l'écran ne sont remontés, sélection et défilement restent. */
+  $effect(() => {
+    document.documentElement.dataset.palette = palette;
+    document.documentElement.dataset.halo = halo ? "on" : "off";
+  });
+
+  async function choosePalette(next: Palette) {
+    palette = next;
+    await commands.setPalette(next);
+  }
+
+  async function chooseHalo(next: boolean) {
+    halo = next;
+    await commands.setHalo(next);
+  }
 
   async function chooseTheme(next: Theme) {
     theme = next;
@@ -1725,6 +1746,8 @@
     theme = await commands.getTheme();
     await applyWindowTheme(theme);
     systemDark = await systemIsDark();
+    palette = await commands.getPalette();
+    halo = await commands.getHalo();
     recent = await commands.listRecentRepositories();
     hiddenColumns = await commands.getHiddenColumns();
     sectionLayout = await commands.getSectionLayout();
@@ -2100,6 +2123,10 @@
       onsyncaction={chooseSyncAction}
       {theme}
       onthemechange={chooseTheme}
+      {palette}
+      onpalettechange={choosePalette}
+      {halo}
+      onhalochange={chooseHalo}
       pushing={pushingPath !== null && pushingPath === openPath}
       pushNotice={pushNotice !== null && pushNotice.path === openPath ? pushNotice.text : null}
       onpush={push}

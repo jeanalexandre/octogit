@@ -62,7 +62,7 @@ test("organiser-l-espace CA-9 : le bouton replie le panneau en bande d'icônes a
     await expect(icon(page, title).locator("svg")).toBeVisible();
   }
   await expect.poll(() => stored().panel_collapsed).toBe(true);
-  expect(stored().version).toBe(5);
+  expect(stored().version).toBe(6);
 
   await page.reload();
   await expect(icon(page, "Local")).toBeVisible();

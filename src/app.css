@@ -12,4 +12,31 @@ body {
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+  box-shadow: var(--halo-focus);
+}
+
+/*
+ * Bouton à libellé et icône Lucide (16 px, trait de 1,8 px) : un seul espacement entre l'icône et le libellé ;
+ * la couleur de l'icône est celle du texte du bouton (`currentColor`).
+ */
+:where(button:has(> svg.lucide-icon)) {
+  display: inline-flex;
+  align-items: center;
+}
+
+button:has(> svg.lucide-icon) {
+  gap: 6px;
+}
+
+button > svg.lucide-icon {
+  flex: none;
+}
+
+/* Lueur du Halo (`none` hors du thème sombre ou Halo décoché, voir `tokens.css`) : boutons d'action pleins. */
+.primary:not(:disabled):not([aria-disabled="true"]) {
+  box-shadow: var(--halo-brand);
+}
+
+button.danger:not(:disabled):not([aria-disabled="true"]) {
+  box-shadow: var(--halo-danger);
 }

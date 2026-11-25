@@ -2,7 +2,7 @@
  * Tokens de couleur d'Octogit : palette Neon, sombre ou claire selon l'attribut `data-theme` de la racine
  * (posé par `App` : le thème effectif, jamais « system »). Sans attribut (avant le premier rendu), sombre.
  * Écrit à partir de `ux/tokens.md`, seule source des couleurs. Aucune couleur brute ailleurs.
- * La palette Kraken et le Halo arrivent en S-48.
+ * La palette Kraken (`data-palette="kraken"`, Neon sans attribut) et le Halo (`data-halo`) s'y ajoutent plus bas.
  */
 :root,
 :root[data-theme="dark"] {
@@ -55,4 +55,72 @@
   --lane-6: #126b31;
   --on-label: #ffffff;
   --node-ink: #111827;
+}
+
+:root[data-palette="kraken"][data-theme="dark"] {
+  --surface: #12151c;
+  --surface-raised: #1a1f29;
+  --border: #2a3140;
+  --border-strong: #6b7588;
+  --ink: #e6e9ef;
+  --muted: #9aa3b2;
+  --brand: #2dd4bf;
+  --on-brand: #062b27;
+  --link: #5eead4;
+  --selection: #25324a;
+  --focus: #5eead4;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --lane-1: #22d3ee;
+  --lane-2: #a78bfa;
+  --lane-3: #f472b6;
+  --lane-4: #facc15;
+  --lane-5: #fb923c;
+  --lane-6: #4ade80;
+  --on-label: #0b0e14;
+  --node-ink: #0b0e14;
+}
+
+:root[data-palette="kraken"][data-theme="light"] {
+  --surface: #fbfcfe;
+  --surface-raised: #f1f3f8;
+  --border: #dde1ea;
+  --border-strong: #7a8494;
+  --ink: #161a22;
+  --muted: #566070;
+  --brand: #0f766e;
+  --on-brand: #ffffff;
+  --link: #0f6b64;
+  --selection: #dbe4f7;
+  --focus: #0d9488;
+  --success: #11692f;
+  --warning: #8a5300;
+  --danger: #b91c1c;
+  --lane-1: #0e7490;
+  --lane-2: #6d28d9;
+  --lane-3: #be185d;
+  --lane-4: #8a5300;
+  --lane-5: #b03a0a;
+  --lane-6: #11692f;
+  --on-label: #ffffff;
+  --node-ink: #111827;
+}
+
+/*
+ * Halo : lueur du thème sombre, posée par `data-halo="on"` sur la racine et active seulement avec le thème
+ * effectif sombre. Clair, ou Halo décoché : `none`, aucune lueur. Les composants n'utilisent que ces variables.
+ */
+:root {
+  --halo-lane: none;
+  --halo-brand: none;
+  --halo-danger: none;
+  --halo-focus: none;
+}
+
+:root[data-halo="on"][data-theme="dark"] {
+  --halo-lane: drop-shadow(0 0 3px currentColor);
+  --halo-brand: 0 0 12px color-mix(in srgb, var(--brand) 70%, transparent);
+  --halo-danger: 0 0 10px color-mix(in srgb, var(--danger) 55%, transparent);
+  --halo-focus: 0 0 10px var(--focus);
 }

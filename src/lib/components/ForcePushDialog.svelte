@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
+  import X from "@lucide/svelte/icons/x";
   import type { ForcePushView } from "../bindings";
 
   /**
@@ -85,7 +87,9 @@
         <pre id="force-push-output" class="output">{refused}</pre>
       {/if}
       <div class="choices">
-        <button type="button" use:focusOnMount onclick={oncancel}>Close</button>
+        <button type="button" use:focusOnMount onclick={oncancel}>
+          <X size={16} strokeWidth={1.8} aria-hidden="true" />Close
+        </button>
       </div>
     {:else}
       <h2 id="force-push-title">Force push {view.branch} to {view.remote}?</h2>
@@ -108,9 +112,13 @@
         <p class="error" role="alert">{error}</p>
       {/if}
       <div class="choices">
-        <button type="button" use:focusOnMount onclick={oncancel}>Cancel</button>
+        <button type="button" use:focusOnMount onclick={oncancel}>
+          <X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel
+        </button>
         <button type="button" class="primary" aria-disabled={busy} aria-busy={busy} onclick={force}>
-          {busy ? "Pushing…" : "Force push"}
+          <ArrowUpFromLine size={16} strokeWidth={1.8} aria-hidden="true" />{busy
+            ? "Pushing…"
+            : "Force push"}
         </button>
       </div>
     {/if}

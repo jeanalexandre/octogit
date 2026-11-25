@@ -85,8 +85,25 @@ CA-14 (clavier du menu) est à S-56 ; le menu doit cependant se servir au clavie
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `29bd98e`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; vérifications vertes ; menu ThemeSwitch reste ouvert après un choix (écart non contractuel, non transmis) ; e2e `graph.spec.ts` instable préexistant | n/a |
+| 1 | reviewer | `stories/S-48-revue-1.md` : 2 mineurs | validé |
+| 2 | dev | terminé ; radios dans le menu ThemeSwitch ; vérifications vertes | n/a |
+| 2 | reviewer | `stories/S-48-revue-2.md` : aucun problème | validé |
+| fin | run de fin | `pnpm e2e` complet : 465 passés, 4 échecs : `branch.spec.ts` CA-9 (attente périmée, venue de S-43) et `panel.spec.ts` / `sections.spec.ts` (version 5 -> 6) renvoyés à dev ; `graph.spec.ts` CA-14 (7 listitem au lieu de 6) instable préexistant. `pnpm audit:deps` non lancé (aucun lockfile changé) | n/a |
+| 3 | dev | terminé ; attentes d'e2e mises à jour (3 fichiers) ; vérifications vertes | n/a |
+| 3 | reviewer | `stories/S-48-revue-3.md` : aucun problème | validé |
+| fin | run de fin (2e) | `branch.spec.ts`, `panel.spec.ts`, `sections.spec.ts` : 25 passés ; `graph.spec.ts` : 8 passés sur 9, échec seulement sur le premier test lancé (7 listitem au lieu de 6), instable préexistant (déjà constaté à la référence par dev), non bloquant | n/a |
+
+## Décisions de l'humain
+
+### Après la revue 1
+- Mineur 1 (lueur de focus écrasée sur boutons pleins) : reporter vers S-56 (d'office), ajouté à sa ligne de `plan.md`.
+- Mineur 2 (coche au lieu de radios dans le menu ThemeSwitch) : traiter (d'office), passage 2.
+
+### Fin
+- `graph.spec.ts` instable (7 listitem au lieu de 6, premier test d'un run) : pris en compte (pour information), non bloquant (d'office).

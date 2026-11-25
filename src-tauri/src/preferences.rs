@@ -110,6 +110,46 @@ pub fn set_theme(store: &Store, theme: Theme) {
     let _ = store.set_theme(theme.name());
 }
 
+/// Palette de l'interface : Neon (défaut) ou Kraken.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum Palette {
+    Neon,
+    Kraken,
+}
+
+impl Palette {
+    fn name(self) -> &'static str {
+        match self {
+            Palette::Neon => "neon",
+            Palette::Kraken => "kraken",
+        }
+    }
+}
+
+/// Palette, commune à tous les dépôts ; une valeur absente ou inconnue du fichier donne Neon.
+pub fn palette(store: &Store) -> Palette {
+    match store.palette().as_str() {
+        "kraken" => Palette::Kraken,
+        _ => Palette::Neon,
+    }
+}
+
+/// Mémorise la palette. Un échec d'écriture est ignoré.
+pub fn set_palette(store: &Store, palette: Palette) {
+    let _ = store.set_palette(palette.name());
+}
+
+/// Halo coché ? Absent du fichier : coché.
+pub fn halo(store: &Store) -> bool {
+    store.halo()
+}
+
+/// Mémorise l'état de la case Halo. Un échec d'écriture est ignoré.
+pub fn set_halo(store: &Store, halo: bool) {
+    let _ = store.set_halo(halo);
+}
+
 /// Hauteurs (pixels, par identifiant de section) et sections repliées de `BranchSidebar`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub struct SectionLayoutView {
@@ -199,6 +239,21 @@ mod tests {
         assert_eq!(theme(&store), Theme::Dark);
         store.set_theme("sepia").unwrap();
         assert_eq!(theme(&store), Theme::System);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn choisir_l_apparence_ca_5_ca_10_palette_is_neon_and_halo_checked_then_remembered_and_an_unknown_palette_means_neon(
+    ) {
+        let (store, dir) = store("palette");
+        assert_eq!(palette(&store), Palette::Neon);
+        assert!(halo(&store));
+        set_palette(&store, Palette::Kraken);
+        set_halo(&store, false);
+        assert_eq!(palette(&Store::new(store.dir())), Palette::Kraken);
+        assert!(!halo(&Store::new(store.dir())));
+        store.set_palette("sepia").unwrap();
+        assert_eq!(palette(&store), Palette::Neon);
         let _ = std::fs::remove_dir_all(dir);
     }
 

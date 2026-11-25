@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Download from "@lucide/svelte/icons/download";
+  import PencilLine from "@lucide/svelte/icons/pencil-line";
+  import X from "@lucide/svelte/icons/x";
   import type { MismatchView } from "../bindings";
   import { tildify } from "../sshKeys";
 
@@ -110,11 +113,15 @@
       <p class="error" role="alert">{error}</p>
     {/if}
     <div class="choices">
-      <button type="button" use:focusOnMount disabled={busy} onclick={oncancel}>Cancel</button>
+      <button type="button" use:focusOnMount disabled={busy} onclick={oncancel}>
+        <X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel
+      </button>
       <button type="button" disabled={busy} onclick={() => run(onimport)}>
+        <Download size={16} strokeWidth={1.8} aria-hidden="true" />
         Import local config into Octogit…
       </button>
       <button type="button" class="primary" disabled={busy} onclick={() => run(onoverwrite)}>
+        <PencilLine size={16} strokeWidth={1.8} aria-hidden="true" />
         Overwrite with profile {mismatch.profileName}
       </button>
     </div>

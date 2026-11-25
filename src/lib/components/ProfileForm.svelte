@@ -1,4 +1,12 @@
 <script lang="ts">
+  import Copy from "@lucide/svelte/icons/copy";
+  import FolderOpen from "@lucide/svelte/icons/folder-open";
+  import KeyRound from "@lucide/svelte/icons/key-round";
+  import LockOpen from "@lucide/svelte/icons/lock-open";
+  import PlugZap from "@lucide/svelte/icons/plug-zap";
+  import Plus from "@lucide/svelte/icons/plus";
+  import Save from "@lucide/svelte/icons/save";
+  import X from "@lucide/svelte/icons/x";
   import type { ConnectionTestView, ProfileView, SshKeyView } from "../bindings";
   import { untrack } from "svelte";
   import { tildify, type SshApi } from "../sshKeys";
@@ -204,8 +212,12 @@
       <output id="profile-ssh-key" class="mono grow" class:empty={profile.sshKeyPath === ""}>
         {profile.sshKeyPath === "" ? "No key yet" : tildify(profile.sshKeyPath)}
       </output>
-      <button type="button" onclick={choose}>Choose…</button>
-      <button type="button" onclick={openGenerate}>Generate ed25519…</button>
+      <button type="button" onclick={choose}>
+        <FolderOpen size={16} strokeWidth={1.8} aria-hidden="true" />Choose…
+      </button>
+      <button type="button" onclick={openGenerate}>
+        <KeyRound size={16} strokeWidth={1.8} aria-hidden="true" />Generate ed25519…
+      </button>
     </div>
     {#if key?.fingerprint}
       <span class="mono small" data-testid="ssh-fingerprint">{key.fingerprint}</span>
@@ -236,8 +248,12 @@
         <span class="problem" role="alert">{generateError}</span>
       {/if}
       <div class="row">
-        <button type="button" class="primary" onclick={generate}>Generate</button>
-        <button type="button" onclick={() => (generating = false)}>Cancel</button>
+        <button type="button" class="primary" onclick={generate}>
+          <KeyRound size={16} strokeWidth={1.8} aria-hidden="true" />Generate
+        </button>
+        <button type="button" onclick={() => (generating = false)}>
+          <X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel
+        </button>
       </div>
     </div>
   {/if}
@@ -265,12 +281,16 @@
         <span class="problem" role="alert">{unlockError}</span>
       {/if}
       <div class="row">
-        <button type="button" class="primary" onclick={unlock}>Unlock</button>
+        <button type="button" class="primary" onclick={unlock}>
+          <LockOpen size={16} strokeWidth={1.8} aria-hidden="true" />Unlock
+        </button>
       </div>
     </div>
   {:else if key}
     <div class="row">
-      <button type="button" onclick={copyPublicKey}>Copy public key</button>
+      <button type="button" onclick={copyPublicKey}>
+        <Copy size={16} strokeWidth={1.8} aria-hidden="true" />Copy public key
+      </button>
       <span class="small">to paste in GitHub › Settings › SSH keys</span>
       {#if copied}
         <span class="small" role="status">Copied</span>
@@ -278,6 +298,7 @@
       <span class="grow"></span>
       <!-- aria-disabled et non disabled : le focus clavier reste sur le bouton pendant le test. -->
       <button type="button" onclick={testConnection} aria-disabled={testing}>
+        <PlugZap size={16} strokeWidth={1.8} aria-hidden="true" />
         {testResult && testResult.status !== "authenticated" ? "Test again" : "Test connection"}
       </button>
     </div>
@@ -301,6 +322,11 @@
 
   <div class="actions">
     <button type="submit" class="primary" disabled={!canSubmit}>
+      {#if mode === "create"}
+        <Plus size={16} strokeWidth={1.8} aria-hidden="true" />
+      {:else}
+        <Save size={16} strokeWidth={1.8} aria-hidden="true" />
+      {/if}
       {mode === "create" ? "Create profile" : "Save"}
     </button>
   </div>

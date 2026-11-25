@@ -452,7 +452,13 @@ export class Workspace {
   }
 
   /** Contenu décodé de `preferences.json` (vide tant que rien n'est écrit). */
-  storedPreferences(): { version?: number; sync_action?: string; theme?: string } {
+  storedPreferences(): {
+    version?: number;
+    sync_action?: string;
+    theme?: string;
+    palette?: string;
+    halo?: boolean;
+  } {
     try {
       return JSON.parse(readFileSync(join(this.dataDir, "preferences.json"), "utf8"));
     } catch {

@@ -123,6 +123,16 @@ struct ThemeArgs {
 }
 
 #[derive(Deserialize)]
+struct PaletteArgs {
+    palette: octogit_app::preferences::Palette,
+}
+
+#[derive(Deserialize)]
+struct HaloArgs {
+    halo: bool,
+}
+
+#[derive(Deserialize)]
 struct SyncActionArgs {
     action: octogit_app::preferences::SyncAction,
 }
@@ -1183,6 +1193,21 @@ fn main() {
         "set_theme" => {
             let args: ThemeArgs = serde_json::from_str(&input).expect("arguments { theme }");
             octogit_app::commands::set_theme(args.theme);
+            (serde_json::to_string(&()), 0)
+        }
+        "get_palette" => (
+            serde_json::to_string(&octogit_app::commands::get_palette()),
+            0,
+        ),
+        "set_palette" => {
+            let args: PaletteArgs = serde_json::from_str(&input).expect("arguments { palette }");
+            octogit_app::commands::set_palette(args.palette);
+            (serde_json::to_string(&()), 0)
+        }
+        "get_halo" => (serde_json::to_string(&octogit_app::commands::get_halo()), 0),
+        "set_halo" => {
+            let args: HaloArgs = serde_json::from_str(&input).expect("arguments { halo }");
+            octogit_app::commands::set_halo(args.halo);
             (serde_json::to_string(&()), 0)
         }
         "list_profiles" => (

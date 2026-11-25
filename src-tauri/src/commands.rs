@@ -14,7 +14,7 @@ use crate::detail::{self, CommitDetailView};
 use crate::fetch;
 use crate::launch::{self, LaunchState, RepositoryView};
 use crate::open::{self, OpenError, RecentView};
-use crate::preferences::{self, Column, SectionLayoutView, SyncAction, Theme};
+use crate::preferences::{self, Column, Palette, SectionLayoutView, SyncAction, Theme};
 use crate::profiles::{self, ProfileView};
 use crate::propagate::{self, SavedProfileView};
 use crate::rebase_plan::{self, RebasePlanView};
@@ -1254,6 +1254,34 @@ pub fn get_theme() -> Theme {
 #[specta::specta]
 pub fn set_theme(theme: Theme) {
     preferences::set_theme(&Store::new(data_dir()), theme);
+}
+
+/// Palette de l'interface, commune à tous les dépôts (Neon au premier lancement).
+#[tauri::command]
+#[specta::specta]
+pub fn get_palette() -> Palette {
+    preferences::palette(&Store::new(data_dir()))
+}
+
+/// Mémorise la palette de l'interface. Un échec d'écriture est ignoré.
+#[tauri::command]
+#[specta::specta]
+pub fn set_palette(palette: Palette) {
+    preferences::set_palette(&Store::new(data_dir()), palette);
+}
+
+/// Case Halo (lueur du thème sombre), commune à tous les dépôts (cochée au premier lancement).
+#[tauri::command]
+#[specta::specta]
+pub fn get_halo() -> bool {
+    preferences::halo(&Store::new(data_dir()))
+}
+
+/// Mémorise l'état de la case Halo. Un échec d'écriture est ignoré.
+#[tauri::command]
+#[specta::specta]
+pub fn set_halo(halo: bool) {
+    preferences::set_halo(&Store::new(data_dir()), halo);
 }
 
 /// Sélecteur de fichier natif ouvert dans le dossier SSH ; `None` si annulé. En mode test, le pont répond à sa place.

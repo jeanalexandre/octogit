@@ -776,6 +776,9 @@
     fill: none;
     stroke: var(--lane);
     stroke-width: 2;
+    /* Lueur du Halo : `currentColor` = la lane. */
+    color: var(--lane);
+    filter: var(--halo-lane);
   }
 
   .node-slot {

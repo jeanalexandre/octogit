@@ -94,9 +94,9 @@
     aria-label="Switch branch: {current ?? 'no branch'}"
     onclick={() => (open ? close(false) : show())}
   >
-    <GitBranch size={14} strokeWidth={1.8} />
+    <GitBranch size={16} strokeWidth={1.8} aria-hidden="true" />
     <span class="current">{current ?? "No branch"}</span>
-    <ChevronDown size={14} strokeWidth={1.8} />
+    <ChevronDown size={16} strokeWidth={1.8} aria-hidden="true" />
   </button>
   <button
     type="button"
@@ -108,7 +108,7 @@
       onbranch?.();
     }}
   >
-    <GitBranchPlus size={14} strokeWidth={1.8} />
+    <GitBranchPlus size={16} strokeWidth={1.8} aria-hidden="true" />
     <span>Branch</span>
   </button>
   {#if open}

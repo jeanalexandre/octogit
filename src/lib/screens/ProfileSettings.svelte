@@ -1,4 +1,9 @@
 <script lang="ts">
+  import ChevronLeft from "@lucide/svelte/icons/chevron-left";
+  import Plus from "@lucide/svelte/icons/plus";
+  import Save from "@lucide/svelte/icons/save";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
+  import X from "@lucide/svelte/icons/x";
   import { tick, untrack } from "svelte";
   import type { ProfileView } from "../bindings";
   import MatchingRuleList from "../components/MatchingRuleList.svelte";
@@ -253,7 +258,9 @@
 
 <main class="settings">
   <header class="titlebar">
-    <button type="button" class="back" onclick={leave}>‹ {origin} <kbd>Esc</kbd></button>
+    <button type="button" class="back" onclick={leave}>
+      <ChevronLeft size={16} strokeWidth={1.8} aria-hidden="true" />{origin} <kbd>Esc</kbd>
+    </button>
     <h1>Settings / Profiles</h1>
   </header>
 
@@ -279,7 +286,9 @@
             </li>
           {/each}
         </ul>
-        <button type="button" class="new" onclick={startNew}>New profile</button>
+        <button type="button" class="new" onclick={startNew}>
+          <Plus size={16} strokeWidth={1.8} aria-hidden="true" />New profile
+        </button>
       </nav>
     {/if}
 
@@ -308,7 +317,9 @@
               ></button>
             {/each}
           </div>
-          <button type="button" class="delete" onclick={askDelete}>Delete profile</button>
+          <button type="button" class="delete" onclick={askDelete}>
+            <Trash2 size={16} strokeWidth={1.8} aria-hidden="true" />Delete profile
+          </button>
         </div>
       {/if}
       {#if error}
@@ -365,9 +376,14 @@
     >
       <h2 id="discard-title">Discard changes to profile {discardName}?</h2>
       <div class="choices">
-        <button type="button" use:focusOnMount onclick={cancel}>Cancel</button>
-        <button type="button" onclick={discard}>Discard</button>
+        <button type="button" use:focusOnMount onclick={cancel}>
+          <X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel
+        </button>
+        <button type="button" onclick={discard}>
+          <Trash2 size={16} strokeWidth={1.8} aria-hidden="true" />Discard
+        </button>
         <button type="button" class="primary" disabled={!canSubmit} onclick={saveAndClose}>
+          <Save size={16} strokeWidth={1.8} aria-hidden="true" />
           Save
         </button>
       </div>
@@ -399,8 +415,12 @@
         <p class="hint">No known repository is attached to this profile.</p>
       {/if}
       <div class="choices">
-        <button type="button" use:focusOnMount onclick={() => (deleting = null)}>Cancel</button>
-        <button type="button" class="danger" onclick={confirmDelete}>Delete profile</button>
+        <button type="button" use:focusOnMount onclick={() => (deleting = null)}>
+          <X size={16} strokeWidth={1.8} aria-hidden="true" />Cancel
+        </button>
+        <button type="button" class="danger" onclick={confirmDelete}>
+          <Trash2 size={16} strokeWidth={1.8} aria-hidden="true" />Delete profile
+        </button>
       </div>
     </div>
   </div>

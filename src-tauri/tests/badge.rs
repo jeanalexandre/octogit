@@ -194,6 +194,52 @@ fn demarrer_un_depot_ca_2_recent_lists_three_repositories_newest_first_with_prof
 }
 
 #[test]
+fn demarrer_un_depot_ca_6_a_missing_recent_keeps_its_profile_without_the_mismatch_sign() {
+    let sb = Sandbox::new("missing");
+    let repo = sb.repo("Dev/work/app");
+    sb.store
+        .set_profiles(&[sb.profile("p1", "Work", false, "~/Dev/work/**")])
+        .unwrap();
+    open_repository_in(&sb.store, &repo, 10, &sb.home).unwrap();
+    fs::remove_dir_all(&repo).unwrap();
+
+    let recent = recent_repositories_in(&sb.store, &sb.home);
+
+    let badge = recent[0].profile.clone().expect("profile kept");
+    assert_eq!((badge.name.as_str(), badge.conform), ("Work", true));
+}
+
+#[test]
+fn demarrer_un_depot_ca_19_a_manual_attachment_follows_the_repository_through_locate() {
+    let sb = Sandbox::new("locate-manual");
+    let repo = sb.repo("Dev/pro/app");
+    // Les règles désignent Pro pour ces deux dossiers ; le rattachement manuel à Perso l'emporte.
+    sb.store
+        .set_profiles(&[
+            sb.profile("pro", "Pro", false, "~/Dev/pro/**"),
+            sb.profile("perso", "Perso", false, "~/Elsewhere/**"),
+        ])
+        .unwrap();
+    open_repository_in(&sb.store, &repo, 10, &sb.home).unwrap();
+    octogit_app::attach::attach_manually(&sb.store, &repo, "perso", &sb.home).unwrap();
+    let moved = sb.home.join("Dev/pro/moved");
+    fs::rename(&repo, &moved).unwrap();
+    // Le profil Perso est déjà conforme dans le .git/config : il ne doit pas être réécrit.
+    let before = fs::read(moved.join(".git/config")).unwrap();
+
+    let view =
+        octogit_app::open::locate_repository(&sb.store, &repo, &moved, 20, &sb.home).unwrap();
+
+    assert_eq!(view.profile.expect("attached").name, "Perso");
+    assert_eq!(sb.store.manual_profile(&moved).as_deref(), Some("perso"));
+    assert_eq!(sb.store.manual_profile(&repo), None);
+    assert_eq!(fs::read(moved.join(".git/config")).unwrap(), before);
+    let recent = recent_repositories_in(&Store::new(sb.root.join("data")), &sb.home);
+    assert_eq!(recent.len(), 1);
+    assert_eq!(recent[0].profile.as_ref().unwrap().name, "Perso");
+}
+
+#[test]
 fn configurer_les_profils_ca_4_a_manual_attachment_shows_that_profile_in_recent() {
     let sb = Sandbox::new("manual");
     let repo = sb.repo("Elsewhere/app");

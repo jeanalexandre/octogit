@@ -14,6 +14,7 @@
     type ForcePushView,
     type LaunchState,
     type MismatchView,
+    type OpenError,
     type ProfileView,
     type PushCheckView,
     type PushedRangeView,
@@ -1994,13 +1995,48 @@
     recent = await commands.listRecentRepositories();
   }
 
+  /** Refus d'ouvrir : « introuvable » mène à son état (Locate…, Remove from recent), un dossier non Git garde son message. */
+  function refuse(failure: OpenError) {
+    if (failure.kind === "repositoryNotFound") {
+      error = null;
+      settingsOpen = false;
+      screen = { screen: "repositoryNotFound", path: failure.path };
+    } else {
+      error = `${failure.name} is not a Git repository.`;
+    }
+  }
+
   async function open(path: string) {
     const result = await commands.openRepository(path);
     if (result.status === "ok") {
       await show(result.data);
     } else {
-      error = `${result.error.name} is not a Git repository.`;
+      refuse(result.error);
     }
+  }
+
+  /** Locate… : le dossier où le dépôt a été déplacé ; le rattachement manuel et les états suivent le dépôt. */
+  async function locate(old: string) {
+    const picked = await commands.chooseFolder();
+    if (picked === null) return;
+    const result = await commands.locateRepository(old, picked);
+    if (result.status === "ok") {
+      await show(result.data);
+    } else if (result.error.kind === "notARepository") {
+      // L'état « introuvable » est gardé, rien n'est écrit.
+      error = `${result.error.name} is not a Git repository.`;
+    } else {
+      refuse(result.error);
+    }
+  }
+
+  /** Remove from recent : l'entrée disparaît de Recent, aucun fichier n'est supprimé ; `Welcome` revient à son état normal. */
+  async function removeRecent(path: string) {
+    const result = await commands.removeRecentRepository(path);
+    if (result.status !== "ok") return;
+    error = null;
+    recent = await commands.listRecentRepositories();
+    screen = { screen: "welcome" };
   }
 
   /** `CloneDialog` ouvert (par Clone… de `Welcome` ou de `RepoPicker`, ou ⌘⇧C), avec son état de clone. */
@@ -2008,6 +2044,8 @@
     lastParent: string | null;
     busy: boolean;
     error: string | null;
+    /** Destination non vide : message d'une ligne (pas de « Clone failed: »). */
+    refusal: string | null;
     /** Objets reçus et total du clone en cours. */
     progress: CloneProgress | null;
     /** URL, dossier (et profil) à rendre au dialogue qui revient de `ProfileSettings` (« Create profile… »). */
@@ -2021,6 +2059,7 @@
       lastParent: await commands.getLastCloneParent(),
       busy: false,
       error: null,
+      refusal: null,
       progress: null,
       draft: null,
     };
@@ -2039,6 +2078,8 @@
         return failure.output.trim();
       case "httpsNotSupported":
         return "Only github.com URLs can be cloned over HTTPS (converted to SSH).";
+      case "destinationNotEmpty":
+        return `${failure.path} already exists and is not empty.`;
       case "unknownProfile":
         return "This profile no longer exists.";
       case "cancelled":
@@ -2050,7 +2091,7 @@
 
   async function cloneRepository(url: string, folder: string, profileId: string) {
     if (cloneDialog === null) return;
-    cloneDialog = { ...cloneDialog, busy: true, error: null, progress: null };
+    cloneDialog = { ...cloneDialog, busy: true, error: null, refusal: null, progress: null };
     const result = await commands.cloneRepository(url, folder, profileId);
     if (result.status === "ok") {
       cloneDialog = null;
@@ -2061,7 +2102,12 @@
         ...cloneDialog,
         busy: false,
         progress: null,
-        error: result.error.kind === "cancelled" ? null : cloneErrorText(result.error),
+        // Refusé avant `git` : message d'une ligne sans « Clone failed: » ; annulé : aucun message.
+        refusal: result.error.kind === "destinationNotEmpty" ? cloneErrorText(result.error) : null,
+        error:
+          result.error.kind === "cancelled" || result.error.kind === "destinationNotEmpty"
+            ? null
+            : cloneErrorText(result.error),
       };
     }
   }
@@ -2346,10 +2392,13 @@
     oninstall={installCommandLineTools}
     oncheck={recheckGit}
   />
-{:else if screen?.screen === "welcome"}
+{:else if screen?.screen === "welcome" || screen?.screen === "repositoryNotFound"}
   <Welcome
     {recent}
     {error}
+    notFound={screen.screen === "repositoryNotFound" ? screen.path : null}
+    onlocate={() => screen?.screen === "repositoryNotFound" && void locate(screen.path)}
+    onremove={removeRecent}
     onopen={open}
     onchoose={chooseFolder}
     onclone={openClone}
@@ -2374,6 +2423,8 @@
     lastParent={cloneDialog.lastParent}
     busy={cloneDialog.busy}
     error={cloneDialog.error}
+    refusal={cloneDialog.refusal}
+    oncopykey={(sshKeyPath) => void sshApi.copyPublicKey(sshKeyPath).catch(() => undefined)}
     progress={cloneDialog.progress}
     initial={cloneDialog.draft ?? undefined}
     onclone={cloneRepository}

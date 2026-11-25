@@ -113,6 +113,10 @@ pub enum LaunchState {
         repository: Box<RepositoryView>,
     },
     Welcome,
+    /// Le dernier dépôt ouvert a disparu du disque (ou n'est plus un dépôt Git) : « Repository not found: <chemin> ».
+    RepositoryNotFound {
+        path: String,
+    },
     /// Git n'est pas installé : `Welcome` propose l'installation des Command Line Tools.
     GitMissing,
 }
@@ -187,7 +191,8 @@ pub fn folder_name(path: &Path) -> String {
 }
 
 /// Git absent (`git --version` échoue) : `GitMissing`, sans lire aucun dépôt. Sinon dernier dépôt mémorisé et
-/// lisible : `History`, rattaché à son profil ; sinon (aucun, dossier absent, pas un dépôt) : `Welcome`.
+/// lisible : `History`, rattaché à son profil ; dossier absent ou plus un dépôt : `RepositoryNotFound` ; aucun
+/// dépôt mémorisé : `Welcome`.
 pub fn launch_state(store: &Store) -> LaunchState {
     launch_state_with_git(store, &crate::home_dir(), octogit_platform::git_available())
 }
@@ -203,16 +208,20 @@ pub fn launch_state_with_git(store: &Store, home: &Path, git_available: bool) ->
 
 /// Comme `launch_state`, avec `home` pour `~` et pour le `HOME` de `git`.
 pub fn launch_state_in(store: &Store, home: &Path) -> LaunchState {
-    store
-        .last_repository()
-        .and_then(|path| {
-            let mut view = repository_view(&path)?;
+    let Some(path) = store.last_repository() else {
+        return LaunchState::Welcome;
+    };
+    match repository_view(&path) {
+        Some(mut view) => {
             view.attach(store, &path, home);
-            Some(view)
-        })
-        .map_or(LaunchState::Welcome, |repository| LaunchState::History {
-            repository: Box::new(repository),
-        })
+            LaunchState::History {
+                repository: Box::new(view),
+            }
+        }
+        None => LaunchState::RepositoryNotFound {
+            path: path.to_string_lossy().into_owned(),
+        },
+    }
 }
 
 #[cfg(test)]
@@ -354,25 +363,37 @@ mod tests {
     }
 
     #[test]
-    fn remembered_repository_missing_opens_welcome() {
+    fn demarrer_un_depot_ca_6_remembered_repository_missing_gives_the_not_found_state_with_its_path(
+    ) {
         let ws = Workspace::new();
         let repo = ws.repo("simple.sh");
         let store = ws.store();
         store.record_opened(&repo, 1).unwrap();
         assert!(matches!(launch_state(&store), LaunchState::History { .. }));
         std::fs::remove_dir_all(&repo).unwrap();
-        assert_eq!(launch_state(&store), LaunchState::Welcome);
+        assert_eq!(
+            launch_state(&store),
+            LaunchState::RepositoryNotFound {
+                path: repo.to_string_lossy().into_owned()
+            }
+        );
     }
 
     #[test]
-    fn remembered_folder_that_is_not_a_repository_opens_welcome() {
+    fn demarrer_un_depot_ca_6_remembered_folder_that_is_not_a_repository_gives_the_not_found_state()
+    {
         let ws = Workspace::new();
         let repo = ws.repo("simple.sh");
         let store = ws.store();
         store.record_opened(&repo, 1).unwrap();
         assert!(matches!(launch_state(&store), LaunchState::History { .. }));
         std::fs::remove_dir_all(repo.join(".git")).unwrap();
-        assert_eq!(launch_state(&store), LaunchState::Welcome);
+        assert_eq!(
+            launch_state(&store),
+            LaunchState::RepositoryNotFound {
+                path: repo.to_string_lossy().into_owned()
+            }
+        );
     }
 
     #[test]
@@ -414,7 +435,9 @@ mod tests {
         std::fs::remove_dir_all(&repo).unwrap();
         assert_eq!(
             launch_state_with_git(&store, &home, true),
-            LaunchState::Welcome
+            LaunchState::RepositoryNotFound {
+                path: repo.to_string_lossy().into_owned()
+            }
         );
     }
 

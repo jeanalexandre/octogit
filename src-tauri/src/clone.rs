@@ -28,6 +28,8 @@ pub enum CloneError {
     UnknownProfile,
     /// `git clone` a échoué ; `output` est sa sortie brute.
     Failed { output: String },
+    /// La destination existe et n'est pas vide : `git` n'est pas lancé, rien n'est écrit.
+    DestinationNotEmpty { path: String },
     /// Le clone a été annulé (Cancel) : la destination est revenue à son état d'avant, rien n'est écrit.
     Cancelled,
     /// Le clone a réussi mais ne peut pas être ouvert ou mémorisé.
@@ -110,15 +112,15 @@ pub fn clone_repository_with(
         },
         octogit_git::CloneError::Cancelled => CloneError::Cancelled,
         octogit_git::CloneError::Spawn(message) => CloneError::Other { message },
+        octogit_git::CloneError::DestinationNotEmpty { path } => CloneError::DestinationNotEmpty {
+            path: path.to_string_lossy().into_owned(),
+        },
     })?;
-    let other = |e: std::io::Error| CloneError::Other {
-        message: e.to_string(),
-    };
-    store
-        .set_manual_profile(folder, Some(profile_id))
-        .map_err(other)?;
+    // Le clone a réussi : une mémorisation échouée (rattachement, dernier dossier parent) n'empêche pas
+    // d'ouvrir le dépôt cloné, qui est gardé.
+    let _ = store.set_manual_profile(folder, Some(profile_id));
     if let Some(parent) = folder.parent() {
-        store.set_last_clone_parent(parent).map_err(other)?;
+        let _ = store.set_last_clone_parent(parent);
     }
     open_repository_in(store, folder, now, home).map_err(|_| CloneError::Other {
         message: "The cloned folder is not a readable repository.".to_string(),

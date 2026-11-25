@@ -71,11 +71,16 @@ pub enum CloneError {
     TimedOut { output: String },
     /// Le clone a été annulé : le processus est tué, la destination est revenue à son état d'avant.
     Cancelled,
+    /// La destination existe et n'est pas vide : `git` n'est pas lancé, rien n'est touché.
+    DestinationNotEmpty { path: PathBuf },
 }
 
 impl fmt::Display for CloneError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            CloneError::DestinationNotEmpty { path } => {
+                write!(f, "{} already exists and is not empty.", path.display())
+            }
             CloneError::Spawn(message) => write!(f, "cannot run git: {message}"),
             CloneError::Failed { output } => write!(f, "{}", output.trim()),
             CloneError::TimedOut { .. } => write!(f, "git clone timed out"),
@@ -110,11 +115,16 @@ pub fn clone_with(
     on_progress: &mut dyn FnMut(CloneProgress),
     cancelled: &dyn Fn() -> bool,
 ) -> Result<String, CloneError> {
+    let state = Destination::before(destination);
+    if state.non_empty {
+        return Err(CloneError::DestinationNotEmpty {
+            path: destination.to_path_buf(),
+        });
+    }
     let (file, log) = capture_file().map_err(|e| CloneError::Spawn(e.to_string()))?;
     let stderr = file
         .try_clone()
         .map_err(|e| CloneError::Spawn(e.to_string()))?;
-    let state = Destination::before(destination);
     let result = run(
         url,
         destination,
@@ -272,6 +282,8 @@ fn run(
                 return if status.success() {
                     Ok(output)
                 } else {
+                    // `git` laisse les dossiers parents qu'il a créés : retour à l'état d'avant.
+                    state.restore(destination);
                     Err(CloneError::Failed { output })
                 };
             }
@@ -505,7 +517,8 @@ mod tests {
     }
 
     #[test]
-    fn demarrer_un_depot_ca_12_cancel_never_deletes_the_content_of_a_non_empty_destination() {
+    fn demarrer_un_depot_ca_14_a_non_empty_destination_is_refused_even_when_cancelled_and_never_loses_content(
+    ) {
         let dir = workspace("cancel-non-empty");
         let ssh = slow_ssh(&dir);
         let dest = dir.join("app");
@@ -521,7 +534,7 @@ mod tests {
             &|| true,
         )
         .unwrap_err();
-        assert_eq!(error, CloneError::Cancelled);
+        assert!(matches!(error, CloneError::DestinationNotEmpty { .. }));
         assert_eq!(
             std::fs::read_to_string(dest.join("mine.txt")).unwrap(),
             "keep"
@@ -549,6 +562,109 @@ mod tests {
         };
         assert!(output.contains("fatal"), "{output}");
         assert!(!dest.exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_13_a_failed_clone_removes_the_parent_folders_it_created() {
+        let dir = workspace("fail-parents");
+        let dest = dir.join("Dev/Pro/app");
+        // Faux `ssh` qui refuse : `git` a déjà créé `Dev/Pro` quand le clone échoue (il les laisse).
+        let refuse = dir.join("refuse.sh");
+        std::fs::write(
+            &refuse,
+            format!(
+                "test -d '{}' && echo parents-exist > '{}'\nexit 1\n",
+                dir.join("Dev/Pro").display(),
+                dir.join("parents-seen").display()
+            ),
+        )
+        .unwrap();
+        let ssh = format!("sh {}", refuse.display());
+        let error = clone(
+            "git@example.invalid:org/app.git",
+            &dest,
+            Some(&ssh),
+            Duration::from_secs(30),
+        )
+        .unwrap_err();
+        assert!(matches!(error, CloneError::Failed { .. }));
+        assert!(
+            dir.join("parents-seen").exists(),
+            "git did not create the parents before failing: the test proves nothing"
+        );
+        assert!(!dest.exists());
+        assert!(!dir.join("Dev").exists(), "parents git created");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_13_a_failed_clone_keeps_an_existing_empty_destination_empty() {
+        let dir = workspace("fail-empty");
+        let dest = dir.join("app");
+        std::fs::create_dir_all(&dest).unwrap();
+        // Ce test passerait aussi sans `restore` : `git` nettoie déjà une destination vide préexistante
+        // quand le clone échoue. Il garde ce comportement (dossier conservé, vide) contre une régression.
+        // Faux `ssh` qui écrit dans la destination puis refuse : un échec qui a pu y laisser des fichiers.
+        let refuse = dir.join("refuse.sh");
+        std::fs::write(
+            &refuse,
+            format!(
+                "echo junk > '{}'\nmkdir '{}'\nexit 1\n",
+                dest.join("junk.txt").display(),
+                dest.join("junk-dir").display()
+            ),
+        )
+        .unwrap();
+        let ssh = format!("sh {}", refuse.display());
+        let error = clone(
+            "git@example.invalid:org/app.git",
+            &dest,
+            Some(&ssh),
+            Duration::from_secs(30),
+        )
+        .unwrap_err();
+        assert!(matches!(error, CloneError::Failed { .. }));
+        assert!(dest.is_dir());
+        assert_eq!(std::fs::read_dir(&dest).unwrap().count(), 0);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_14_a_non_empty_destination_is_refused_before_git_runs() {
+        let dir = workspace("non-empty");
+        let ssh_record = dir.join("ssh-ran");
+        let recorder = dir.join("record.sh");
+        std::fs::write(
+            &recorder,
+            format!("echo ran > '{}'\nexit 1\n", ssh_record.display()),
+        )
+        .unwrap();
+        let ssh = format!("sh {}", recorder.display());
+        let dest = dir.join("app");
+        std::fs::create_dir_all(dest.join("sub")).unwrap();
+        std::fs::write(dest.join("mine.txt"), "keep").unwrap();
+        std::fs::write(dest.join("sub/deep.txt"), "keep too").unwrap();
+        let error = clone(
+            "git@example.invalid:org/app.git",
+            &dest,
+            Some(&ssh),
+            Duration::from_secs(30),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error,
+            CloneError::DestinationNotEmpty { path: dest.clone() }
+        );
+        assert!(!ssh_record.exists(), "git was started");
+        assert_eq!(
+            std::fs::read_to_string(dest.join("mine.txt")).unwrap(),
+            "keep"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dest.join("sub/deep.txt")).unwrap(),
+            "keep too"
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 }

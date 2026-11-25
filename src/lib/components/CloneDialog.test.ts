@@ -292,4 +292,48 @@ describe("CloneDialog", () => {
     expect(url()).toHaveValue("git@x:o/a.git");
     expect(folder()).toHaveValue("/w/a");
   });
+
+  it("demarrer-un-depot CA-13 : a refused clone offers Copy public key, with the chosen profile's key", async () => {
+    const oncopykey = vi.fn();
+    render(
+      CloneDialog,
+      props({
+        error: "git@github.com: Permission denied (publickey).",
+        oncopykey,
+        initial: { profileId: "p1", url: "git@x:o/a.git", folder: "/w/a" },
+      }),
+    );
+    await fireEvent.click(screen.getByRole("button", { name: /Copy public key/ }));
+    expect(oncopykey).toHaveBeenCalledWith("~/.ssh/id");
+  });
+
+  it("demarrer-un-depot CA-13 : Try again clones again with the same profile, URL and folder", async () => {
+    const p = props({
+      error: "fatal: could not read from remote repository",
+      initial: { profileId: "p1", url: "git@x:o/a.git", folder: "/w/a" },
+    });
+    render(CloneDialog, p);
+    await fireEvent.click(screen.getByRole("button", { name: /Try again/ }));
+    expect(p.onclone).toHaveBeenCalledOnce();
+    expect(p.onclone).toHaveBeenCalledWith("git@x:o/a.git", "/w/a", "p1");
+  });
+
+  it("demarrer-un-depot CA-13 : without a failure there is no Copy public key nor Try again", () => {
+    render(CloneDialog, props());
+    expect(screen.queryByRole("button", { name: /Copy public key/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Try again/ })).toBeNull();
+  });
+
+  it("demarrer-un-depot CA-14 : a non-empty destination shows the message naming the folder, not « Clone failed: »", () => {
+    render(
+      CloneDialog,
+      props({
+        refusal: "/w/a already exists and is not empty.",
+        initial: { profileId: "p1", url: "git@x:o/a.git", folder: "/w/a" },
+      }),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("/w/a already exists and is not empty.");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("Clone failed:");
+    expect(screen.queryByRole("button", { name: /Try again/ })).toBeNull();
+  });
 });

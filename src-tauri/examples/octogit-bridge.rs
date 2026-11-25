@@ -21,6 +21,13 @@ struct OpenArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct LocateArgs {
+    old_path: String,
+    new_path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CloneArgs {
     url: String,
     folder: String,
@@ -425,6 +432,21 @@ fn main() {
             let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
             match octogit_app::commands::open_repository(args.path) {
                 Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "locate_repository" => {
+            let args: LocateArgs =
+                serde_json::from_str(&input).expect("arguments { oldPath, newPath }");
+            match octogit_app::commands::locate_repository(args.old_path, args.new_path) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "remove_recent_repository" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            match octogit_app::commands::remove_recent_repository(args.path) {
+                Ok(()) => (serde_json::to_string(&()), 0),
                 Err(error) => (serde_json::to_string(&error), 3),
             }
         }

@@ -26,6 +26,10 @@ Un dépôt mémorisé qui a disparu du disque s'affiche en état « Repository n
 2. Clone réussi mais mémorisation (rattachement, dernier dossier parent) échouée : a) le dossier cloné est gardé et `History` s'ouvre, sans message (recommandation retenue par l'humain, 25/11/2026)
 3. `LC_ALL=C` forcé sur `git clone` (sortie en anglais, nécessaire à la lecture de la progression) : a) le garder, pour le clone seulement (recommandation retenue par l'humain, 25/11/2026)
 
+### Après la revue 2
+1. Mineur 1 (test « vide préexistante » : `git` nettoie déjà ce cas) : traiter (d'office), commentaire dans le test
+2. Mineur 2 (test `src-tauri/tests/clone.rs` dépend du vrai `ssh`, ne prouve pas que `git` a créé les parents) : traiter (d'office), rendre le test indépendant du `ssh` de la machine ou lui faire prouver la création des parents
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` (le crate `app` s'appelle `octogit-app`, ses tests sont dans `src-tauri/`) ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test, données dans un dossier temporaire) ; `pnpm tauri dev` seulement pour un essai manuel (port 1420, non isolé)
@@ -79,8 +83,15 @@ Un dépôt mémorisé qui a disparu du disque s'affiche en état « Repository n
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `b21c1d0`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; tests, lint, build, e2e liés (49) verts ; rouge non constaté sur 3 tests git/clone, badge, e2e | — |
+| 1 | reviewer | 1 bloquant : tests CA-13 Rust (retour destination) non probants, source absente ne crée pas de parents | à corriger |
+| 2 | dev | terminé ; 3 tests CA-13 réécrits (échec après création des parents), rouge constaté sur 2 ; tests, lint, build, e2e liés verts | — |
+| 2 | reviewer | 2 mineurs (test vide préexistante sans rouge, test src-tauri dépend du vrai ssh) | validé |
+| 3 | dev | terminé ; commentaire ajouté, test src-tauri passé à un faux ssh avec témoin ; tests, lint, build, e2e liés verts | — |
+| 3 | reviewer | aucun problème, les 2 mineurs levés | validé |
+| fin | run de fin | `pnpm e2e` complet vert (518 tests, exit 0) ; `pnpm audit:deps` non lancé (verrous inchangés) | — |

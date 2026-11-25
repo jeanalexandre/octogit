@@ -210,6 +210,33 @@ describe("Welcome", () => {
     expect(screen.getByRole("heading", { name: "Welcome to Octogit" })).toBeInTheDocument();
   });
 
+  it("demarrer-un-depot CA-6 : a missing repository shows « Repository not found: » with its path, Locate… and Remove from recent", async () => {
+    const onlocate = vi.fn();
+    const onremove = vi.fn();
+    render(Welcome, props({ notFound: "/work/old-client", onlocate, onremove }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Repository not found: /work/old-client");
+    await fireEvent.click(screen.getByRole("button", { name: /Locate…/ }));
+    expect(onlocate).toHaveBeenCalledOnce();
+    await fireEvent.click(screen.getByRole("button", { name: /Remove from recent/ }));
+    expect(onremove).toHaveBeenCalledWith("/work/old-client");
+  });
+
+  it("demarrer-un-depot CA-6 : without a missing repository, no Locate… nor Remove from recent", () => {
+    render(Welcome, props());
+    expect(screen.queryByRole("button", { name: /Locate…/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Remove from recent/ })).toBeNull();
+  });
+
+  it("demarrer-un-depot CA-7 : the error of a located non-Git folder shows next to the not-found state", () => {
+    render(
+      Welcome,
+      props({ notFound: "/work/old", error: "notes is not a Git repository.", recent: [] }),
+    );
+    expect(screen.getByText("Repository not found: /work/old")).toBeInTheDocument();
+    expect(screen.getByText("notes is not a Git repository.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Locate…/ })).toBeInTheDocument();
+  });
+
   it("shows no recent list and no alert when there is nothing to show", () => {
     render(Welcome, props({ recent: [] }));
     expect(screen.queryAllByRole("listitem")).toHaveLength(0);

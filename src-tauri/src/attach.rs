@@ -379,9 +379,16 @@ pub fn attach_profile(store: &Store, repo: &Path, home: &Path) -> Option<Attachm
 pub fn badge_of(store: &Store, repo: &Path, home: &Path) -> Option<ProfileBadgeView> {
     let profiles = store.profiles();
     let (profile, _) = resolve(store, &profiles, repo, home)?;
-    let conform = match (expected_values(&profile, home), read_local(repo, home)) {
-        (Ok(expected), Ok(local)) => compare_for_attach(&expected, &local) != ApplyOutcome::Differs,
-        _ => false,
+    // Dépôt introuvable (dossier absent ou plus un dépôt) : rien à comparer, ce n'est pas un écart d'identité.
+    let conform = if octogit_git::is_repository(repo) {
+        match (expected_values(&profile, home), read_local(repo, home)) {
+            (Ok(expected), Ok(local)) => {
+                compare_for_attach(&expected, &local) != ApplyOutcome::Differs
+            }
+            _ => false,
+        }
+    } else {
+        true
     };
     Some(badge(&profile, conform))
 }

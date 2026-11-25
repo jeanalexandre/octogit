@@ -3,6 +3,7 @@
   import Download from "@lucide/svelte/icons/download";
   import Folder from "@lucide/svelte/icons/folder";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import Trash2 from "@lucide/svelte/icons/trash-2";
   import User from "@lucide/svelte/icons/user";
   import type { RecentView } from "../bindings";
   import ProfileBadge from "../components/ProfileBadge.svelte";
@@ -19,7 +20,16 @@
     gitState = null,
     oninstall,
     oncheck,
+    notFound = null,
+    onlocate,
+    onremove,
   }: {
+    /** Chemin du dépôt introuvable (dernier dépôt ou récent cliqué) : « Repository not found: <chemin> ». */
+    notFound?: string | null;
+    /** « Locate… » : choisir le dossier où le dépôt a été déplacé. */
+    onlocate?: () => void;
+    /** « Remove from recent » : retire l'entrée de Recent (aucun fichier n'est supprimé). */
+    onremove?: (path: string) => void;
     /** Git absent : « Git not found » (`missing`) ou, après « Install Command Line Tools », l'attente (`waiting`). */
     gitState?: "missing" | "waiting" | null;
     /** « Install Command Line Tools » : ouvre l'installation d'Apple (rappelable). */
@@ -64,6 +74,18 @@
     </button>
   {:else}
     <h1>Welcome to Octogit</h1>
+
+    {#if notFound}
+      <p class="error" role="alert">Repository not found: {notFound}</p>
+      <div class="actions">
+        <button type="button" class="open-folder" onclick={() => onlocate?.()}>
+          <Folder size={16} strokeWidth={1.8} aria-hidden="true" /> Locate…
+        </button>
+        <button type="button" class="open-folder" onclick={() => onremove?.(notFound)}>
+          <Trash2 size={16} strokeWidth={1.8} aria-hidden="true" /> Remove from recent
+        </button>
+      </div>
+    {/if}
 
     {#if error}
       <p class="error" role="alert">{error}</p>
@@ -154,6 +176,11 @@
     border: 1px solid var(--danger);
     border-radius: 6px;
     color: var(--danger);
+  }
+
+  .actions {
+    display: flex;
+    gap: 8px;
   }
 
   .recent {

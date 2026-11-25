@@ -18,6 +18,13 @@ export const commands = {
 	recheckGit: () => __TAURI_INVOKE<LaunchState_Serialize>("recheck_git"),
 	listRecentRepositories: () => __TAURI_INVOKE<RecentView_Serialize[]>("list_recent_repositories"),
 	openRepository: (path: string) => typedError<RepositoryView_Serialize, OpenError>(__TAURI_INVOKE("open_repository", { path })),
+	/**
+	 *  Locate… : le dépôt mémorisé à `old_path` se trouve à `new_path` ; l'entrée de Recent, le rattachement
+	 *  manuel et les états par dépôt suivent, puis le dépôt s'ouvre.
+	 */
+	locateRepository: (oldPath: string, newPath: string) => typedError<RepositoryView_Serialize, OpenError>(__TAURI_INVOKE("locate_repository", { oldPath, newPath })),
+	/**  Remove from recent : retire l'entrée de Recent, aucun fichier du disque n'est supprimé. */
+	removeRecentRepository: (path: string) => typedError<null, string>(__TAURI_INVOKE("remove_recent_repository", { path })),
 	/**  `IdentityMismatch`, « Overwrite with profile X » : écrit les valeurs du profil rattaché à `path`. */
 	overwriteIdentity: (path: string) => typedError<null, string>(__TAURI_INVOKE("overwrite_identity", { path })),
 	/**
@@ -450,6 +457,8 @@ export type CloneError =
 { kind: "unknownProfile" } | 
 /**  `git clone` a échoué ; `output` est sa sortie brute. */
 { kind: "failed"; output: string } | 
+/**  La destination existe et n'est pas vide : `git` n'est pas lancé, rien n'est écrit. */
+{ kind: "destinationNotEmpty"; path: string } | 
 /**  Le clone a été annulé (Cancel) : la destination est revenue à son état d'avant, rien n'est écrit. */
 { kind: "cancelled" } | 
 /**  Le clone a réussi mais ne peut pas être ouvert ou mémorisé. */
@@ -746,10 +755,14 @@ export type KeepView = "ours" | "theirs" | "delete";
 export type LaunchState = LaunchState_Serialize | LaunchState_Deserialize;
 
 export type LaunchState_Deserialize = { screen: "history"; repository: RepositoryView_Deserialize } | { screen: "welcome" } | 
+/**  Le dernier dépôt ouvert a disparu du disque (ou n'est plus un dépôt Git) : « Repository not found: <chemin> ». */
+{ screen: "repositoryNotFound"; path: string } | 
 /**  Git n'est pas installé : `Welcome` propose l'installation des Command Line Tools. */
 { screen: "gitMissing" };
 
 export type LaunchState_Serialize = { screen: "history"; repository: RepositoryView_Serialize } | { screen: "welcome" } | 
+/**  Le dernier dépôt ouvert a disparu du disque (ou n'est plus un dépôt Git) : « Repository not found: <chemin> ». */
+{ screen: "repositoryNotFound"; path: string } | 
 /**  Git n'est pas installé : `Welcome` propose l'installation des Command Line Tools. */
 { screen: "gitMissing" };
 
@@ -790,7 +803,12 @@ export type NonMergeableView = "binary" | "deletedOnOneSide" | "renamed";
 
 export type OpenError = 
 /**  Le dossier n'est pas un dépôt Git lisible ; `name` est le nom du dossier. */
-{ kind: "notARepository"; name: string };
+{ kind: "notARepository"; name: string } | 
+/**
+ *  Le dépôt n'est plus là (dossier déplacé, supprimé, ou plus un dépôt Git) : « Repository not found: <chemin> »
+ *  avec Locate… et Remove from recent.
+ */
+{ kind: "repositoryNotFound"; path: string };
 
 export type OperationKindView = "merge" | "rebase" | "cherryPick" | "revert";
 

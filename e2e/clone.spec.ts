@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { Workspace } from "./helpers";
@@ -282,6 +282,65 @@ test("demarrer-un-depot CA-11 : un dépôt privé que la clé du profil ne peut 
   await expect(dialog(page).getByRole("alert")).toContainText("Permission denied");
   expect(existsSync(dest)).toBe(false);
   expect(ws.fakeSshLog()[0]).toContain(`-i ${key} -o IdentitiesOnly=yes -o IdentityAgent=none`);
+});
+
+test("demarrer-un-depot CA-13 : un clone refusé affiche « Clone failed: », Copy public key place la clé du profil, Try again relance avec les mêmes valeurs et réussit une fois la clé acceptée", async ({
+  page,
+}) => {
+  // GitHub ne connaît que la clé de Perso : le profil Pro est refusé.
+  const { key, url, dest } = githubClone("Perso");
+  const perso = join(ws.sshDir, "id_perso");
+  await page.goto(url);
+  await fillGithubClone(page, dest);
+  await cloneButton(page).click();
+
+  await expect(dialog(page).getByRole("alert")).toContainText("Clone failed:");
+  await expect(dialog(page).getByRole("alert")).toContainText("Permission denied");
+  await expect(dialog(page).getByLabel("URL")).toHaveValue("https://github.com/org/app.git");
+  await expect(dialog(page).getByLabel("Folder")).toHaveValue(dest);
+  // Le dossier de destination est revenu à son état d'avant : absent, et ses parents aussi.
+  expect(existsSync(dest)).toBe(false);
+  expect(existsSync(join(ws.root, "Dev"))).toBe(false);
+
+  await dialog(page)
+    .getByRole("button", { name: /Copy public key/ })
+    .click();
+  await expect
+    .poll(() => page.evaluate(() => window.__octogitClipboard ?? null))
+    .toBe(readFileSync(`${key}.pub`, "utf8").trim());
+
+  // La clé du profil est maintenant celle que GitHub accepte : Try again relance sans ressaisie.
+  ws.useSshKey("Pro", perso);
+  await dialog(page)
+    .getByRole("button", { name: /Try again/ })
+    .click();
+
+  await expect(page.getByRole("heading", { name: "app", exact: true })).toBeVisible();
+  await expect(dialog(page)).toHaveCount(0);
+  expect(existsSync(join(dest, ".git"))).toBe(true);
+});
+
+test("demarrer-un-depot CA-14 : un dossier de destination non vide est refusé avec un message qui le nomme, son contenu est intact et rien n'est écrit", async ({
+  page,
+}) => {
+  ws.rememberProfiles(["Pro"]);
+  const origin = ws.bareOrigin();
+  const dest = ws.plainFolder("existing");
+  const before = ws.snapshot(dest);
+  await welcome(page);
+  await page.getByRole("button", { name: /Clone…/ }).click();
+  await dialog(page).getByRole("radio", { name: "Pro" }).check();
+  await dialog(page).getByLabel("URL").fill(origin);
+  await dialog(page).getByLabel("Folder").fill(dest);
+  await cloneButton(page).click();
+
+  await expect(dialog(page).getByRole("alert")).toHaveText(
+    `${dest} already exists and is not empty.`,
+  );
+  await expect(dialog(page).getByRole("alert")).not.toContainText("Clone failed:");
+  expect(ws.snapshot(dest)).toEqual(before);
+  expect(existsSync(join(dest, ".git"))).toBe(false);
+  expect(existsSync(join(ws.dataDir, "repositories.json"))).toBe(false);
 });
 
 test("demarrer-un-depot CA-12 : pendant le clone, la progression et Cancel s'affichent ; Cancel arrête le clone, le dossier est absent et rien n'est écrit", async ({

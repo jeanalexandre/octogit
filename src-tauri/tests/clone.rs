@@ -208,6 +208,81 @@ fn proteger_l_identite_ca_12_when_the_profile_cannot_be_written_the_clone_is_kep
 }
 
 #[test]
+fn demarrer_un_depot_ca_14_a_non_empty_destination_is_refused_naming_it_and_nothing_is_written() {
+    let sb = Sandbox::new("non-empty");
+    let origin = sb.origin();
+    sb.store
+        .set_profiles(&[sb.profile("p1", "Work", false, Vec::new())])
+        .unwrap();
+    let dest = sb.dest("Dev/Pro/app");
+    fs::create_dir_all(dest.join("sub")).unwrap();
+    fs::write(dest.join("mine.txt"), "keep").unwrap();
+    fs::write(dest.join("sub/deep.txt"), "keep too").unwrap();
+
+    let error = clone_repository_in(&sb.store, &origin, &dest, "p1", 10, &sb.home).unwrap_err();
+
+    assert_eq!(
+        error,
+        CloneError::DestinationNotEmpty {
+            path: dest.to_string_lossy().into_owned()
+        }
+    );
+    assert_eq!(fs::read_to_string(dest.join("mine.txt")).unwrap(), "keep");
+    assert_eq!(
+        fs::read_to_string(dest.join("sub/deep.txt")).unwrap(),
+        "keep too"
+    );
+    assert!(!dest.join(".git").exists());
+    assert!(!sb.root.join("data/repositories.json").exists());
+}
+
+#[test]
+fn demarrer_un_depot_ca_13_a_failed_clone_removes_the_parent_folders_it_created() {
+    let sb = Sandbox::new("failed-parents");
+    sb.store
+        .set_profiles(&[sb.profile("p1", "Work", false, Vec::new())])
+        .unwrap();
+    let dest = sb.dest("Dev/Pro/app");
+    // Faux `ssh` en tête du `PATH` (indépendant du `ssh` de la machine) : il refuse, et note si `Dev/Pro`
+    // existe déjà, donc si `git` a bien créé les parents avant l'échec (il les laisse).
+    let bin = sb.root.join("bin");
+    fs::create_dir_all(&bin).unwrap();
+    let fake = bin.join("ssh");
+    fs::write(
+        &fake,
+        format!(
+            "#!/bin/sh\ntest -d '{}' && echo parents-exist > '{}'\nexit 255\n",
+            sb.home.join("Dev/Pro").display(),
+            sb.root.join("parents-seen").display()
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&fake, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    // Seul test du fichier à toucher `PATH` ; les autres n'utilisent pas `ssh`.
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    let mut dirs = vec![bin];
+    dirs.extend(std::env::split_paths(&path));
+    std::env::set_var("PATH", std::env::join_paths(dirs).unwrap());
+    let error = clone_repository_in(
+        &sb.store,
+        "git@example.invalid:org/app.git",
+        &dest,
+        "p1",
+        10,
+        &sb.home,
+    )
+    .unwrap_err();
+    assert!(matches!(error, CloneError::Failed { .. }));
+    assert!(
+        sb.root.join("parents-seen").exists(),
+        "git did not create the parents before failing: the test proves nothing"
+    );
+    assert!(!dest.exists());
+    assert!(!sb.home.join("Dev").exists());
+    assert!(!sb.root.join("data/repositories.json").exists());
+}
+
+#[test]
 fn demarrer_un_depot_ca_8_an_unknown_profile_is_refused_and_nothing_is_written() {
     let sb = Sandbox::new("unknown-profile");
     let origin = sb.origin();

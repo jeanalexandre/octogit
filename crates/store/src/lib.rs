@@ -295,6 +295,43 @@ impl Store {
         self.write_repositories(file)
     }
 
+    /// Retire `repository` des récents. Rien d'autre n'est touché : ni le disque, ni le rattachement manuel.
+    pub fn remove_recent(&self, repository: &Path) -> io::Result<()> {
+        let mut file = self.read_repositories();
+        file.recent.retain(|r| r.path != repository);
+        self.write_repositories(file)
+    }
+
+    /// Transfère de `old` vers `new` l'entrée de Recent (date gardée), le rattachement manuel et les états par
+    /// dépôt. Un `new` déjà présent dans Recent est fusionné : jamais de doublon.
+    pub fn relocate_repository(&self, old: &Path, new: &Path) -> io::Result<()> {
+        if old == new {
+            return Ok(());
+        }
+        let mut file = self.read_repositories();
+        if let Some(index) = file.recent.iter().position(|r| r.path == old) {
+            if file.recent.iter().any(|r| r.path == new) {
+                file.recent.remove(index);
+            } else {
+                file.recent[index].path = new.to_path_buf();
+            }
+        }
+        let (old_key, new_key) = (
+            old.to_string_lossy().into_owned(),
+            new.to_string_lossy().into_owned(),
+        );
+        if let Some(id) = file.manual_profiles.remove(&old_key) {
+            file.manual_profiles.insert(new_key.clone(), id);
+        }
+        if let Some(folders) = file.collapsed_folders.remove(&old_key) {
+            file.collapsed_folders.insert(new_key.clone(), folders);
+        }
+        if let Some(width) = file.graph_widths.remove(&old_key) {
+            file.graph_widths.insert(new_key, width);
+        }
+        self.write_repositories(file)
+    }
+
     /// Préférences au format courant. Fichier absent, illisible ou d'une version inconnue : vides.
     /// Les versions 1 à 3 sont migrées à la lecture (sans hauteurs ni repli, puis sans repli du panneau,
     /// puis sans action de `SyncButton`).
@@ -1085,6 +1122,70 @@ mod tests {
         assert_eq!(store.last_repository(), Some(PathBuf::from("/a")));
         assert_eq!(store.hidden_columns(), ["sha"]);
         assert_eq!(store.profiles().len(), 1);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_7_relocating_moves_recent_date_manual_profile_and_states() {
+        let tmp = TempDir::new();
+        let data = tmp.0.join("data");
+        let (old, new, other) = (Path::new("/old"), Path::new("/new"), Path::new("/other"));
+        let store = Store::new(&data);
+        store.record_opened(old, 10).unwrap();
+        store.record_opened(other, 20).unwrap();
+        store.set_manual_profile(old, Some("perso")).unwrap();
+        store.set_folder_collapsed(old, "local:feat", true).unwrap();
+        store.set_graph_width(old, Some(250)).unwrap();
+        store.relocate_repository(old, new).unwrap();
+        let fresh = Store::new(&data);
+        let recent = fresh.recent_repositories();
+        let seen: Vec<(PathBuf, u64)> = recent
+            .into_iter()
+            .map(|r| (r.path, r.last_opened))
+            .collect();
+        assert_eq!(
+            seen,
+            [(PathBuf::from("/other"), 20), (PathBuf::from("/new"), 10)]
+        );
+        assert_eq!(fresh.manual_profile(new).as_deref(), Some("perso"));
+        assert_eq!(fresh.manual_profile(old), None);
+        assert_eq!(fresh.collapsed_folders(new), ["local:feat"]);
+        assert!(fresh.collapsed_folders(old).is_empty());
+        assert_eq!(fresh.graph_width(new), Some(250));
+        assert_eq!(fresh.graph_width(old), None);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_7_relocating_onto_a_known_path_never_duplicates_it() {
+        let tmp = TempDir::new();
+        let store = Store::new(tmp.0.join("data"));
+        store.record_opened(Path::new("/old"), 10).unwrap();
+        store.record_opened(Path::new("/new"), 20).unwrap();
+        store
+            .relocate_repository(Path::new("/old"), Path::new("/new"))
+            .unwrap();
+        let recent = store.recent_repositories();
+        assert_eq!(recent.len(), 1);
+        assert_eq!(recent[0].path, PathBuf::from("/new"));
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_7_removing_a_recent_keeps_the_manual_profile_and_the_disk() {
+        let tmp = TempDir::new();
+        let folder = tmp.0.join("repo");
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("f.txt"), "x").unwrap();
+        let data = tmp.0.join("data");
+        let store = Store::new(&data);
+        store.record_opened(&folder, 10).unwrap();
+        store.record_opened(Path::new("/b"), 5).unwrap();
+        store.record_opened(&folder, 11).unwrap();
+        store.set_manual_profile(&folder, Some("perso")).unwrap();
+        store.remove_recent(&folder).unwrap();
+        let fresh = Store::new(&data);
+        assert_eq!(fresh.last_repository(), Some(PathBuf::from("/b")));
+        assert_eq!(fresh.recent_repositories().len(), 1);
+        assert_eq!(fresh.manual_profile(&folder).as_deref(), Some("perso"));
+        assert_eq!(std::fs::read_to_string(folder.join("f.txt")).unwrap(), "x");
     }
 
     #[test]

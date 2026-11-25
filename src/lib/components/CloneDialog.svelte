@@ -2,7 +2,9 @@
   import { untrack } from "svelte";
   import Copy from "@lucide/svelte/icons/copy";
   import FolderOpen from "@lucide/svelte/icons/folder-open";
+  import Clipboard from "@lucide/svelte/icons/clipboard-copy";
   import Plus from "@lucide/svelte/icons/plus";
+  import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
   import X from "@lucide/svelte/icons/x";
   import type { CloneProgress, ProfileView } from "../bindings";
   import { githubSshUrl, isHttpUrl, proposedFolder, repositoryNameFromUrl } from "../cloneName";
@@ -18,9 +20,11 @@
     lastParent,
     busy = false,
     error = null,
+    refusal = null,
     progress = null,
     initial,
     onclone,
+    oncopykey,
     oncancel,
     oncancelclone,
     oncreateprofile,
@@ -33,6 +37,10 @@
     busy?: boolean;
     /** Sortie brute de `git` d'un clone échoué ; `null` sinon. */
     error?: string | null;
+    /** Clone refusé avant `git` (dossier de destination non vide) : message d'une ligne, sans « Clone failed: ». */
+    refusal?: string | null;
+    /** « Copy public key » : copie la clé publique du profil choisi (chemin de sa clé SSH). */
+    oncopykey?: (sshKeyPath: string) => void;
     /** Objets reçus et total du clone en cours ; `null` : rien reçu encore (barre indéterminée). */
     progress?: CloneProgress | null;
     /** Valeurs de départ (retour de la création d'un profil, tests). */
@@ -212,8 +220,20 @@
       <p class="error" role="alert">
         Cloning over HTTPS is not supported: tick “Use {sshUrl}?” to clone over SSH.
       </p>
+    {:else if refusal !== null && !busy}
+      <p class="error" role="alert">{refusal}</p>
     {:else if error !== null && !busy}
       <p class="error" role="alert">Clone failed: <span class="output">{error}</span></p>
+      <div class="choices">
+        {#if profile}
+          <button type="button" onclick={() => oncopykey?.(profile.sshKeyPath)}>
+            <Clipboard size={16} strokeWidth={1.8} aria-hidden="true" /> Copy public key
+          </button>
+        {/if}
+        <button type="button" disabled={!ready} onclick={submit}>
+          <RotateCcw size={16} strokeWidth={1.8} aria-hidden="true" /> Try again
+        </button>
+      </div>
     {/if}
 
     {#if busy && profile}

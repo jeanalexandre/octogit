@@ -188,10 +188,19 @@ export class Workspace {
   /** Contenu décodé de `repositories.json`. */
   readRepositoriesFile(): {
     version: number;
+    recent?: { path: string; last_opened: number }[];
     manual_profiles?: Record<string, string>;
     last_clone_parent?: string;
   } {
     return JSON.parse(readFileSync(join(this.dataDir, "repositories.json"), "utf8"));
+  }
+
+  /** Mémorise un rattachement manuel (menu du badge) de `repo` au profil `profileId`, dans `repositories.json`. */
+  rememberManualProfile(repo: string, profileId: string): void {
+    const file = join(this.dataDir, "repositories.json");
+    const content = JSON.parse(readFileSync(file, "utf8"));
+    content.manual_profiles = { ...content.manual_profiles, [repo]: profileId };
+    writeFileSync(file, JSON.stringify(content));
   }
 
   /** Retire `user.name` et `user.email` du `.git/config` local : un dépôt sans identité locale. */

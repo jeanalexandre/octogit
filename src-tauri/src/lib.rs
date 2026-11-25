@@ -76,6 +76,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::recheck_git,
             commands::list_recent_repositories,
             commands::open_repository,
+            commands::locate_repository,
+            commands::remove_recent_repository,
             commands::overwrite_identity,
             commands::import_local_config,
             commands::attach_repository,

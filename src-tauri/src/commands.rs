@@ -60,6 +60,30 @@ pub fn open_repository(path: String) -> Result<RepositoryView, OpenError> {
     open::open_repository(&Store::new(data_dir()), Path::new(&path), now)
 }
 
+/// Locate… : le dépôt mémorisé à `old_path` se trouve à `new_path` ; l'entrée de Recent, le rattachement
+/// manuel et les états par dépôt suivent, puis le dépôt s'ouvre.
+#[tauri::command]
+#[specta::specta]
+pub fn locate_repository(old_path: String, new_path: String) -> Result<RepositoryView, OpenError> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    open::locate_repository(
+        &Store::new(data_dir()),
+        Path::new(&old_path),
+        Path::new(&new_path),
+        now,
+        &crate::home_dir(),
+    )
+}
+
+/// Remove from recent : retire l'entrée de Recent, aucun fichier du disque n'est supprimé.
+#[tauri::command]
+#[specta::specta]
+pub fn remove_recent_repository(path: String) -> Result<(), String> {
+    open::remove_from_recent(&Store::new(data_dir()), Path::new(&path)).map_err(|e| e.to_string())
+}
+
 /// `IdentityMismatch`, « Overwrite with profile X » : écrit les valeurs du profil rattaché à `path`.
 #[tauri::command]
 #[specta::specta]

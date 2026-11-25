@@ -77,8 +77,13 @@ Depuis `History`, créer un tag simple ou annoté sur un commit par une saisie e
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `76c1f45` (HEAD au départ, renseignée par l'agent)   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | Passage 1 : implémentation complète ; bloqué sur e2e refs-column.spec.ts:189 (infobulle auteur) | bloqué |
+| 2 | dev | Passage 2 : refs-column.spec.ts:189 instable sur la Référence 76c1f45 sans le diff (préexistant) ; terminé | terminé |
+| 1 | reviewer | Revue 1 (`S-46-revue-1.md`), aucun problème, tests sans rouge probant jugés probants | validé |
+| fin | story-runner | `pnpm e2e` : 444 passés, 2 échecs : refs-column.spec.ts:189 (préexistant, prouvé) et graph-width.spec.ts CA-11 (instable sur la Référence aussi, 15/15 seul avec le diff ; pour information). Audit non lancé (lockfiles inchangés) | ok |
+| 3 | dev | Vérification graph-width : préexistant instable, aucun changement de code | terminé |

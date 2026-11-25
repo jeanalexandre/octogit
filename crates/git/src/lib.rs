@@ -19,6 +19,7 @@ mod reset;
 mod rewrite;
 mod stage;
 mod stash;
+mod tag;
 mod unpushed;
 mod working_tree;
 
@@ -67,6 +68,9 @@ pub use rewrite::{rewrite_identity, RewriteError, RewriteTarget};
 pub use stage::{discard_file, stage_file, stage_lines, unstage_file, unstage_lines};
 pub use stash::{
     stash_apply, stash_conflict_abort, stash_conflict_done, stash_drop, stash_pop, stash_push,
+};
+pub use tag::{
+    check_tag_name, create_tag, delete_tag, push_tag, tag_on_origin, TagError, TagNameCheck,
 };
 pub use unpushed::{read_unpushed, UnpushedCommit};
 pub use working_tree::{

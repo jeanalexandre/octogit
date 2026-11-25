@@ -12,7 +12,13 @@
     SyncAction,
     WorkingTreeView,
   } from "../bindings";
-  import { branchNameMessage, type BranchInput, type BranchNameVerdict } from "../branchInput";
+  import {
+    branchNameMessage,
+    tagNameMessage,
+    type BranchInput,
+    type BranchNameVerdict,
+    type TagNameVerdict,
+  } from "../branchInput";
   import BranchSidebar from "../components/BranchSidebar.svelte";
   import CommitDetail from "../components/CommitDetail.svelte";
   import CommitGraph from "../components/CommitGraph.svelte";
@@ -56,6 +62,9 @@
     branchInput = $bindable(null),
     checkBranchName = async () => "valid",
     oncreatebranch,
+    tagInput = $bindable(null),
+    checkTagName = async () => "valid",
+    oncreatetag,
     onrenamebranch,
     oncheckout,
     checkoutNotice = null,
@@ -130,6 +139,12 @@
     checkBranchName?: (name: string) => Promise<BranchNameVerdict>;
     /** Entrée sur un nom accepté : crée la branche sur ce commit et la rend courante. */
     oncreatebranch?: (name: string, commit: string) => void;
+    /** Saisie en ligne du nom (et du message optionnel) d'un tag à créer sur ce commit (« Create tag »), ou `null` : liable par le parent. */
+    tagInput?: { commit: string } | null;
+    /** Verdict de Git sur le nom de tag tapé (`check_tag_name`), pendant la saisie. */
+    checkTagName?: (name: string) => Promise<TagNameVerdict>;
+    /** Entrée sur un nom de tag accepté : crée le tag sur ce commit, annoté si `message` n'est pas vide. */
+    oncreatetag?: (name: string, commit: string, message: string) => void;
     /** Entrée sur un nom accepté de la saisie d'un renommage : renomme la branche locale `old` en `name`. */
     onrenamebranch?: (old: string, name: string) => void;
     /** Des commits déjà poussés ont été réécrits en local (`get_force_push_check`) : `PushButton` dit « Force push ». */
@@ -259,6 +274,7 @@
         // Un autre dépôt s'ouvre : une saisie en cours ne le suit pas (celle posée avant le premier rendu reste).
         if (lastOpen !== undefined) {
           branchInput = null;
+          tagInput = null;
           resetSearch();
         }
       }
@@ -559,8 +575,80 @@
         },
   );
 
-  /** Saisie dans la colonne des refs du graphe : création, ou renommage lancé depuis le graphe. */
+  /** Message sous le champ de la saisie d'un tag ; la réponse d'une vérification périmée est ignorée. */
+  let tagMessage: string | null = $state(null);
+  let tagSeq = 0;
+
+  // Une saisie de tag qui s'ouvre, se ferme ou change de commit repart sans message ni vérification en vol.
+  let lastTagInput: unknown = undefined;
+  $effect.pre(() => {
+    const input = tagInput;
+    untrack(() => {
+      if (input !== lastTagInput) {
+        tagMessage = null;
+        tagSeq += 1;
+      }
+      lastTagInput = input;
+    });
+  });
+
+  /** Message du nom de tag `name`, ou `null` s'il est accepté (ou vide : rien à dire encore). */
+  async function tagMessageFor(name: string): Promise<string | null> {
+    if (name === "") return null;
+    if (repository.refs.some((r) => r.kind === "tag" && r.name === name))
+      return tagNameMessage(name, "exists");
+    try {
+      return tagNameMessage(name, await checkTagName(name));
+    } catch {
+      return null;
+    }
+  }
+
+  function closeTagInput() {
+    const input = tagInput;
+    tagInput = null;
+    if (input) document.querySelector<HTMLElement>(`[data-commit="${input.commit}"]`)?.focus();
+  }
+
+  async function typeTagName(name: string) {
+    const seq = ++tagSeq;
+    if (name === "") {
+      tagMessage = null;
+      return;
+    }
+    const message = await tagMessageFor(name);
+    if (seq === tagSeq) tagMessage = message;
+  }
+
+  /** Entrée : le nom est revérifié avant tout, puis le tag se crée si rien ne l'empêche. */
+  async function submitTag(name: string, note = "") {
+    const input = tagInput;
+    if (name === "" || input === null) return;
+    const seq = ++tagSeq;
+    const message = await tagMessageFor(name);
+    if (seq !== tagSeq || tagInput !== input) return;
+    if (message !== null) {
+      tagMessage = message;
+      return;
+    }
+    tagInput = null;
+    document.querySelector<HTMLElement>(`[data-commit="${input.commit}"]`)?.focus();
+    oncreatetag?.(name, input.commit, note);
+  }
+
+  /** Saisie dans la colonne des refs du graphe : tag à créer, branche à créer, ou renommage lancé depuis le graphe. */
   const inline = $derived.by(() => {
+    if (tagInput !== null) {
+      return {
+        commit: tagInput.commit,
+        label: "Tag name",
+        note: { label: "Tag message (optional)" },
+        message: tagMessage,
+        oninput: typeTagName,
+        onsubmit: submitTag,
+        oncancel: closeTagInput,
+      };
+    }
     if (branchInput === null || inputField === null) return null;
     if (branchInput.rename === undefined) return { commit: branchInput.commit, ...inputField };
     if (renameSource !== "graph") return null;

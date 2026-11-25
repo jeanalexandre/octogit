@@ -991,6 +991,78 @@ describe("History", () => {
     });
   });
 
+  describe("tag creation (J-3)", () => {
+    const field = () => screen.getByRole("textbox", { name: "Tag name" });
+    const note = () => screen.getByRole("textbox", { name: "Tag message (optional)" });
+    const type = (value: string) => fireEvent.input(field(), { target: { value } });
+    const rows = () => screen.getAllByRole("listitem");
+    const input = { commit: "b".repeat(40) };
+
+    it("synchroniser CA-23: an input requested by the menu of a commit opens the name and the optional message on that commit", () => {
+      render(History, props({ tagInput: input }));
+      expect(within(rows()[1]).getByRole("textbox", { name: "Tag name" })).toHaveFocus();
+      expect(
+        within(rows()[1]).getByRole("textbox", { name: "Tag message (optional)" }),
+      ).toBeVisible();
+    });
+
+    it("synchroniser CA-23: Enter without a message creates the tag on the commit with an empty message and closes", async () => {
+      const oncreatetag = vi.fn();
+      const checkTagName = vi.fn(async () => "valid" as const);
+      render(History, props({ tagInput: input, oncreatetag, checkTagName }));
+      await type("v1.2.0");
+      await fireEvent.keyDown(field(), { key: "Enter" });
+      await vi.waitFor(() => expect(oncreatetag).toHaveBeenCalledTimes(1));
+      expect(oncreatetag).toHaveBeenCalledWith("v1.2.0", "b".repeat(40), "");
+      expect(checkTagName).toHaveBeenCalledWith("v1.2.0");
+      expect(screen.queryByRole("textbox", { name: "Tag name" })).toBeNull();
+    });
+
+    it("synchroniser CA-23: Enter with a message passes it with the name and the commit", async () => {
+      const oncreatetag = vi.fn();
+      render(History, props({ tagInput: input, oncreatetag }));
+      await type("v1.2.0");
+      await fireEvent.input(note(), { target: { value: "Release 1.2.0" } });
+      await fireEvent.keyDown(note(), { key: "Enter" });
+      await vi.waitFor(() =>
+        expect(oncreatetag).toHaveBeenCalledWith("v1.2.0", "b".repeat(40), "Release 1.2.0"),
+      );
+    });
+
+    it("synchroniser CA-23: a name already taken shows « Tag v1.1.0 already exists. » and Enter creates nothing", async () => {
+      const oncreatetag = vi.fn();
+      const checkTagName = vi.fn(async () => "valid" as const);
+      render(History, props({ tagInput: input, oncreatetag, checkTagName }));
+      await type("v1.1.0");
+      expect(screen.getByRole("alert")).toHaveTextContent("Tag v1.1.0 already exists.");
+      await fireEvent.keyDown(field(), { key: "Enter" });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(oncreatetag).not.toHaveBeenCalled();
+      expect(field()).toBeInTheDocument();
+    });
+
+    it("synchroniser CA-23: a name refused by Git shows « Invalid tag name. » and Enter creates nothing", async () => {
+      const oncreatetag = vi.fn();
+      const checkTagName = vi.fn(async () => "invalid" as const);
+      render(History, props({ tagInput: input, oncreatetag, checkTagName }));
+      await type("v 1");
+      expect(await screen.findByRole("alert")).toHaveTextContent("Invalid tag name.");
+      await fireEvent.keyDown(field(), { key: "Enter" });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(oncreatetag).not.toHaveBeenCalled();
+    });
+
+    it("synchroniser CA-23: Escape closes the input without creating, and the focus returns to the commit row", async () => {
+      const oncreatetag = vi.fn();
+      render(History, props({ tagInput: input, oncreatetag }));
+      await type("v1.2.0");
+      await fireEvent.keyDown(field(), { key: "Escape" });
+      expect(screen.queryByRole("textbox", { name: "Tag name" })).toBeNull();
+      expect(oncreatetag).not.toHaveBeenCalled();
+      expect(document.querySelector(`[data-commit="${"b".repeat(40)}"]`)).toHaveFocus();
+    });
+  });
+
   describe("branch creation (J-16)", () => {
     const tip = "a".repeat(40);
     const field = () => screen.getByRole("textbox", { name: "Branch name" });

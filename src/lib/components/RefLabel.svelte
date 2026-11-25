@@ -54,6 +54,7 @@
   const MIN_SIZE = 18;
   // Le champ naît avec son texte de départ ; il vit ensuite de ce qui est tapé.
   let typed = $state(untrack(() => input?.initial ?? ""));
+  let typedNote = $state("");
   const size = $derived(Math.max(MIN_SIZE, typed.length + 1));
 
   function focusOnMount(node: HTMLElement) {
@@ -67,7 +68,10 @@
       input.oncancel();
     } else if (event.key === "Enter") {
       event.preventDefault();
-      if (input.message === null) input.onsubmit(typed);
+      if (input.message === null) {
+        if (input.note) input.onsubmit(typed, typedNote);
+        else input.onsubmit(typed);
+      }
     }
   }
 </script>
@@ -92,6 +96,21 @@
       }}
       {onkeydown}
     />
+    {#if input.note}
+      <input
+        type="text"
+        class="field note"
+        aria-label={input.note.label}
+        placeholder={input.note.label}
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        size={MIN_SIZE}
+        value={typedNote}
+        oninput={(event) => (typedNote = event.currentTarget.value)}
+        {onkeydown}
+      />
+    {/if}
     {#if input.message !== null}
       <span class="message" id="inline-input-message" role="alert">{input.message}</span>
     {/if}
@@ -165,6 +184,12 @@
     font-size: 12px;
     font-weight: 600;
     line-height: 16px;
+  }
+
+  /* Second champ, sous le nom : le message d'un tag annoté, facultatif. */
+  .note {
+    margin-top: 4px;
+    font-weight: 400;
   }
 
   .field[aria-invalid="true"] {

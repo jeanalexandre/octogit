@@ -1092,6 +1092,77 @@ pub async fn delete_remote_branch_repository(
     .map_err(|_| "Delete from origin was interrupted.".to_string())?
 }
 
+/// Verdict sur un nom de tag en cours de saisie (Create tag) : valide, déjà pris par un tag local, ou refusé par
+/// Git. Lecture seule.
+#[tauri::command]
+#[specta::specta]
+pub async fn check_tag_name(path: String, name: String) -> Result<fetch::TagNameCheckView, String> {
+    tauri::async_runtime::spawn_blocking(move || fetch::check_tag_name(Path::new(&path), &name))
+        .await
+        .map_err(|_| "Tag check was interrupted.".to_string())?
+}
+
+/// Crée le tag `name` sur le commit `commit` (annoté si `message` est renseigné) en tâche de fond, puis relecture
+/// du dépôt. L'erreur est un message d'une ligne.
+#[tauri::command]
+#[specta::specta]
+pub async fn create_tag_repository(
+    path: String,
+    name: String,
+    commit: String,
+    message: Option<String>,
+) -> Result<RepositoryView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fetch::create_tag_repository(Path::new(&path), &name, &commit, message.as_deref())
+    })
+    .await
+    .map_err(|_| "Tag creation was interrupted.".to_string())?
+}
+
+/// Le tag `name` est-il sur `origin` ? (texte de la confirmation de Delete tag). Lecture réseau seule ; `origin`
+/// injoignable : erreur d'une ligne.
+#[tauri::command]
+#[specta::specta]
+pub async fn tag_on_origin(path: String, name: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || fetch::tag_on_origin(Path::new(&path), &name))
+        .await
+        .map_err(|_| "Tag check was interrupted.".to_string())?
+}
+
+/// Push tag en tâche de fond (garde d'identité refait ici), puis relecture du dépôt. L'erreur est un message d'une
+/// ligne.
+#[tauri::command]
+#[specta::specta]
+pub async fn push_tag_repository(path: String, name: String) -> Result<RepositoryView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fetch::push_tag_repository(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+            &name,
+        )
+    })
+    .await
+    .map_err(|_| "Push tag was interrupted.".to_string())?
+}
+
+/// Delete tag en tâche de fond : sur `origin` s'il y est (garde d'identité refait ici), puis en local, puis
+/// relecture du dépôt. L'erreur est un message d'une ligne.
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_tag_repository(path: String, name: String) -> Result<RepositoryView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fetch::delete_tag_repository(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+            &name,
+        )
+    })
+    .await
+    .map_err(|_| "Delete tag was interrupted.".to_string())?
+}
+
 /// Push de `PushButton` en tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne
 /// (distante en avance, pas d'`origin`…).
 #[tauri::command]

@@ -337,6 +337,23 @@
         >
           {@render rowBody(node)}
         </div>
+      {:else if node.ref.kind === "tag"}
+        <!-- Un tag n'a pas de checkout : seulement son menu (Push tag, Delete tag). -->
+        <div
+          class="item stash"
+          role="button"
+          aria-label={node.ref.name}
+          tabindex="0"
+          style="padding-left: {6 + depth * 12}px"
+          oncontextmenu={(event) => onrefcontextmenu?.(node.ref.name, event)}
+          onkeydown={(event) => {
+            if (event.target !== event.currentTarget || !isMenuKey(event)) return;
+            event.preventDefault();
+            onrefcontextmenu?.(node.ref.name, menuEventAt(event.currentTarget as Element));
+          }}
+        >
+          {@render rowBody(node)}
+        </div>
       {:else}
         <div
           class="item"

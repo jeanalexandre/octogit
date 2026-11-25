@@ -87,6 +87,68 @@ describe("RefLabel inline input", () => {
   });
 });
 
+describe("RefLabel inline input with a message field (Create tag)", () => {
+  const withNote = (overrides = {}) =>
+    inline({ label: "Tag name", note: { label: "Tag message (optional)" }, ...overrides });
+
+  it("synchroniser CA-23: a second, optional field sits under the name, the name keeps the focus", () => {
+    render(RefLabel, withNote());
+    expect(screen.getByRole("textbox", { name: "Tag name" })).toHaveFocus();
+    expect(screen.getByRole("textbox", { name: "Tag message (optional)" })).toHaveValue("");
+  });
+
+  it("synchroniser CA-23: Enter in the name field submits the name alone, without a message", async () => {
+    const props = withNote();
+    render(RefLabel, props);
+    const name = screen.getByRole("textbox", { name: "Tag name" });
+    await fireEvent.input(name, { target: { value: "v1.2.0" } });
+    await fireEvent.keyDown(name, { key: "Enter" });
+    expect(props.input.onsubmit).toHaveBeenCalledWith("v1.2.0", "");
+  });
+
+  it("synchroniser CA-23: the typed message is passed with the name on Enter from either field", async () => {
+    const props = withNote();
+    render(RefLabel, props);
+    await fireEvent.input(screen.getByRole("textbox", { name: "Tag name" }), {
+      target: { value: "v1.2.0" },
+    });
+    const note = screen.getByRole("textbox", { name: "Tag message (optional)" });
+    await fireEvent.input(note, { target: { value: "Release 1.2.0" } });
+    await fireEvent.keyDown(note, { key: "Enter" });
+    expect(props.input.onsubmit).toHaveBeenCalledWith("v1.2.0", "Release 1.2.0");
+  });
+
+  it("synchroniser CA-23: Enter does nothing while the name message is shown, from either field", async () => {
+    const props = withNote({ message: "Tag v1.1.0 already exists." });
+    render(RefLabel, props);
+    await fireEvent.input(screen.getByRole("textbox", { name: "Tag name" }), {
+      target: { value: "v1.1.0" },
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("Tag v1.1.0 already exists.");
+    await fireEvent.keyDown(screen.getByRole("textbox", { name: "Tag name" }), { key: "Enter" });
+    await fireEvent.keyDown(screen.getByRole("textbox", { name: "Tag message (optional)" }), {
+      key: "Enter",
+    });
+    expect(props.input.onsubmit).not.toHaveBeenCalled();
+  });
+
+  it("synchroniser CA-23: Escape in the message field closes without submitting", async () => {
+    const props = withNote();
+    render(RefLabel, props);
+    await fireEvent.keyDown(screen.getByRole("textbox", { name: "Tag message (optional)" }), {
+      key: "Escape",
+    });
+    expect(props.input.oncancel).toHaveBeenCalledTimes(1);
+    expect(props.input.onsubmit).not.toHaveBeenCalled();
+  });
+
+  it("gerer-les-branches CA-8: an input without a message field has one field and submits the name alone", async () => {
+    const props = inline();
+    render(RefLabel, props);
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+  });
+});
+
 describe("RefLabel", () => {
   const variants = ["synced", "ahead", "remote", "tag", "stash"] as const;
 

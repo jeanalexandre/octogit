@@ -272,6 +272,31 @@ export const commands = {
 	 */
 	deleteRemoteBranchRepository: (path: string, branch: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("delete_remote_branch_repository", { path, branch })),
 	/**
+	 *  Verdict sur un nom de tag en cours de saisie (Create tag) : valide, déjà pris par un tag local, ou refusé par
+	 *  Git. Lecture seule.
+	 */
+	checkTagName: (path: string, name: string) => typedError<TagNameCheckView, string>(__TAURI_INVOKE("check_tag_name", { path, name })),
+	/**
+	 *  Crée le tag `name` sur le commit `commit` (annoté si `message` est renseigné) en tâche de fond, puis relecture
+	 *  du dépôt. L'erreur est un message d'une ligne.
+	 */
+	createTagRepository: (path: string, name: string, commit: string, message: string | null) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("create_tag_repository", { path, name, commit, message })),
+	/**
+	 *  Le tag `name` est-il sur `origin` ? (texte de la confirmation de Delete tag). Lecture réseau seule ; `origin`
+	 *  injoignable : erreur d'une ligne.
+	 */
+	tagOnOrigin: (path: string, name: string) => typedError<boolean, string>(__TAURI_INVOKE("tag_on_origin", { path, name })),
+	/**
+	 *  Push tag en tâche de fond (garde d'identité refait ici), puis relecture du dépôt. L'erreur est un message d'une
+	 *  ligne.
+	 */
+	pushTagRepository: (path: string, name: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("push_tag_repository", { path, name })),
+	/**
+	 *  Delete tag en tâche de fond : sur `origin` s'il y est (garde d'identité refait ici), puis en local, puis
+	 *  relecture du dépôt. L'erreur est un message d'une ligne.
+	 */
+	deleteTagRepository: (path: string, name: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("delete_tag_repository", { path, name })),
+	/**
 	 *  Push de `PushButton` en tâche de fond, puis relecture du dépôt. L'erreur est un message d'une ligne
 	 *  (distante en avance, pas d'`origin`…).
 	 */
@@ -1129,6 +1154,13 @@ export type SshKeyView_Serialize = {
 
 /**  Action par défaut de `SyncButton` (Pull : exécution en S-19). */
 export type SyncAction = "fetchAll" | "pullFfOnly" | "pullRebase";
+
+/**  Verdict sur le nom tapé dans la saisie en ligne d'un tag (messages sous le champ, avant toute validation). */
+export type TagNameCheckView = "valid" | 
+/**  « Tag <nom> already exists. » */
+"exists" | 
+/**  « Invalid tag name. » */
+"invalid";
 
 export type TodoActionView = "pick" | "reword" | "squash" | "fixup" | "drop";
 

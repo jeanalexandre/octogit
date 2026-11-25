@@ -91,6 +91,14 @@ struct CreateBranchArgs {
 }
 
 #[derive(Deserialize)]
+struct CreateTagArgs {
+    path: String,
+    name: String,
+    commit: String,
+    message: Option<String>,
+}
+
+#[derive(Deserialize)]
 struct RemoteBranchArgs {
     path: String,
     branch: String,
@@ -1050,6 +1058,61 @@ fn main() {
                 &octogit_app::home_dir(),
                 std::path::Path::new(&args.path),
                 &args.branch,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "check_tag_name" => {
+            let args: CheckBranchNameArgs =
+                serde_json::from_str(&input).expect("arguments { path, name }");
+            match octogit_app::fetch::check_tag_name(std::path::Path::new(&args.path), &args.name) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "create_tag_repository" => {
+            let args: CreateTagArgs =
+                serde_json::from_str(&input).expect("arguments { path, name, commit, message }");
+            match octogit_app::fetch::create_tag_repository(
+                std::path::Path::new(&args.path),
+                &args.name,
+                &args.commit,
+                args.message.as_deref(),
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "tag_on_origin" => {
+            let args: CheckBranchNameArgs =
+                serde_json::from_str(&input).expect("arguments { path, name }");
+            match octogit_app::fetch::tag_on_origin(std::path::Path::new(&args.path), &args.name) {
+                Ok(on_origin) => (serde_json::to_string(&on_origin), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "push_tag_repository" => {
+            let args: CheckBranchNameArgs =
+                serde_json::from_str(&input).expect("arguments { path, name }");
+            match octogit_app::fetch::push_tag_repository(
+                &octogit_store::Store::new(octogit_app::data_dir()),
+                &octogit_app::home_dir(),
+                std::path::Path::new(&args.path),
+                &args.name,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        "delete_tag_repository" => {
+            let args: CheckBranchNameArgs =
+                serde_json::from_str(&input).expect("arguments { path, name }");
+            match octogit_app::fetch::delete_tag_repository(
+                &octogit_store::Store::new(octogit_app::data_dir()),
+                &octogit_app::home_dir(),
+                std::path::Path::new(&args.path),
+                &args.name,
             ) {
                 Ok(view) => (serde_json::to_string(&view), 0),
                 Err(error) => (serde_json::to_string(&error), 3),

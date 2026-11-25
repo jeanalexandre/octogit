@@ -6,7 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use octogit_app::attach::{current_mismatch, ensure_conform, overwrite_identity};
-use octogit_app::fetch::{delete_remote_branch_repository, force_push_repository, push_repository};
+use octogit_app::fetch::{
+    delete_remote_branch_repository, delete_tag_repository, force_push_repository, push_repository,
+    push_tag_repository, tag_on_origin,
+};
 use octogit_app::open::open_repository_in;
 use octogit_app::working_tree::commit_checked;
 use octogit_identity::{MatchingRule, Profile, RuleKind};
@@ -254,6 +257,107 @@ fn proteger_l_identite_ca_19_delete_from_origin_is_refused_on_a_mismatch_and_on_
     assert!(!marker.exists(), "git push must not have been started");
     assert_eq!(origin_heads(&repo), heads);
     assert_eq!(fs::read(repo.join(".git/config")).unwrap(), config_mismatch);
+}
+
+fn origin_tags(repo: &Path) -> String {
+    let bare = format!("{}-origin.git", repo.display());
+    git(Path::new(&bare), &["tag", "-l"])
+}
+
+#[test]
+fn synchroniser_ca_24_push_tag_is_refused_on_a_mismatch_and_on_no_profile_without_running_git_push()
+{
+    let sb = Sandbox::new("tag-push");
+    let repo = sb.conform_repo();
+    let marker = sb.spy_on_push(&repo);
+    git(&repo, &["tag", "v2.0.0", "HEAD"]);
+    let tags = origin_tags(&repo);
+
+    git(
+        &repo,
+        &["config", "--local", "user.email", "perso@example.org"],
+    );
+    assert_eq!(
+        push_tag_repository(&sb.store, &sb.home, &repo, "v2.0.0").map(|_| ()),
+        Err("Identity does not match profile Work.".to_string())
+    );
+    sb.store.set_manual_profile(&repo, Some("gone")).unwrap();
+    assert_eq!(
+        push_tag_repository(&sb.store, &sb.home, &repo, "v2.0.0").map(|_| ()),
+        Err("No profile.".to_string())
+    );
+
+    assert!(!marker.exists(), "git push must not have been started");
+    assert_eq!(origin_tags(&repo), tags);
+}
+
+#[test]
+fn synchroniser_ca_25_delete_tag_of_a_pushed_tag_is_refused_on_a_mismatch_and_on_no_profile_and_deletes_nothing(
+) {
+    let sb = Sandbox::new("tag-delete");
+    let repo = sb.conform_repo();
+    git(&repo, &["tag", "v2.0.0", "HEAD"]);
+    push_tag_repository(&sb.store, &sb.home, &repo, "v2.0.0").unwrap();
+    let marker = sb.spy_on_push(&repo);
+
+    git(
+        &repo,
+        &["config", "--local", "user.email", "perso@example.org"],
+    );
+    assert_eq!(
+        delete_tag_repository(&sb.store, &sb.home, &repo, "v2.0.0").map(|_| ()),
+        Err("Identity does not match profile Work.".to_string())
+    );
+    sb.store.set_manual_profile(&repo, Some("gone")).unwrap();
+    assert_eq!(
+        delete_tag_repository(&sb.store, &sb.home, &repo, "v2.0.0").map(|_| ()),
+        Err("No profile.".to_string())
+    );
+
+    assert!(!marker.exists(), "git push must not have been started");
+    assert!(origin_tags(&repo).contains("v2.0.0"));
+    assert_eq!(git(&repo, &["tag", "-l", "v2.0.0"]), "v2.0.0");
+}
+
+#[test]
+fn synchroniser_ca_25_delete_tag_on_a_conform_repository_removes_the_pushed_tag_everywhere() {
+    let sb = Sandbox::new("tag-delete-ok");
+    let repo = sb.conform_repo();
+    git(&repo, &["tag", "v2.0.0", "HEAD"]);
+    push_tag_repository(&sb.store, &sb.home, &repo, "v2.0.0").unwrap();
+    assert_eq!(tag_on_origin(&repo, "v2.0.0"), Ok(true));
+
+    let view = delete_tag_repository(&sb.store, &sb.home, &repo, "v2.0.0").unwrap();
+
+    assert!(!origin_tags(&repo).contains("v2.0.0"));
+    assert!(view.refs.iter().all(|r| r.name != "v2.0.0"));
+}
+
+#[test]
+fn synchroniser_ca_25_delete_tag_when_origin_does_not_answer_is_refused_in_one_line_and_deletes_nothing(
+) {
+    let sb = Sandbox::new("tag-delete-unreachable");
+    let repo = sb.conform_repo();
+    git(&repo, &["tag", "v2.0.0", "HEAD"]);
+    git(
+        &repo,
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            "/nonexistent/octogit-origin.git",
+        ],
+    );
+
+    assert_eq!(
+        tag_on_origin(&repo, "v2.0.0"),
+        Err("Origin could not be reached.".to_string())
+    );
+    assert_eq!(
+        delete_tag_repository(&sb.store, &sb.home, &repo, "v2.0.0").map(|_| ()),
+        Err("Origin could not be reached.".to_string())
+    );
+    assert_eq!(git(&repo, &["tag", "-l", "v2.0.0"]), "v2.0.0");
 }
 
 #[test]

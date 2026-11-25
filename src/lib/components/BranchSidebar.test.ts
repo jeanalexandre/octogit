@@ -175,10 +175,21 @@ describe("BranchSidebar checkout gestures", () => {
       await fireEvent.dblClick(row);
       await fireEvent.keyDown(row, { key: "Enter" });
     }
-    // Un tag n'a aucun menu ; le menu d'un stash est testé plus bas (preparer-un-commit CA-19).
-    await fireEvent.contextMenu(screen.getByText("v1.0.0"));
+    // Les menus d'un stash et d'un tag sont testés plus bas (preparer-un-commit CA-19, synchroniser CA-24).
     expect(onrefdblclick).not.toHaveBeenCalled();
     expect(onrefcontextmenu).not.toHaveBeenCalled();
+  });
+
+  it("synchroniser CA-24: a right-click, the menu key or Shift+F10 on a tag asks for its menu with its name", async () => {
+    const onrefcontextmenu = vi.fn();
+    render(BranchSidebar, props({ onrefcontextmenu }));
+    const row = screen.getByText("v1.0.0");
+    await fireEvent.contextMenu(row);
+    expect(onrefcontextmenu).toHaveBeenLastCalledWith("v1.0.0", expect.any(MouseEvent));
+    const item = row.closest("[tabindex]") as HTMLElement;
+    await fireEvent.keyDown(item, { key: "F10", shiftKey: true });
+    await fireEvent.keyDown(item, { key: "ContextMenu" });
+    expect(onrefcontextmenu).toHaveBeenCalledTimes(3);
   });
 
   it("preparer-un-commit CA-19: a right-click, the menu key or Shift+F10 on a stash asks for its menu with its name", async () => {

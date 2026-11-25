@@ -26,7 +26,7 @@
     type SyncAction,
     type WorkingTreeView,
   } from "./lib/bindings";
-  import type { BranchInput, BranchNameVerdict } from "./lib/branchInput";
+  import type { BranchInput, BranchNameVerdict, TagNameVerdict } from "./lib/branchInput";
   import { runFetchNow, scheduleFetch } from "./lib/fetchScheduler";
   import { sshApi } from "./lib/sshKeys";
   import CloneDialog from "./lib/components/CloneDialog.svelte";
@@ -40,6 +40,7 @@
     type DeleteConfirm,
     type RefMenuTarget,
     type RemoteDeleteConfirm,
+    type TagDeleteConfirm,
   } from "./lib/components/RefContextMenu.svelte";
   import {
     activeSelection,
@@ -1062,14 +1063,22 @@
     });
   }
 
-  /** Ouvre le menu d'une branche locale, d'une `origin/…` ou d'un stash ; les tags n'en ont pas ici (S-36). */
+  /** Ouvre le menu d'une branche locale, d'une `origin/…`, d'un stash ou d'un tag (Push tag, Delete tag). */
   function openRefMenu(name: string, event: MouseEvent) {
     event.preventDefault();
     if (screen?.screen !== "history") return;
     const found = screen.repository.refs.find(
-      (r) => r.name === name && (r.kind === "branch" || r.kind === "remote" || r.kind === "stash"),
+      (r) =>
+        r.name === name &&
+        (r.kind === "branch" || r.kind === "remote" || r.kind === "stash" || r.kind === "tag"),
     );
-    if (!found || (found.kind !== "branch" && found.kind !== "remote" && found.kind !== "stash"))
+    if (
+      !found ||
+      (found.kind !== "branch" &&
+        found.kind !== "remote" &&
+        found.kind !== "stash" &&
+        found.kind !== "tag")
+    )
       return;
     refMenu = { name, kind: found.kind, x: event.clientX, y: event.clientY };
   }
@@ -1557,6 +1566,68 @@
     if (pending !== null && pending.path === openPath) void deleteBranch(pending.branch);
   }
 
+  /** Saisie en ligne du nom et du message d'un tag à créer (« Create tag »), liée à `History`. */
+  let tagInput: { commit: string } | null = $state(null);
+
+  /** Verdict de Git sur le nom de tag tapé ; une lecture impossible n'empêche rien (la création dira son refus). */
+  async function checkTagName(name: string): Promise<TagNameVerdict> {
+    const path = openPath;
+    if (path === null) return "valid";
+    try {
+      const result = await commands.checkTagName(path, name);
+      return result.status === "ok" ? result.data : "valid";
+    } catch {
+      return "valid";
+    }
+  }
+
+  /** Create tag : tag simple, annoté si `message` n'est pas vide ; même garde que la création de branche. */
+  const createTag = (name: string, commit: string, message: string) =>
+    writeBranches((path) =>
+      commands.createTagRepository(path, name, commit, message.trim() === "" ? null : message),
+    );
+
+  /** Push tag : pousse le tag vers `origin` (jamais de force) ; l'identité non conforme est refusée comme Push. */
+  const pushTag = (name: string) => writeBranches((path) => commands.pushTagRepository(path, name));
+
+  /** Confirmation de Delete tag : le tag, s'il est sur `origin`, et le dépôt concerné. */
+  let tagDeleteConfirm: (TagDeleteConfirm & { path: string }) | null = $state(null);
+
+  /**
+   * Delete tag : « sur `origin` ou non » est lu d'abord (réseau, lecture seule). Si `origin` ne répond pas, la
+   * confirmation ne s'ouvre pas : message d'une ligne, rien supprimé. Un tag poussé sous une identité non conforme
+   * est refusé avec la raison de Push ; le garde Rust refuse de toute façon.
+   */
+  async function askDeleteTag(name: string) {
+    const path = openPath;
+    if (path === null || checkoutPath !== null || screen?.screen !== "history") return;
+    checkoutNotice = null;
+    try {
+      const onOrigin = await commands.tagOnOrigin(path, name);
+      if (openPath !== path) return;
+      if (onOrigin.status !== "ok") {
+        checkoutNotice = { path, text: onOrigin.error };
+        return;
+      }
+      if (onOrigin.data && deleteRemoteBlocked !== null) {
+        checkoutNotice = { path, text: deleteRemoteBlocked };
+        return;
+      }
+      tagDeleteConfirm = { path, name, onOrigin: onOrigin.data };
+    } catch {
+      // Lecture impossible : rien n'est supprimé.
+    }
+  }
+
+  /** « Delete tag » de la confirmation : le tag est supprimé sur `origin` s'il y est, puis en local. */
+  function confirmDeleteTag() {
+    const pending = tagDeleteConfirm;
+    tagDeleteConfirm = null;
+    if (pending !== null && pending.path === openPath) {
+      void writeBranches((path) => commands.deleteTagRepository(path, pending.name));
+    }
+  }
+
   /** Confirmation de « Delete from origin » : la branche (sans `origin/`), les locales qui la suivent, le dépôt concerné. */
   let remoteDeleteConfirm: (RemoteDeleteConfirm & { path: string }) | null = $state(null);
 
@@ -2008,6 +2079,9 @@
       bind:branchInput
       {checkBranchName}
       oncreatebranch={createBranch}
+      bind:tagInput
+      {checkTagName}
+      oncreatetag={createTag}
       onrenamebranch={renameBranch}
       oncheckout={(name) => checkout(name)}
       {checkoutStarts}
@@ -2217,6 +2291,15 @@
     ondeleteremoteconfirm={confirmDeleteRemoteBranch}
     ondeleteremotecancel={() => (remoteDeleteConfirm = null)}
     {deleteRemoteBlocked}
+    oncreatetag={(commit) => (tagInput = { commit })}
+    onpushtag={pushTag}
+    pushTagBlocked={deleteRemoteBlocked}
+    ondeletetag={askDeleteTag}
+    tagDeleteConfirm={tagDeleteConfirm !== null && tagDeleteConfirm.path === openPath
+      ? tagDeleteConfirm
+      : null}
+    ontagdeleteconfirm={confirmDeleteTag}
+    ontagdeletecancel={() => (tagDeleteConfirm = null)}
     ondiscard={(file, untracked) => {
       if (openPath !== null)
         discardDialog = { path: openPath, file, untracked, busy: false, error: null };

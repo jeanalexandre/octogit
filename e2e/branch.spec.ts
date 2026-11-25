@@ -154,6 +154,7 @@ test("gerer-les-branches CA-9 : clic droit sur un commit › Create branch here 
     "Cherry-pick",
     "Revert",
     "Reset develop to here ›",
+    "Create tag",
   ]);
   await page.getByRole("menuitem", { name: "Create branch here" }).click();
   await expect(row(page, "Main work").getByRole("textbox", { name: "Branch name" })).toBeFocused();

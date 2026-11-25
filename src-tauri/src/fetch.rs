@@ -250,6 +250,91 @@ pub fn delete_remote_branch_repository(
     repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
 }
 
+/// Verdict sur le nom tapé dans la saisie en ligne d'un tag (messages sous le champ, avant toute validation).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum TagNameCheckView {
+    Valid,
+    /// « Tag <nom> already exists. »
+    Exists,
+    /// « Invalid tag name. »
+    Invalid,
+}
+
+/// Valide `name` comme nom de tag : règles de Git, puis unicité parmi les tags locaux. N'écrit rien.
+pub fn check_tag_name(path: &Path, name: &str) -> Result<TagNameCheckView, String> {
+    octogit_git::check_tag_name(path, name)
+        .map(|check| match check {
+            octogit_git::TagNameCheck::Valid => TagNameCheckView::Valid,
+            octogit_git::TagNameCheck::Exists => TagNameCheckView::Exists,
+            octogit_git::TagNameCheck::Invalid => TagNameCheckView::Invalid,
+        })
+        .map_err(|e| tag_message(e, "Tag creation"))
+}
+
+/// Crée le tag `name` sur `commit` (annoté si `message` n'est pas vide) puis relit le dépôt.
+pub fn create_tag_repository(
+    path: &Path,
+    name: &str,
+    commit: &str,
+    message: Option<&str>,
+) -> Result<RepositoryView, String> {
+    octogit_git::create_tag(path, name, commit, message, octogit_git::FETCH_TIMEOUT)
+        .map_err(|e| tag_message(e, "Tag creation"))?;
+    repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
+}
+
+/// Le tag `name` est-il sur `origin` ? Un `origin` qui ne répond pas est un refus d'une ligne : la confirmation de
+/// Delete tag ne s'ouvre pas. N'écrit rien.
+pub fn tag_on_origin(path: &Path, name: &str) -> Result<bool, String> {
+    octogit_git::tag_on_origin(path, name, octogit_git::FETCH_TIMEOUT).map_err(|e| match e {
+        octogit_git::TagError::Failed { .. }
+        | octogit_git::TagError::TimedOut { .. }
+        | octogit_git::TagError::Spawn(_) => "Origin could not be reached.".to_string(),
+        other => tag_message(other, "Tag check"),
+    })
+}
+
+/// Push tag : pousse le tag local `name` vers `origin` puis relit le dépôt. Garde d'identité refait ici, avant tout
+/// `git push` : une identité non conforme ou « No profile » refuse avec la raison de Push, sans rien lancer.
+pub fn push_tag_repository(
+    store: &Store,
+    home: &Path,
+    path: &Path,
+    name: &str,
+) -> Result<RepositoryView, String> {
+    crate::attach::ensure_conform(store, path, home)?;
+    octogit_git::push_tag(path, name, octogit_git::FETCH_TIMEOUT)
+        .map_err(|e| tag_message(e, "Push tag"))?;
+    repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
+}
+
+/// Delete tag : supprime `name` sur `origin` s'il y est (garde d'identité refait ici avant tout `git push`), puis en
+/// local, puis relit le dépôt. Un `origin` qui ne répond pas refuse sans rien supprimer.
+pub fn delete_tag_repository(
+    store: &Store,
+    home: &Path,
+    path: &Path,
+    name: &str,
+) -> Result<RepositoryView, String> {
+    if tag_on_origin(path, name)? {
+        crate::attach::ensure_conform(store, path, home)?;
+    }
+    octogit_git::delete_tag(path, name, octogit_git::FETCH_TIMEOUT)
+        .map_err(|e| tag_message(e, "Delete tag"))?;
+    repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
+}
+
+fn tag_message(error: octogit_git::TagError, what: &str) -> String {
+    match error {
+        octogit_git::TagError::TimedOut { .. } => format!("{what} timed out."),
+        octogit_git::TagError::Failed { .. } => format!("{what} failed."),
+        octogit_git::TagError::Spawn(_) => "Git could not run.".to_string(),
+        octogit_git::TagError::Read(_) => "Could not read the repository.".to_string(),
+        other => other.to_string(),
+    }
+}
+
 fn remote_delete_message(error: octogit_git::BranchError) -> String {
     match error {
         octogit_git::BranchError::TimedOut { .. } => "Push timed out.".to_string(),

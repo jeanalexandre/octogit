@@ -9,7 +9,12 @@
     /** Clic droit sur un fichier non indexé ou non suivi de `WorkingChanges` : `name` est son chemin. */
     | { name: string; kind: "file"; untracked: boolean; x: number; y: number }
     /** Clic droit sur un stash (`BranchSidebar`, graphe) : `name` est `stash@{n}`. */
-    | { name: string; kind: "stash"; x: number; y: number };
+    | { name: string; kind: "stash"; x: number; y: number }
+    /** Clic droit sur un tag (graphe, `BranchSidebar`) : `name` est le nom du tag. */
+    | { name: string; kind: "tag"; x: number; y: number };
+
+  /** Delete tag : le tag et s'il est sur `origin` (la confirmation le dit et la suppression l'y retire aussi). */
+  export type TagDeleteConfirm = { name: string; onOrigin: boolean };
   /** Une locale de même nom que l'`origin/…` choisie est sur un autre commit : le choix est à faire. */
   export type CheckoutConfirm = { branch: string; remote: string; commits: LocalCommitView[] };
   /**
@@ -87,7 +92,28 @@
     ondeleteremoteconfirm,
     ondeleteremotecancel,
     deleteRemoteBlocked = null,
+    oncreatetag,
+    onpushtag,
+    ondeletetag,
+    tagDeleteConfirm = null,
+    ontagdeleteconfirm,
+    ontagdeletecancel,
+    pushTagBlocked = null,
   }: {
+    /** Entrée « Create tag » d'un commit : son identifiant complet (le parent ouvre la saisie en ligne). */
+    oncreatetag?: (commit: string) => void;
+    /** Entrée « Push tag » d'un tag : son nom. */
+    onpushtag?: (name: string) => void;
+    /** Entrée « Delete tag » d'un tag : son nom (le parent lit s'il est sur `origin` et ouvre la confirmation). */
+    ondeletetag?: (name: string) => void;
+    /** Confirmation de Delete tag à résoudre, ou `null`. */
+    tagDeleteConfirm?: TagDeleteConfirm | null;
+    /** « Delete tag » de la confirmation : le tag est supprimé (sur `origin` s'il y est, puis en local). */
+    ontagdeleteconfirm?: () => void;
+    /** Cancel ou Échap de la confirmation de Delete tag : rien ne change. */
+    ontagdeletecancel?: () => void;
+    /** Raison du refus d'identité de « Push tag » (celle de Push), ou `null`. */
+    pushTagBlocked?: string | null;
     /** Entrée « Delete from origin » d'une `origin/…` : le nom de la branche sans `origin/` (le parent lit le plan et ouvre la confirmation). */
     ondeleteremote?: (branch: string) => void;
     /** Confirmation de « Delete from origin » à résoudre (la branche et les locales qui la suivent), ou `null`. */
@@ -187,6 +213,17 @@
         { id: "drop", label: "Drop", run: () => ondropstash?.(name) },
       ];
     }
+    if (menu.kind === "tag") {
+      return [
+        {
+          id: "push-tag",
+          label: "Push tag",
+          run: () => onpushtag?.(name),
+          disabled: pushTagBlocked ?? undefined,
+        },
+        { id: "delete-tag", label: "Delete tag", run: () => ondeletetag?.(name) },
+      ];
+    }
     if (menu.kind === "file") {
       const { untracked } = menu;
       return [{ id: "discard", label: "Discard changes", run: () => ondiscard?.(name, untracked) }];
@@ -283,6 +320,14 @@
     oninteractiverebase?.(target.commit);
   }
 
+  /** Le commit est lu avant la fermeture du menu (`menu` repasse alors à `null`). */
+  function runCreateTag() {
+    const target = menu;
+    if (target === null || target.kind !== "commit") return;
+    onclose();
+    oncreatetag?.(target.commit);
+  }
+
   function openReset() {
     resetOpen = true;
     queueMicrotask(() => menuEl?.querySelector<HTMLElement>(".submenu [role='menuitem']")?.focus());
@@ -304,12 +349,18 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (confirm !== null || deleteConfirm !== null || remoteDeleteConfirm !== null) {
+    if (
+      confirm !== null ||
+      deleteConfirm !== null ||
+      remoteDeleteConfirm !== null ||
+      tagDeleteConfirm !== null
+    ) {
       if (event.key === "Escape") {
         event.preventDefault();
         if (confirm !== null) oncancel();
         else if (deleteConfirm !== null) ondeletecancel?.();
-        else ondeleteremotecancel?.();
+        else if (remoteDeleteConfirm !== null) ondeleteremotecancel?.();
+        else ontagdeletecancel?.();
       } else if (event.key === "Tab") {
         const buttons = [
           ...(dialog?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []),
@@ -407,6 +458,34 @@
         <ListOrdered size={16} strokeWidth={1.8} aria-hidden="true" />Interactive rebase from here
       </button>
     {/if}
+    {#if menu.kind === "commit" && oncreatetag !== undefined}
+      <button type="button" role="menuitem" class="entry" onclick={runCreateTag}>Create tag</button>
+    {/if}
+  </div>
+{/if}
+
+{#if tagDeleteConfirm}
+  <div class="backdrop">
+    <div
+      class="dialog"
+      bind:this={dialog}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tag-delete-confirm-title"
+    >
+      <h2 id="tag-delete-confirm-title">Delete tag {tagDeleteConfirm.name}?</h2>
+      <p class="muted">
+        {tagDeleteConfirm.onOrigin
+          ? "It will also be deleted from origin."
+          : "It exists only in this repository."}
+      </p>
+      <div class="choices">
+        <button type="button" use:focusOnMount onclick={() => ontagdeletecancel?.()}>Cancel</button>
+        <button type="button" class="primary" onclick={() => ontagdeleteconfirm?.()}
+          >Delete tag</button
+        >
+      </div>
+    </div>
   </div>
 {/if}
 

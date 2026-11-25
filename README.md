@@ -8,7 +8,7 @@ Application Tauri 2 (cœur Rust) avec une interface Svelte 5.
 - macOS 13 ou plus récent, puce Apple
 - Rust, version fixée par `rust-toolchain.toml` (installée par `rustup`)
 - Node 26.13.0 (fixé par `.nvmrc` : `nvm install`) et pnpm 12.18.0 (`npm i -g pnpm@12` ; corepack ne lance pas pnpm 12)
-- le binaire `git` (Command Line Tools de Xcode, Xcode ou Homebrew)
+- le binaire `git` (Command Line Tools de Xcode, Xcode ou Homebrew). Git manquant est détecté à chaque lancement (`git --version`, sans lancer le `git` factice d'Apple qui ouvrirait seul sa fenêtre) : `Welcome` affiche « Git not found » et **Install Command Line Tools** (ouvre l'installation d'Apple, `xcode-select --install`, relançable après une annulation), puis « Waiting for the Command Line Tools installation… » avec **Check again** ; Octogit revérifie seul toutes les 2 s et reprend le lancement normal au plus tard 5 s après que Git répond, sans relance. Octogit n'installe ni ne modifie Git autrement.
 - `cargo-audit` pour `pnpm audit:deps` (`cargo install cargo-audit`)
 
 ## Installation
@@ -24,6 +24,7 @@ pnpm install
 
 ## Ouvrir un dépôt
 
+- **Git absent** : avant d'ouvrir le dernier dépôt, le lancement contrôle Git. Sans Git, `Welcome` prend l'état « Git not found » (texte « Git is required. It is not installed on this Mac. », bouton **Install Command Line Tools**), prioritaire sur le dernier dépôt et sur les états sans profil ou dépôt introuvable ; Recent, Open folder…, Clone… et Profiles n'y sont pas affichés, et Cmd+O, Cmd+Maj+C et Cmd+, y sont sans effet (aussi dans l'état d'attente). Aucune fenêtre d'Apple ne s'ouvre avant le clic. Commandes : `install_command_line_tools` (crate `platform`) et `recheck_git` (même résultat que `get_launch_state`). En test (`pnpm dev:web` et Playwright), `?test_path=<dossiers séparés par :>` remplace le `PATH` du pont : un dossier sans `git` simule Git absent, avec un faux `xcode-select` ; un `git` qui y apparaît simule la fin de l'installation (`urlWithoutGit` et `installFakeGit` de `e2e/helpers.ts`).
 - Depuis `Welcome` : **Open folder…** (Cmd+O) ouvre le sélecteur de dossier ; la liste **Recent** (nom, chemin, date relative de dernière ouverture, et `ProfileBadge` du profil rattaché ou « No profile »), du plus récent au plus ancien, ouvre un dépôt d'un clic. L'état du badge de chaque récent est lu sans ouvrir le dépôt et sans rien écrire (profil manuel mémorisé, sinon règles ; lecture du `.git/config` local).
 - Un dossier qui n'est pas un dépôt Git est refusé par un message qui le nomme ; rien n'est écrit dans ce dossier.
 - Dans `History`, le sélecteur de dépôt (`RepoPicker`, le nom du dépôt en haut à gauche) liste les récents et propose aussi **Open folder…** et **Clone…** pour changer de dépôt dans la même fenêtre.

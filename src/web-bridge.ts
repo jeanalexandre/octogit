@@ -4,6 +4,7 @@
  * Le dossier de données d'un test est donné par `?data_dir=<chemin>` dans l'adresse,
  * le dossier SSH par `?ssh_dir=<chemin>` (jamais le vrai `~/.ssh`).
  * L'intervalle du fetch automatique se règle par `?fetch_interval_ms=<ms>`.
+ * `?test_path=<dossiers séparés par :>` remplace le `PATH` du pont (Git absent, faux `xcode-select`).
  * Le sélecteur de dossier natif n'existe pas dans le navigateur : `choose_folder` rend le dossier
  * posé par le test dans `window.__octogitChosenFolder` (`null` : sélecteur annulé) ; de même
  * `choose_ssh_key` rend le fichier posé dans `window.__octogitChosenFile`.
@@ -29,6 +30,8 @@ const testHeaders = [
   ["fake_ssh_serve_root", "x-octogit-fake-ssh-serve-root"],
   ["fake_ssh_allowed_key", "x-octogit-fake-ssh-allowed-key"],
   ["fake_ssh_delay", "x-octogit-fake-ssh-delay"],
+  // `PATH` du pont (liste de dossiers) : simule Git absent et fournit un faux `xcode-select`.
+  ["test_path", "x-octogit-test-path"],
 ] as const;
 
 declare global {

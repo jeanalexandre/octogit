@@ -23,7 +23,8 @@ for (const size of sizes) {
     await page.goto(ws.url);
 
     await expect(page.getByRole("heading", { name: "my-repo" })).toBeVisible();
-    const rows = page.getByRole("listitem");
+    // Seulement les lignes du graphe : le panneau de détail du commit sélectionné a aussi des listitem.
+    const rows = page.locator(".spacer").getByRole("listitem");
     await expect(rows).toHaveCount(3);
     await expect(rows.nth(0)).toContainText("Fix parser bug");
     await expect(rows.nth(0)).toContainText("Alice Martin");

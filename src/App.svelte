@@ -2020,10 +2020,37 @@
     if (path !== null) await open(path);
   }
 
+  /** Attente de l'installation d'Apple (après « Install Command Line Tools »). */
+  let gitWaiting = $state(false);
+
+  async function installCommandLineTools() {
+    const result = await commands.installCommandLineTools();
+    // Refus : le message brut et son état sont ceux de S-55 ; ici l'écran reste inchangé.
+    if (result.status === "ok") gitWaiting = true;
+  }
+
+  let rechecking = false;
+  /** « Check again » et revérification automatique : la reprise du lancement quand Git répond. */
+  async function recheckGit() {
+    if (rechecking) return;
+    rechecking = true;
+    try {
+      const next = await commands.recheckGit();
+      if (next.screen !== "gitMissing" && screen?.screen === "gitMissing") {
+        gitWaiting = false;
+        screen = next;
+      }
+    } finally {
+      rechecking = false;
+    }
+  }
+
   function onkeydown(event: KeyboardEvent) {
+    // Git absent : ⌘O, ⌘⇧C et ⌘, sont sans effet (les gestes d'`Welcome` n'y sont pas affichés).
+    const gitMissing = screen?.screen === "gitMissing";
     if (event.metaKey && !event.shiftKey && !event.altKey && event.key === ",") {
       event.preventDefault();
-      if (screen !== null) settingsOpen = true;
+      if (screen !== null && !gitMissing) settingsOpen = true;
     } else if (
       event.metaKey &&
       !event.shiftKey &&
@@ -2031,7 +2058,7 @@
       event.key.toLowerCase() === "o"
     ) {
       event.preventDefault();
-      void chooseFolder();
+      if (!gitMissing) void chooseFolder();
     } else if (
       event.metaKey &&
       event.shiftKey &&
@@ -2039,7 +2066,7 @@
       event.key.toLowerCase() === "c"
     ) {
       event.preventDefault();
-      if (screen !== null) void openClone();
+      if (screen !== null && !gitMissing) void openClone();
     }
   }
 </script>
@@ -2239,6 +2266,16 @@
       />
     </div>
   {/if}
+{:else if screen?.screen === "gitMissing"}
+  <Welcome
+    recent={[]}
+    error={null}
+    onopen={open}
+    onchoose={chooseFolder}
+    gitState={gitWaiting ? "waiting" : "missing"}
+    oninstall={installCommandLineTools}
+    oncheck={recheckGit}
+  />
 {:else if screen?.screen === "welcome"}
   <Welcome
     {recent}

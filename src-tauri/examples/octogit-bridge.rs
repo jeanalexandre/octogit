@@ -409,6 +409,14 @@ fn main() {
             serde_json::to_string(&octogit_app::commands::get_launch_state()),
             0,
         ),
+        "recheck_git" => (
+            serde_json::to_string(&octogit_app::commands::recheck_git()),
+            0,
+        ),
+        "install_command_line_tools" => match octogit_app::commands::install_command_line_tools() {
+            Ok(()) => (serde_json::to_string(&()), 0),
+            Err(error) => (serde_json::to_string(&error), 3),
+        },
         "list_recent_repositories" => (
             serde_json::to_string(&octogit_app::commands::list_recent_repositories()),
             0,

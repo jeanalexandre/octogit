@@ -25,6 +25,101 @@ pub fn opener_plugin<R: Runtime>() -> impl tauri::plugin::Plugin<R> {
     tauri_plugin_opener::init()
 }
 
+/// Dossier du `git` d'Apple : sans Command Line Tools, c'est un shim qui ouvre lui-même la fenêtre d'installation.
+const APPLE_SHIM_DIR: &str = "/usr/bin";
+
+fn is_executable_file(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    path.metadata()
+        .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+}
+
+/// Premier exécutable `name` des dossiers de `path_var`, comme le ferait le shell.
+fn find_in_path(name: &str, path_var: &std::ffi::OsStr) -> Option<PathBuf> {
+    std::env::split_paths(path_var)
+        .map(|dir| dir.join(name))
+        .find(|candidate| is_executable_file(candidate))
+}
+
+fn current_path() -> std::ffi::OsString {
+    std::env::var_os("PATH").unwrap_or_default()
+}
+
+/// Vrai si `git --version` réussit. Ne lance jamais le shim d'Apple quand les Command Line Tools manquent
+/// (il ouvrirait la fenêtre d'installation sans clic) : `xcode-select -p` est consulté avant, et il n'ouvre rien.
+pub fn git_available() -> bool {
+    git_available_in(&current_path(), Path::new(APPLE_SHIM_DIR))
+}
+
+fn git_available_in(path_var: &std::ffi::OsStr, shim_dir: &Path) -> bool {
+    let Some(git) = find_in_path("git", path_var) else {
+        return false;
+    };
+    if git.parent() == Some(shim_dir) {
+        let tools_installed = find_in_path("xcode-select", path_var).is_some_and(|tool| {
+            std::process::Command::new(tool)
+                .arg("-p")
+                .env("PATH", path_var)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success())
+        });
+        if !tools_installed {
+            return false;
+        }
+    }
+    std::process::Command::new(git)
+        .arg("--version")
+        .env("PATH", path_var)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+/// `xcode-select --install` a été refusé : code de retour et sortie brute (affichés par S-55).
+#[derive(Debug, Clone, PartialEq)]
+pub struct InstallRefused {
+    pub code: Option<i32>,
+    pub output: String,
+}
+
+/// Ouvre l'installation des Command Line Tools d'Apple (`xcode-select --install`, sous-processus).
+/// Relancé à chaque appel : une fenêtre annulée se rouvre.
+pub fn open_command_line_tools_install() -> Result<(), InstallRefused> {
+    open_command_line_tools_install_in(&current_path())
+}
+
+fn open_command_line_tools_install_in(path_var: &std::ffi::OsStr) -> Result<(), InstallRefused> {
+    let Some(tool) = find_in_path("xcode-select", path_var) else {
+        return Err(InstallRefused {
+            code: None,
+            output: "xcode-select was not found.".to_string(),
+        });
+    };
+    let output = std::process::Command::new(tool)
+        .arg("--install")
+        .env("PATH", path_var)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|e| InstallRefused {
+            code: None,
+            output: e.to_string(),
+        })?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
+    text.push_str(&String::from_utf8_lossy(&output.stderr));
+    Err(InstallRefused {
+        code: output.status.code(),
+        output: text.trim().to_string(),
+    })
+}
+
 /// Chemin complet d'un fichier existant du dépôt `repo` ; refusé s'il sort du dépôt (`..`, chemin absolu, lien
 /// symbolique vers l'extérieur), commence par `-`, n'existe pas ou n'est pas un fichier.
 pub fn openable_path(repo: &Path, file: &str) -> Result<PathBuf, String> {
@@ -180,6 +275,123 @@ mod tests {
             "a link out of the repository"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Dossier de faux binaires : chaque script écrit son nom et ses arguments dans `calls.log`.
+    fn fake_bin(name: &str, scripts: &[(&str, &str)]) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let dir =
+            std::env::temp_dir().join(format!("octogit-platform-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for (tool, body) in scripts {
+            let file = dir.join(tool);
+            std::fs::write(
+                &file,
+                format!(
+                    "#!/bin/sh\necho \"{tool} $*\" >> \"{}/calls.log\"\n{body}\n",
+                    dir.display()
+                ),
+            )
+            .unwrap();
+            std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        dir
+    }
+
+    fn calls(dir: &Path) -> Vec<String> {
+        std::fs::read_to_string(dir.join("calls.log"))
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_string)
+            .collect()
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_20_a_path_without_git_means_git_is_absent_and_nothing_is_launched() {
+        let bin = fake_bin("nogit", &[("xcode-select", "exit 0")]);
+        assert!(!git_available_in(bin.as_os_str(), Path::new("/usr/bin")));
+        assert!(calls(&bin).is_empty());
+        let _ = std::fs::remove_dir_all(&bin);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_20_the_apple_shim_without_developer_tools_is_never_launched() {
+        let bin = fake_bin(
+            "shim",
+            &[
+                ("git", "echo git version 2.39.5; exit 0"),
+                ("xcode-select", "[ \"$1\" = \"-p\" ] && exit 2; exit 0"),
+            ],
+        );
+        assert!(!git_available_in(bin.as_os_str(), &bin));
+        assert_eq!(calls(&bin), ["xcode-select -p"], "no git, no --install");
+        let _ = std::fs::remove_dir_all(&bin);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_25_git_installed_is_available_whatever_its_version() {
+        for version in [
+            "git version 1.7.1",
+            "git version 2.39.5 (Apple Git-154)",
+            "git version 9.99.0",
+        ] {
+            let bin = fake_bin(
+                "versions",
+                &[
+                    ("git", &format!("echo '{version}'; exit 0")),
+                    ("xcode-select", "exit 0"),
+                ],
+            );
+            assert!(
+                git_available_in(bin.as_os_str(), Path::new("/usr/bin")),
+                "{version}"
+            );
+            assert!(
+                git_available_in(bin.as_os_str(), &bin),
+                "shim with tools: {version}"
+            );
+            assert!(
+                calls(&bin).iter().all(|c| !c.contains("--install")),
+                "{version}"
+            );
+            let _ = std::fs::remove_dir_all(&bin);
+        }
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_23_a_git_that_fails_is_not_available() {
+        let bin = fake_bin("broken", &[("git", "exit 1")]);
+        assert!(!git_available_in(bin.as_os_str(), Path::new("/usr/bin")));
+        let _ = std::fs::remove_dir_all(&bin);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_21_the_install_runs_xcode_select_install_each_time() {
+        let bin = fake_bin("install", &[("xcode-select", "exit 0")]);
+        assert_eq!(open_command_line_tools_install_in(bin.as_os_str()), Ok(()));
+        assert_eq!(open_command_line_tools_install_in(bin.as_os_str()), Ok(()));
+        assert_eq!(
+            calls(&bin),
+            ["xcode-select --install", "xcode-select --install"]
+        );
+        let _ = std::fs::remove_dir_all(&bin);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_21_a_refused_install_reports_the_code_and_the_raw_output() {
+        let bin = fake_bin(
+            "refused",
+            &[("xcode-select", "echo 'already installed' >&2; exit 1")],
+        );
+        assert_eq!(
+            open_command_line_tools_install_in(bin.as_os_str()),
+            Err(InstallRefused {
+                code: Some(1),
+                output: "already installed".to_string()
+            })
+        );
+        let _ = std::fs::remove_dir_all(&bin);
     }
 
     #[test]

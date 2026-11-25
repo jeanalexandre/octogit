@@ -18,8 +18,11 @@ test.use({ timezoneId: "UTC" });
 async function openBranches(page: Page) {
   ws.rememberRecent([ws.repo("branches")]);
   await page.goto(ws.url);
-  await expect(page.getByRole("listitem")).toHaveCount(6);
+  await expect(graphRows(page)).toHaveCount(6);
 }
+
+// Seulement les lignes du graphe : le panneau de détail du commit sélectionné a aussi des listitem.
+const graphRows = (page: Page) => page.locator(".spacer").getByRole("listitem");
 
 const row = (page: Page, summary: string) =>
   page.getByRole("listitem").filter({ hasText: summary });
@@ -153,7 +156,7 @@ test("explorer-l-historique CA-14 : une colonne masquée le reste après fermetu
   await expect(page.getByText("Date", { exact: true })).toHaveCount(0);
 
   await page.goto(ws.url);
-  await expect(page.getByRole("listitem")).toHaveCount(6);
+  await expect(graphRows(page)).toHaveCount(6);
   await expect(page.getByText("Date", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Author", { exact: true })).toBeVisible();
   await expect(page.getByText("SHA", { exact: true })).toBeVisible();

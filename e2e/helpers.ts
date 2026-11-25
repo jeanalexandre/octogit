@@ -565,6 +565,41 @@ export class Workspace {
     }
   }
 
+  /** Dossier des faux binaires de ce test (seul dossier du `PATH` du pont : sans `git` tant que `installFakeGit` n'a pas tourné). */
+  get fakeBin(): string {
+    return join(this.root, "fake-bin");
+  }
+
+  /**
+   * Simule un Mac sans Git : le `PATH` du pont ne contient que `fakeBin`, avec un faux `xcode-select` qui journalise
+   * ses appels (`xcodeSelectCalls`). Rend l'adresse de l'interface.
+   */
+  urlWithoutGit(): string {
+    mkdirSync(this.fakeBin, { recursive: true });
+    const log = join(this.fakeBin, "xcode-select.log");
+    writeFileSync(join(this.fakeBin, "xcode-select"), `#!/bin/sh\necho "$*" >> "${log}"\n`, {
+      mode: 0o755,
+    });
+    return this.urlWith({ test_path: this.fakeBin });
+  }
+
+  /** Appels du faux `xcode-select` (un argument par ligne d'appel : `--install`). */
+  xcodeSelectCalls(): string[] {
+    try {
+      return readFileSync(join(this.fakeBin, "xcode-select.log"), "utf8")
+        .split("\n")
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  /** « L'installation d'Apple se termine » : un `git` apparaît dans `fakeBin` (il passe la main au vrai `git`). */
+  installFakeGit(): void {
+    const real = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+    writeFileSync(join(this.fakeBin, "git"), `#!/bin/sh\nexec "${real}" "$@"\n`, { mode: 0o755 });
+  }
+
   /** Comme `url`, avec le fetch automatique toutes les `ms` millisecondes (au lieu de 60 s). */
   urlWithFetchInterval(ms: number): string {
     return `${this.url}&fetch_interval_ms=${ms}`;

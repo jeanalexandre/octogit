@@ -6,6 +6,16 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	getLaunchState: () => __TAURI_INVOKE<LaunchState_Serialize>("get_launch_state"),
+	/**
+	 *  Ouvre l'installation des Command Line Tools d'Apple (`xcode-select --install`). Erreur : sortie brute du
+	 *  système (affichée par S-55).
+	 */
+	installCommandLineTools: () => typedError<null, string>(__TAURI_INVOKE("install_command_line_tools")),
+	/**
+	 *  Revérifie Git (« Check again » et revérification automatique) : l'état de lancement normal quand Git
+	 *  répond, `GitMissing` sinon.
+	 */
+	recheckGit: () => __TAURI_INVOKE<LaunchState_Serialize>("recheck_git"),
 	listRecentRepositories: () => __TAURI_INVOKE<RecentView_Serialize[]>("list_recent_repositories"),
 	openRepository: (path: string) => typedError<RepositoryView_Serialize, OpenError>(__TAURI_INVOKE("open_repository", { path })),
 	/**  `IdentityMismatch`, « Overwrite with profile X » : écrit les valeurs du profil rattaché à `path`. */
@@ -735,9 +745,13 @@ export type KeepView = "ours" | "theirs" | "delete";
 
 export type LaunchState = LaunchState_Serialize | LaunchState_Deserialize;
 
-export type LaunchState_Deserialize = { screen: "history"; repository: RepositoryView_Deserialize } | { screen: "welcome" };
+export type LaunchState_Deserialize = { screen: "history"; repository: RepositoryView_Deserialize } | { screen: "welcome" } | 
+/**  Git n'est pas installé : `Welcome` propose l'installation des Command Line Tools. */
+{ screen: "gitMissing" };
 
-export type LaunchState_Serialize = { screen: "history"; repository: RepositoryView_Serialize } | { screen: "welcome" };
+export type LaunchState_Serialize = { screen: "history"; repository: RepositoryView_Serialize } | { screen: "welcome" } | 
+/**  Git n'est pas installé : `Welcome` propose l'installation des Command Line Tools. */
+{ screen: "gitMissing" };
 
 /**  Un commit de la locale absent de la distante, listé dans la confirmation du checkout d'une `origin/…`. */
 export type LocalCommitView = {

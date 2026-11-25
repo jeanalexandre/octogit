@@ -72,6 +72,8 @@ pub fn builder() -> Builder<tauri::Wry> {
         ])
         .commands(collect_commands![
             commands::get_launch_state,
+            commands::install_command_line_tools,
+            commands::recheck_git,
             commands::list_recent_repositories,
             commands::open_repository,
             commands::overwrite_identity,

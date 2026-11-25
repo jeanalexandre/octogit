@@ -98,6 +98,112 @@ describe("Welcome", () => {
     expect(screen.getByRole("button", { name: /Clone…/ })).toBeEnabled();
   });
 
+  describe("Git absent", () => {
+    function gitProps(overrides: Record<string, unknown> = {}) {
+      return {
+        ...props(),
+        gitState: "missing" as "missing" | "waiting",
+        oninstall: vi.fn(),
+        oncheck: vi.fn(),
+        onclone: vi.fn(),
+        onprofiles: vi.fn(),
+        ...overrides,
+      };
+    }
+
+    it("demarrer-un-depot CA-20 : shows « Git not found » with its text and the install button only", () => {
+      render(Welcome, gitProps());
+      expect(screen.getByRole("heading", { name: "Git not found" })).toBeInTheDocument();
+      expect(screen.getByText("Git is required. It is not installed on this Mac.")).toBeVisible();
+      const install = screen.getByRole("button", { name: "Install Command Line Tools" });
+      expect(install.firstElementChild?.tagName.toLowerCase()).toBe("svg");
+      expect(screen.getAllByRole("button")).toHaveLength(1);
+      expect(screen.queryByText("Recent")).toBeNull();
+      expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+      for (const name of [/Open folder/, /Clone/, /Profiles/, /Create a first profile/]) {
+        expect(screen.queryByRole("button", { name })).toBeNull();
+      }
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(screen.queryByRole("button", { name: /Check again/ })).toBeNull();
+    });
+
+    it("demarrer-un-depot CA-20 : no profile hint and no error banner replace the Git state", () => {
+      render(Welcome, gitProps({ noProfile: true, error: "x is not a Git repository." }));
+      expect(screen.queryByText(/No profile yet/)).toBeNull();
+      expect(screen.getByRole("heading", { name: "Git not found" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Welcome to Octogit" })).toBeNull();
+    });
+
+    it("demarrer-un-depot CA-21 : the install button asks for the installation", async () => {
+      const p = gitProps();
+      render(Welcome, p);
+      await fireEvent.click(screen.getByRole("button", { name: "Install Command Line Tools" }));
+      expect(p.oninstall).toHaveBeenCalledOnce();
+    });
+
+    it("demarrer-un-depot CA-21 and CA-22 : the waiting state announces itself, keeps both buttons, and install stays clickable", async () => {
+      const p = gitProps({ gitState: "waiting" });
+      render(Welcome, p);
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Waiting for the Command Line Tools installation…",
+      );
+      const check = screen.getByRole("button", { name: "Check again" });
+      expect(check.firstElementChild?.tagName.toLowerCase()).toBe("svg");
+      await fireEvent.click(check);
+      expect(p.oncheck).toHaveBeenCalledOnce();
+      const install = screen.getByRole("button", { name: "Install Command Line Tools" });
+      expect(install).toBeEnabled();
+      await fireEvent.click(install);
+      await fireEvent.click(install);
+      expect(p.oninstall).toHaveBeenCalledTimes(2);
+      expect(screen.queryByRole("button", { name: /Open folder/ })).toBeNull();
+    });
+
+    it("demarrer-un-depot CA-23 : while Git is missing or awaited, it checks again on its own at most every 2 s, and stops when unmounted", () => {
+      vi.useFakeTimers();
+      try {
+        const p = gitProps({ gitState: "waiting" });
+        const { unmount } = render(Welcome, p);
+        expect(p.oncheck).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(2000);
+        expect(p.oncheck).toHaveBeenCalledTimes(1);
+        vi.advanceTimersByTime(4000);
+        expect(p.oncheck).toHaveBeenCalledTimes(3);
+        unmount();
+        vi.advanceTimersByTime(10_000);
+        expect(p.oncheck).toHaveBeenCalledTimes(3);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("demarrer-un-depot CA-23 : the « Git not found » state also checks again on its own", () => {
+      vi.useFakeTimers();
+      try {
+        const p = gitProps();
+        render(Welcome, p);
+        vi.advanceTimersByTime(2000);
+        expect(p.oncheck).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("demarrer-un-depot CA-25 : with Git there is no automatic check and no Git state", () => {
+      vi.useFakeTimers();
+      try {
+        const p = { ...props(), oncheck: vi.fn() };
+        render(Welcome, p);
+        vi.advanceTimersByTime(10_000);
+        expect(p.oncheck).not.toHaveBeenCalled();
+        expect(screen.queryByText("Git not found")).toBeNull();
+        expect(screen.queryByRole("status")).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   it("shows the error message that names the folder, and still the title", () => {
     render(Welcome, props({ error: "notes is not a Git repository." }));
     expect(screen.getByRole("alert")).toHaveTextContent("notes is not a Git repository.");

@@ -68,7 +68,23 @@ Au lancement, contrôler la présence de Git avant d'ouvrir le dernier dépôt ;
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `bb3b4cf`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé, mais e2e liés ❌ : `launch.spec.ts` CA-1 History instable (4 listitem au lieu de 3), cause non prouvée ; renvoyé à dev sans revue | — |
+| 2 | dev | terminé ; instabilité de `launch.spec.ts` CA-1 préexistante sur bb3b4cf (compte tous les `listitem`, le panneau de détail en ajoute un), locator restreint à `.spacer` ; e2e liés verts | — |
+| 3 | reviewer | CA-20, 21, 22, 23, 25 couverts ; 1 mineur (disposition des boutons sans maquette, rien d'obligatoire) ; 1 point pour information | validé (`S-49-revue-1.md`) |
+| 4 | run de fin | `pnpm e2e` : 470 verts, 7 rouges dans `e2e/graph.spec.ts` (`getByRole("listitem")` attend 6, reçoit 7) ; relancé seul : mêmes 7 rouges, donc pas instable ; `pnpm audit:deps` non lancé (aucun verrou modifié) | rouge, renvoi à dev |
+| 5 | dev | terminé ; les 7 rouges de `graph.spec.ts` sont préexistants sur bb3b4cf (8 rouges là-bas) ; helper `graphRows` (`.spacer`), assertions inchangées ; `pnpm e2e` complet : 477 verts | — |
+| 6 | reviewer | seul `e2e/graph.spec.ts` change, aucune assertion affaiblie ; même mineur | validé (`S-49-revue-2.md`) |
+| 7 | run de fin | `pnpm e2e` complet : 477 verts (lancé par dev après la dernière modification) ; `pnpm audit:deps` non lancé (aucun verrou modifié depuis bb3b4cf) | vert |
+
+## Décisions de l'humain
+### Après la revue 1
+- Mineur « disposition de « Install Command Line Tools » sous « Check again » » : pris en compte (pour information) (d'office) : aucune maquette ne tranche, le reviewer n'attend rien.
+### Après la revue 2
+- Même mineur (disposition des boutons) : déjà consigné après la revue 1, rien de nouveau. Point « pour information » sur les rouges préexistants de `graph.spec.ts` réparés : pris en compte (pour information).
+
+### Après la revue 1 (suite)
+- Point « pour information » (revérification toutes les 2 s, coût négligeable) : pris en compte (pour information).

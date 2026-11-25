@@ -109,8 +109,12 @@ pub struct RefView {
 #[derive(Debug, Clone, PartialEq, Serialize, Type)]
 #[serde(tag = "screen", rename_all = "camelCase")]
 pub enum LaunchState {
-    History { repository: Box<RepositoryView> },
+    History {
+        repository: Box<RepositoryView>,
+    },
     Welcome,
+    /// Git n'est pas installé : `Welcome` propose l'installation des Command Line Tools.
+    GitMissing,
 }
 
 /// Lit le dépôt `path` pour `History` ; `None` si ce n'est pas un dépôt Git lisible.
@@ -182,10 +186,19 @@ pub fn folder_name(path: &Path) -> String {
         .unwrap_or_else(|| path.to_string_lossy().into_owned())
 }
 
-/// Dernier dépôt mémorisé et lisible : `History`, rattaché à son profil ; sinon (aucun, dossier absent,
-/// pas un dépôt) : `Welcome`.
+/// Git absent (`git --version` échoue) : `GitMissing`, sans lire aucun dépôt. Sinon dernier dépôt mémorisé et
+/// lisible : `History`, rattaché à son profil ; sinon (aucun, dossier absent, pas un dépôt) : `Welcome`.
 pub fn launch_state(store: &Store) -> LaunchState {
-    launch_state_in(store, &crate::home_dir())
+    launch_state_with_git(store, &crate::home_dir(), octogit_platform::git_available())
+}
+
+/// Comme `launch_state`, avec le résultat du contrôle de Git et `home` donnés.
+pub fn launch_state_with_git(store: &Store, home: &Path, git_available: bool) -> LaunchState {
+    if git_available {
+        launch_state_in(store, home)
+    } else {
+        LaunchState::GitMissing
+    }
 }
 
 /// Comme `launch_state`, avec `home` pour `~` et pour le `HOME` de `git`.
@@ -360,6 +373,49 @@ mod tests {
         assert!(matches!(launch_state(&store), LaunchState::History { .. }));
         std::fs::remove_dir_all(repo.join(".git")).unwrap();
         assert_eq!(launch_state(&store), LaunchState::Welcome);
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_20_without_git_the_launch_state_is_git_missing_even_with_a_last_repository(
+    ) {
+        let ws = Workspace::new();
+        let repo = ws.repo("simple.sh");
+        let store = ws.store();
+        store.record_opened(&repo, 1).unwrap();
+        let home = ws.0.join("home");
+        assert_eq!(
+            launch_state_with_git(&store, &home, false),
+            LaunchState::GitMissing
+        );
+        // Dépôt introuvable ou aucun dépôt (CA-6, CA-1) : même état.
+        std::fs::remove_dir_all(&repo).unwrap();
+        assert_eq!(
+            launch_state_with_git(&store, &home, false),
+            LaunchState::GitMissing
+        );
+        let fresh = Store::new(ws.0.join("fresh-data"));
+        assert_eq!(
+            launch_state_with_git(&fresh, &home, false),
+            LaunchState::GitMissing
+        );
+    }
+
+    #[test]
+    fn demarrer_un_depot_ca_23_once_git_answers_the_launch_state_is_the_normal_one() {
+        let ws = Workspace::new();
+        let repo = ws.repo("simple.sh");
+        let store = ws.store();
+        store.record_opened(&repo, 1).unwrap();
+        let home = ws.0.join("home");
+        assert!(matches!(
+            launch_state_with_git(&store, &home, true),
+            LaunchState::History { .. }
+        ));
+        std::fs::remove_dir_all(&repo).unwrap();
+        assert_eq!(
+            launch_state_with_git(&store, &home, true),
+            LaunchState::Welcome
+        );
     }
 
     #[test]

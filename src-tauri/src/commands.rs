@@ -29,6 +29,22 @@ pub fn get_launch_state() -> LaunchState {
     launch::launch_state(&Store::new(data_dir()))
 }
 
+/// Ouvre l'installation des Command Line Tools d'Apple (`xcode-select --install`). Erreur : sortie brute du
+/// système (affichée par S-55).
+#[tauri::command]
+#[specta::specta]
+pub fn install_command_line_tools() -> Result<(), String> {
+    octogit_platform::open_command_line_tools_install().map_err(|refused| refused.output)
+}
+
+/// Revérifie Git (« Check again » et revérification automatique) : l'état de lancement normal quand Git
+/// répond, `GitMissing` sinon.
+#[tauri::command]
+#[specta::specta]
+pub fn recheck_git() -> LaunchState {
+    launch::launch_state(&Store::new(data_dir()))
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn list_recent_repositories() -> Vec<RecentView> {

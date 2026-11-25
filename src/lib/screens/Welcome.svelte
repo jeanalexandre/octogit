@@ -1,6 +1,8 @@
 <script lang="ts">
   import Copy from "@lucide/svelte/icons/copy";
+  import Download from "@lucide/svelte/icons/download";
   import Folder from "@lucide/svelte/icons/folder";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import User from "@lucide/svelte/icons/user";
   import type { RecentView } from "../bindings";
   import ProfileBadge from "../components/ProfileBadge.svelte";
@@ -14,7 +16,16 @@
     onclone,
     onprofiles,
     noProfile = false,
+    gitState = null,
+    oninstall,
+    oncheck,
   }: {
+    /** Git absent : « Git not found » (`missing`) ou, après « Install Command Line Tools », l'attente (`waiting`). */
+    gitState?: "missing" | "waiting" | null;
+    /** « Install Command Line Tools » : ouvre l'installation d'Apple (rappelable). */
+    oninstall?: () => void;
+    /** « Check again » et revérification automatique (toutes les 2 s tant que Git est absent). */
+    oncheck?: () => void;
     /** Aucun profil enregistré : « Create a first profile » ouvre `ProfileSettings` sur son formulaire de création. */
     noProfile?: boolean;
     /** « Clone… » (⌘⇧C) : ouvre `CloneDialog`. */
@@ -27,56 +38,79 @@
     onopen: (path: string) => void;
     onchoose: () => void;
   } = $props();
+
+  /** Marge sous les 5 s de la reprise (CA-23). */
+  const RECHECK_MS = 2000;
+
+  $effect(() => {
+    if (gitState === null) return;
+    const timer = setInterval(() => oncheck?.(), RECHECK_MS);
+    return () => clearInterval(timer);
+  });
 </script>
 
 <main class="welcome">
-  <h1>Welcome to Octogit</h1>
+  {#if gitState !== null}
+    <h1>Git not found</h1>
+    <p class="muted">Git is required. It is not installed on this Mac.</p>
+    {#if gitState === "waiting"}
+      <p class="muted" role="status">Waiting for the Command Line Tools installation…</p>
+      <button type="button" class="open-folder" onclick={() => oncheck?.()}>
+        <RefreshCw size={16} strokeWidth={1.8} aria-hidden="true" /> Check again
+      </button>
+    {/if}
+    <button type="button" class="open-folder" onclick={() => oninstall?.()}>
+      <Download size={16} strokeWidth={1.8} aria-hidden="true" /> Install Command Line Tools
+    </button>
+  {:else}
+    <h1>Welcome to Octogit</h1>
 
-  {#if error}
-    <p class="error" role="alert">{error}</p>
-  {/if}
+    {#if error}
+      <p class="error" role="alert">{error}</p>
+    {/if}
 
-  {#if recent.length > 0}
-    <section>
-      <h2>Recent</h2>
-      <ul class="recent">
-        {#each recent as repo (repo.path)}
-          <li>
-            <button type="button" onclick={() => onopen(repo.path)}>
-              <span class="identity">
-                <strong>{repo.name}</strong>
-                <span class="path">{repo.path}</span>
-              </span>
-            </button>
-            <ProfileBadge profile={repo.profile ?? null} />
-            <span class="date"
-              >{repo.lastOpened === null ? "" : formatRelative(repo.lastOpened)}</span
-            >
-          </li>
-        {/each}
-      </ul>
-    </section>
-  {/if}
+    {#if recent.length > 0}
+      <section>
+        <h2>Recent</h2>
+        <ul class="recent">
+          {#each recent as repo (repo.path)}
+            <li>
+              <button type="button" onclick={() => onopen(repo.path)}>
+                <span class="identity">
+                  <strong>{repo.name}</strong>
+                  <span class="path">{repo.path}</span>
+                </span>
+              </button>
+              <ProfileBadge profile={repo.profile ?? null} />
+              <span class="date"
+                >{repo.lastOpened === null ? "" : formatRelative(repo.lastOpened)}</span
+              >
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
 
-  {#if noProfile}
-    <p class="muted">
-      No profile yet. A profile is a Git identity and an SSH key; repositories are attached to it by
-      rules.
-    </p>
+    {#if noProfile}
+      <p class="muted">
+        No profile yet. A profile is a Git identity and an SSH key; repositories are attached to it
+        by rules.
+      </p>
+      <button type="button" class="open-folder" onclick={() => onprofiles?.()}>
+        <User size={16} strokeWidth={1.8} aria-hidden="true" /> Create a first profile
+      </button>
+    {/if}
+
+    <button type="button" class="open-folder" onclick={onchoose}>
+      <Folder size={16} strokeWidth={1.8} aria-hidden="true" /> Open folder… <kbd>⌘O</kbd>
+    </button>
+    <button type="button" class="open-folder" onclick={() => onclone?.()}>
+      <Copy size={16} strokeWidth={1.8} aria-hidden="true" /> Clone… <kbd>⌘⇧C</kbd>
+    </button>
     <button type="button" class="open-folder" onclick={() => onprofiles?.()}>
-      <User size={16} strokeWidth={1.8} aria-hidden="true" /> Create a first profile
+      <User size={16} strokeWidth={1.8} aria-hidden="true" /> Profiles <kbd>⌘,</kbd>
     </button>
   {/if}
-
-  <button type="button" class="open-folder" onclick={onchoose}>
-    <Folder size={16} strokeWidth={1.8} aria-hidden="true" /> Open folder… <kbd>⌘O</kbd>
-  </button>
-  <button type="button" class="open-folder" onclick={() => onclone?.()}>
-    <Copy size={16} strokeWidth={1.8} aria-hidden="true" /> Clone… <kbd>⌘⇧C</kbd>
-  </button>
-  <button type="button" class="open-folder" onclick={() => onprofiles?.()}>
-    <User size={16} strokeWidth={1.8} aria-hidden="true" /> Profiles <kbd>⌘,</kbd>
-  </button>
 </main>
 
 <style>

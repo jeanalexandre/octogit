@@ -13,6 +13,7 @@
 - [ ] Vérifier à la main, dans l'application livrée, la mise à jour en moins de 1 s de `WorkingChanges` et de la ligne WIP : modifier un fichier dans un éditeur et voir le compteur changer (CA-4 ; les tests passent par le pont de test, aucun test automatique n'exerce l'événement Tauri réel) (S-14, revue 1). Même vérification pour l'apparition et la disparition de la ligne WIP quand l'arbre devient non propre ou propre, en moins de 1 s (S-67, revue 2)
 - [ ] Regarder à l'œil l'en-tête de `History` à 1280 px : notice, « Not published » et `SyncButton` sont tous en `nowrap`, le chemin du dépôt se coupe par « … » (aucune capture prise) (S-20, revue 2 et revue 3)
 - [ ] Vérifier à la main, sous `pnpm tauri dev` ou dans l'application livrée, la progression du clone : « n / m objects » et la barre avancent pendant un vrai clone, et Cancel arrête le clone (les tests passent par le pont de test et la sortie de `git` analysée ; aucun test automatique n'exerce l'événement Tauri réel `clone-progress`) (S-28, revue 1, revue 2 et revue 3)
+- [ ] Vérifier sur un Mac sans Command Line Tools (ou une session propre) : au lancement, aucune fenêtre d'Apple avant le clic, « Install Command Line Tools » ouvre la vraie fenêtre d'installation, et le lancement reprend seul après l'installation (les tests utilisent de faux `git` et `xcode-select` ; aucun test n'exerce le vrai shim d'Apple) (S-49, revue 1)
 
 ## Limites et risques acceptés
 

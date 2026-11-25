@@ -12,4 +12,6 @@ it("pnpm gen:bindings leaves the committed src/lib/bindings.ts unchanged, on eve
   run();
   expect(readFileSync(file, "utf8")).toBe(committed);
   expect(committed).toContain("getLaunchState");
+  expect(committed).toContain("installCommandLineTools");
+  expect(committed).toContain("recheckGit");
 }, 120_000);

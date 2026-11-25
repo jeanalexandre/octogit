@@ -77,6 +77,8 @@ function bridge(): Plugin {
             ["x-octogit-fake-ssh-serve-root", "FAKE_SSH_SERVE_ROOT"],
             ["x-octogit-fake-ssh-allowed-key", "FAKE_SSH_ALLOWED_KEY"],
             ["x-octogit-fake-ssh-delay", "FAKE_SSH_DELAY"],
+            // `PATH` du pont (Git absent, faux `xcode-select`) : les dossiers de l'en-tête remplacent le `PATH` du serveur.
+            ["x-octogit-test-path", "PATH"],
           ] as const) {
             const value = req.headers[name];
             if (typeof value === "string" && value) env[variable] = value;

@@ -3,6 +3,7 @@
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import Check from "@lucide/svelte/icons/check";
   import Columns2 from "@lucide/svelte/icons/columns-2";
+  import Eye from "@lucide/svelte/icons/eye";
   import Minus from "@lucide/svelte/icons/minus";
   import Plus from "@lucide/svelte/icons/plus";
   import Rows2 from "@lucide/svelte/icons/rows-2";
@@ -71,6 +72,24 @@
 
   const working = $derived(mode !== "commit");
   const verb = $derived(mode === "staged" ? "Unstage" : "Stage");
+
+  /** Au-delà de ce nombre de lignes rendues, le diff est replié : rien n'est rendu avant « Show diff ». */
+  const LINE_LIMIT = 5000;
+  /** Fichier dont le diff replié a été affiché par « Show diff » (replié de nouveau en changeant de fichier). */
+  let revealed: string | null = $state(null);
+  /** Le diff lu est trop gros et n'a pas été demandé : replié, sans aucune ligne rendue. */
+  const folded = $derived.by(() => {
+    const read = loaded as Loaded;
+    return (
+      read.kind === "ready" &&
+      !read.diff.binary &&
+      read.diff.lines.length > LINE_LIMIT &&
+      revealed !== files[index].path
+    );
+  });
+
+  /** « 6 214 » : milliers séparés par une espace. */
+  const grouped = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 
   const file = $derived(files[index]);
 
@@ -296,7 +315,7 @@
       >
     </span>
     {#if working && loaded.kind === "ready"}
-      {#if !loaded.diff.binary}
+      {#if !loaded.diff.binary && !folded}
         <button
           type="button"
           class="control"
@@ -341,6 +360,14 @@
       <p class="notice">
         Binary file · {binarySizes(diff)}. No text diff.
       </p>
+    {:else if folded}
+      <div class="notice big">
+        <p>Diff too large to display ({grouped(diff.lines.length)} lines).</p>
+        <button type="button" class="control" onclick={() => (revealed = file.path)}>
+          <Eye size={16} strokeWidth={1.8} aria-hidden="true" />
+          Show diff
+        </button>
+      </div>
     {:else if working}
       {@const all = diff.lines}
       {@const blocks = hunks(all)}
@@ -584,6 +611,10 @@
     margin: 16px;
     color: var(--muted);
     font-size: 13px;
+  }
+
+  .notice.big p {
+    margin: 0 0 8px;
   }
 
   .scroller {

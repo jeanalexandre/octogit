@@ -144,6 +144,30 @@ describe("DiffView", () => {
     expect(document.querySelector("[data-kind]")).toBeNull();
   });
 
+  it("preparer-un-commit CA-10: in a commit, a diff of more than 5 000 lines is folded without rendering a line, and Show diff reveals it", async () => {
+    const big: FileDiffView = {
+      path: "big.txt",
+      status: "added",
+      binary: false,
+      oldSize: null,
+      newSize: null,
+      lines: Array.from({ length: 10_000 }, (_, i) => ({
+        kind: "added" as const,
+        oldNumber: null,
+        newNumber: i + 1,
+        text: `row ${i + 1}`,
+      })),
+    };
+    open(0, { loadDiff: async () => big });
+    await screen.findByText("Diff too large to display (10 000 lines).");
+    expect(document.querySelector("[data-kind]")).toBeNull();
+    // Pas de bouton Stage en lecture seule.
+    expect(screen.queryByRole("button", { name: /Stage/ })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Show diff" }));
+    await screen.findByText("row 10000");
+    expect(screen.queryByText(/Diff too large/)).toBeNull();
+  });
+
   it("explorer-l-historique CA-29: Escape and Back to graph ask to close", async () => {
     const { onclose } = open(3);
     await screen.findByText("TWO");

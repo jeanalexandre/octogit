@@ -247,7 +247,12 @@ fn resoudre_les_conflits_ca_16_every_listed_gesture_is_refused_during_an_operati
                 reset_branch(&repo, "main", ResetModeView::Mixed).map(|_| ()),
             ),
             ("reset hard", reset_hard(&repo, "main").map(|_| ())),
-            ("fetch all", fetch_all_repository(&repo).map(|_| ())),
+            (
+                "fetch all",
+                fetch_all_repository(&repo)
+                    .map(|_| ())
+                    .map_err(|e| e.message()),
+            ),
             ("pull", pull_repository(&repo, false).map(|_| ())),
             (
                 "push",

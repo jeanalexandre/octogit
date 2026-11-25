@@ -73,6 +73,11 @@ export class Workspace {
     return path;
   }
 
+  /** Dépôt bare du remote `backup` du scénario `other-remote` de `pushRepo` (`<dépôt>-backup.git`). */
+  backupOf(repo: string): string {
+    return `${repo}-backup.git`;
+  }
+
   /** Dépôt bare `origin` d'un dépôt de fixture (`<dépôt>-origin.git`). */
   originOf(repo: string): string {
     return `${repo}-origin.git`;
@@ -379,9 +384,20 @@ export class Workspace {
     return path;
   }
 
-  /** Fabrique un dépôt de `fixtures/push.sh` (`ahead`, `published`, `unpublished`, `diverged` ou `no-origin`) ; rend son chemin. */
+  /**
+   * Fabrique un dépôt de `fixtures/push.sh` (`ahead`, `published`, `unpublished`, `diverged`, `no-origin`,
+   * `empty-origin` ou `other-remote`) ; rend son chemin. `other-remote` : sans `origin`, avec un remote `backup`
+   * (bare `<dépôt>-backup.git`, voir `backupOf`).
+   */
   pushRepo(
-    scenario: "ahead" | "published" | "unpublished" | "diverged" | "no-origin" | "empty-origin",
+    scenario:
+      | "ahead"
+      | "published"
+      | "unpublished"
+      | "diverged"
+      | "no-origin"
+      | "empty-origin"
+      | "other-remote",
     name = "my-repo",
   ): string {
     const path = join(this.root, name);
@@ -584,12 +600,16 @@ export class Workspace {
    * Simule un Mac sans Git : le `PATH` du pont ne contient que `fakeBin`, avec un faux `xcode-select` qui journalise
    * ses appels (`xcodeSelectCalls`). Rend l'adresse de l'interface.
    */
-  urlWithoutGit(): string {
+  urlWithoutGit(refusal?: { message: string }): string {
     mkdirSync(this.fakeBin, { recursive: true });
     const log = join(this.fakeBin, "xcode-select.log");
-    writeFileSync(join(this.fakeBin, "xcode-select"), `#!/bin/sh\necho "$*" >> "${log}"\n`, {
-      mode: 0o755,
-    });
+    // `refusal` : le faux `xcode-select` refuse d'ouvrir l'installation (message sur sa sortie d'erreur, code 1).
+    const refuse = refusal ? `echo '${refusal.message}' >&2\nexit 1\n` : "";
+    writeFileSync(
+      join(this.fakeBin, "xcode-select"),
+      `#!/bin/sh\necho "$*" >> "${log}"\n${refuse}`,
+      { mode: 0o755 },
+    );
     return this.urlWith({ test_path: this.fakeBin });
   }
 

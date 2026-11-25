@@ -24,6 +24,13 @@ Rendre cinq cas limites sûrs et lisibles : `FetchStatus` « hors ligne » quand
 1. Reprise du fetch automatique après « hors ligne » : a) il réessaie chaque minute et repasse à « fetched n min ago » au premier succès (recommandation retenue par l'humain, 25/11/2026)
 2. État « erreur » de `FetchStatus` (échec de fetch qui n'est pas une coupure réseau) : a) hors S-55, l'état « erreur » avec Details vient avec S-53 (recommandation retenue par l'humain, 25/11/2026)
 
+### Après la revue 1
+1. Mineur 1 (`fetchOffline` jamais remis à faux sur un échec non réseau) : traiter (d'office)
+2. Mineur 2 (Cancel de la liste des remotes sans icône) : traiter (d'office)
+3. Mineur 3 (Show diff sans icône) : traiter (d'office), règle d'icône de la fiche
+4. Mineur 4 (`push_repository_to` refuse une branche déjà suivie ou un dépôt avec `origin`) : traiter (d'office)
+5. Fetch All multi-remotes avec un seul injoignable : pris en compte (pour information)
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` ; Rust `pnpm test:rs -p <crate> [<filtre>]` (le crate `app` s'appelle `octogit-app`, ses tests sont dans `src-tauri/`) ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420`, pont de test, données dans un dossier temporaire) ; `pnpm tauri dev` seulement pour un essai manuel (port 1420, non isolé)
@@ -86,7 +93,12 @@ Rendre cinq cas limites sûrs et lisibles : `FetchStatus` « hors ligne » quand
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `8a7b7df`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : 38 fichiers, tests, lint, build, e2e liés verts ; contrat de fetch `{ kind: offline|failed, message }`, nouvelles commandes `list_push_remotes`, `push_repository_to`, `copy_install_command` (prévues par la fiche) | — |
+| 1 | reviewer | revue 1 : 4 mineurs, 1 pour information | validé |
+| 2 | dev | terminé : 4 mineurs traités, tests, lint, build, e2e liés verts | — |
+| 2 | reviewer | revue 2 : aucun problème, 2 pour information | validé |
+| fin | story-runner | run de fin : `pnpm e2e` complet vert ; `pnpm audit:deps` non lancé (aucun fichier de verrouillage changé depuis 8a7b7df) ; notes de production : 1 complété, 1 ajouté | — |

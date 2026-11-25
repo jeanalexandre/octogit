@@ -3,13 +3,15 @@
   import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
   import RefreshCw from "@lucide/svelte/icons/refresh-cw";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+  import X from "@lucide/svelte/icons/x";
   import type { MismatchView, PushCheckView } from "../bindings";
   import ErrorDetails from "./ErrorDetails.svelte";
 
   /**
    * Push de la branche courante : « Push n » quand elle est en avance de n, désactivé avec sa raison sans commit
    * en avance, actif sans compteur pour une branche « Not published » (un clic la publie sur `origin` ; sans
-   * `origin`, le refus « No origin remote. » du crate `git` s'affiche en message). Bloqué, sans compteur, par un
+   * `origin`, le refus « No origin remote. » du crate `git` s'affiche en message ; sans `origin` mais avec un autre
+   * remote, le clic ouvre la liste des remotes, `remotes`, S-55). Bloqué, sans compteur, par un
    * écart d'identité ou « No profile » (le garde Rust refuse aussi, voir `ensure_conform`) ; bloqué, avec son
    * compteur, par un commit à pousser fautif : raison et liste des commits (le garde Rust refuse aussi, voir
    * `ensure_pushable`). « Force push » (dialogue, `--force-with-lease`) seulement après une réécriture locale de
@@ -29,7 +31,19 @@
     onfix,
     onforce,
     operationBlocked = false,
+    remotes = null,
+    onchooseremote,
+    oncancelremote,
   }: {
+    /**
+     * Remotes à choisir pour publier une branche « Not published » dans un dépôt sans `origin` (liste ouverte par le
+     * clic sur le bouton), ou `null` : aucune liste. Choisir en pousse un ; Échap ou Cancel ferme sans rien pousser.
+     */
+    remotes?: string[] | null;
+    /** Un remote de la liste est choisi : la branche y est publiée. */
+    onchooseremote?: (remote: string) => void;
+    /** La liste est fermée (Échap ou Cancel) : rien n'est poussé. */
+    oncancelremote?: () => void;
     /** Un merge, un rebase, un cherry-pick ou un revert est en cours : bouton désactivé, « Operation in progress. » d'abord. */
     operationBlocked?: boolean;
     /** Des commits déjà poussés ont été réécrits en local : le bouton devient « Force push ». */
@@ -92,7 +106,29 @@
   }
 
   const marks = { author: "✕ author", committer: "✕ committer" } as const;
+
+  let list: HTMLElement | undefined = $state();
+
+  /** À l'ouverture de la liste, le focus va sur son premier remote (tout au clavier). */
+  $effect(() => {
+    if (remotes) list?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  });
+
+  function onlistkeydown(event: KeyboardEvent) {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    const items = [...(list?.querySelectorAll<HTMLElement>("button") ?? [])];
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    items[(at + step + items.length) % items.length]?.focus();
+  }
 </script>
+
+<svelte:window
+  onkeydown={(e) => {
+    if (remotes && e.key === "Escape") oncancelremote?.();
+  }}
+/>
 
 <span
   class="wrap"
@@ -131,6 +167,28 @@
       {published && ahead > 0 && !blocked && !noProfile ? `Push ${ahead}` : "Push"}
     {/if}
   </button>
+  {#if remotes && !busy}
+    <div
+      class="remotes"
+      role="menu"
+      aria-label="Publish to a remote"
+      tabindex="-1"
+      bind:this={list}
+      onkeydown={onlistkeydown}
+    >
+      <p class="hint">Publish this branch to…</p>
+      {#each remotes as remote (remote)}
+        <button type="button" role="menuitem" onclick={() => onchooseremote?.(remote)}>
+          <ArrowUpFromLine size={16} strokeWidth={1.8} aria-hidden="true" />
+          {remote}
+        </button>
+      {/each}
+      <button type="button" onclick={() => oncancelremote?.()}>
+        <X size={16} strokeWidth={1.8} aria-hidden="true" />
+        Cancel
+      </button>
+    </div>
+  {/if}
   {#if faulty && check && !busy}
     <ul class="commits" data-push-commits aria-label="Commits to push">
       {#each check.commits as commit (commit.id)}
@@ -279,6 +337,38 @@
     border-color: var(--border);
     background: var(--surface-raised);
     color: var(--muted);
+  }
+
+  .remotes {
+    position: absolute;
+    z-index: 10;
+    top: calc(100% + 4px);
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 240px;
+    padding: 4px 0;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+  }
+
+  .remotes button {
+    width: 100%;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .remotes button:hover {
+    background: var(--selection);
+  }
+
+  .hint {
+    margin: 0;
+    padding: 4px 12px;
+    color: var(--muted);
+    font-size: 12px;
   }
 
   .spin {

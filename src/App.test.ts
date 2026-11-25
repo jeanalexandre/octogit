@@ -52,6 +52,7 @@ beforeEach(() => {
   for (const fn of Object.values(commandMock.fns)) fn.mockClear();
   commandMock.defaults.getLaunchState = { screen: "gitMissing" };
   commandMock.defaults.recheckGit = { screen: "gitMissing" };
+  commandMock.defaults.installCommandLineTools = { status: "ok", data: null };
 });
 
 describe("App, Git absent", () => {
@@ -95,6 +96,34 @@ describe("App, Git absent", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Check again" }));
     await screen.findByRole("heading", { name: "Welcome to Octogit" });
     expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("demarrer-un-depot CA-24 : a refused installation shows the raw message and the command, Copy asks for the copy, Install runs the command again, and Check again stays", async () => {
+    commandMock.defaults.installCommandLineTools = {
+      status: "error",
+      error: "xcode-select: error: refused by the system",
+    };
+    render(App);
+    await fireEvent.click(
+      await screen.findByRole("button", { name: "Install Command Line Tools" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "xcode-select: error: refused by the system",
+    );
+    expect(screen.getByText("xcode-select --install")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    expect(commandMock.commands.copyInstallCommand).toHaveBeenCalledOnce();
+    await fireEvent.click(screen.getByRole("button", { name: "Install Command Line Tools" }));
+    await waitFor(() =>
+      expect(commandMock.commands.installCommandLineTools).toHaveBeenCalledTimes(2),
+    );
+
+    // Une installation qui s'ouvre enfin : l'attente remplace le refus.
+    commandMock.defaults.installCommandLineTools = { status: "ok", data: null };
+    await fireEvent.click(screen.getByRole("button", { name: "Install Command Line Tools" }));
+    await screen.findByRole("status");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("demarrer-un-depot CA-25 : with Git installed, no Git state shows", async () => {

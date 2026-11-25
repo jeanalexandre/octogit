@@ -9,13 +9,39 @@ use crate::launch::{repository_view, RepositoryView};
 /// Lance un fetch (avec prune, sans toucher aux branches locales) puis relit le dépôt.
 /// Rend `None` si les refs sont les mêmes qu'avant (cas courant : rien à redessiner, rien à relire),
 /// sinon le dépôt relu. L'erreur est le message d'une ligne ; la sortie brute de Git reste dans le crate `git`.
-pub fn fetch_repository(path: &Path) -> Result<Option<RepositoryView>, String> {
+pub fn fetch_repository(path: &Path) -> Result<Option<RepositoryView>, FetchFailureView> {
     run_and_reread(path, octogit_git::fetch, false)
+}
+
+/// Échec d'un fetch : le réseau coupé (`FetchStatus` « offline ») se distingue des autres échecs, qui gardent leur
+/// message d'une ligne. Dans les deux cas rien n'a changé (ni branche locale, ni arbre de travail).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum FetchFailureView {
+    /// La machine n'atteint pas l'hôte (hôte introuvable, connexion refusée ou sans route, délai dépassé).
+    Offline { message: String },
+    /// Un autre échec (refus d'authentification, dépôt illisible…).
+    Failed { message: String },
+}
+
+impl FetchFailureView {
+    /// Le message d'une ligne (avec sa sortie brute pour « Details » quand il y en a une).
+    pub fn message(self) -> String {
+        match self {
+            FetchFailureView::Offline { message } | FetchFailureView::Failed { message } => message,
+        }
+    }
+}
+
+impl From<String> for FetchFailureView {
+    fn from(message: String) -> Self {
+        FetchFailureView::Failed { message }
+    }
 }
 
 /// Fetch All de `SyncButton` : comme `fetch_repository`, pour tous les remotes. Un échec de Git rend son message
 /// d'une ligne et sa sortie brute (`octogit_git::failure_text`, « Details » ; S-53).
-pub fn fetch_all_repository(path: &Path) -> Result<Option<RepositoryView>, String> {
+pub fn fetch_all_repository(path: &Path) -> Result<Option<RepositoryView>, FetchFailureView> {
     crate::working_tree::ensure_no_operation(path)?;
     run_and_reread(path, octogit_git::fetch_all, true)
 }
@@ -398,14 +424,67 @@ pub fn push_repository(store: &Store, home: &Path, path: &Path) -> Result<Reposi
     // Puis garde des commits à pousser : un fautif (auteur ou committer) refuse aussi, avec sa raison.
     crate::working_tree::ensure_no_operation(path)?;
     crate::attach::ensure_pushable(store, path, home)?;
-    octogit_git::push(path, octogit_git::FETCH_TIMEOUT).map_err(|e| match e {
+    octogit_git::push(path, octogit_git::FETCH_TIMEOUT).map_err(push_message)?;
+    repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
+}
+
+fn push_message(error: octogit_git::PushError) -> String {
+    match error {
         octogit_git::PushError::TimedOut { .. } => "Push timed out.".to_string(),
         octogit_git::PushError::Failed { output } => {
             octogit_git::failure_text("Push failed.", &output)
         }
         octogit_git::PushError::Spawn(_) => "Git could not run.".to_string(),
         refusal => refusal.to_string(),
-    })?;
+    }
+}
+
+/// Remotes à proposer quand on pousse la branche courante : seulement pour une branche « Not published » d'un dépôt
+/// sans `origin` et avec au moins un remote ; sinon liste vide (avec `origin`, ou sans aucun remote, `push_repository`
+/// garde son comportement : publication sur `origin`, ou « No origin remote. »). Lecture seule.
+pub fn push_remote_choices(path: &Path) -> Vec<String> {
+    let published = octogit_git::read_refs(path).ok().is_some_and(|refs| {
+        refs.iter()
+            .any(|r| r.kind == octogit_git::RefKind::Branch && r.current && r.upstream.is_some())
+    });
+    if published {
+        return Vec::new();
+    }
+    match octogit_git::remotes(path, octogit_git::FETCH_TIMEOUT) {
+        Ok(remotes) if !remotes.iter().any(|r| r == "origin") => remotes,
+        _ => Vec::new(),
+    }
+}
+
+/// Push de `PushButton` vers le remote choisi dans la liste (branche « Not published », même nom, devient suivie),
+/// puis relecture du dépôt. Mêmes gardes que `push_repository`, refaits avant tout `git push`, avec les commits à
+/// pousser calculés pour ce remote : un dépôt non conforme, « No profile » ou un commit fautif refuse sans rien lancer.
+pub fn push_repository_to(
+    store: &Store,
+    home: &Path,
+    path: &Path,
+    remote: &str,
+) -> Result<RepositoryView, String> {
+    crate::working_tree::ensure_no_operation(path)?;
+    // Comme `push_remote_choices` : une branche déjà suivie ou un dépôt avec `origin` n'a rien à choisir ;
+    // `--set-upstream` remplacerait le suivi existant.
+    let tracked = octogit_git::read_refs(path).ok().is_some_and(|refs| {
+        refs.iter()
+            .any(|r| r.kind == octogit_git::RefKind::Branch && r.current && r.upstream.is_some())
+    });
+    if tracked {
+        return Err("This branch is already published.".to_string());
+    }
+    // Un remote inconnu se refuse avant le garde : ses « commits à pousser » n'auraient aucun sens.
+    let known = octogit_git::remotes(path, octogit_git::FETCH_TIMEOUT).map_err(push_message)?;
+    if known.iter().any(|r| r == "origin") {
+        return Err("This repository has an origin remote.".to_string());
+    }
+    if !known.iter().any(|r| r == remote) {
+        return Err(octogit_git::PushError::UnknownRemote(remote.to_string()).to_string());
+    }
+    crate::attach::ensure_pushable_to(store, path, home, Some(remote))?;
+    octogit_git::push_to(path, remote, octogit_git::FETCH_TIMEOUT).map_err(push_message)?;
     repository_view(path).ok_or_else(|| "Could not read the repository.".to_string())
 }
 
@@ -538,22 +617,30 @@ fn run_and_reread(
     path: &Path,
     fetch: fn(&Path, std::time::Duration) -> Result<String, octogit_git::FetchError>,
     detailed: bool,
-) -> Result<Option<RepositoryView>, String> {
+) -> Result<Option<RepositoryView>, FetchFailureView> {
     let before = octogit_git::read_refs(path).ok();
-    fetch(path, octogit_git::FETCH_TIMEOUT).map_err(|e| match e {
-        octogit_git::FetchError::TimedOut { .. } => "Fetch timed out.".to_string(),
-        octogit_git::FetchError::Failed { output } if detailed => {
-            octogit_git::failure_text("Fetch failed.", &output)
+    fetch(path, octogit_git::FETCH_TIMEOUT).map_err(|e| {
+        let offline = e.is_offline();
+        let message = match e {
+            octogit_git::FetchError::TimedOut { .. } => "Fetch timed out.".to_string(),
+            octogit_git::FetchError::Failed { output } if detailed => {
+                octogit_git::failure_text("Fetch failed.", &output)
+            }
+            octogit_git::FetchError::Failed { .. } => "Fetch failed.".to_string(),
+            octogit_git::FetchError::Spawn(_) => "Git could not run.".to_string(),
+        };
+        if offline {
+            FetchFailureView::Offline { message }
+        } else {
+            FetchFailureView::Failed { message }
         }
-        octogit_git::FetchError::Failed { .. } => "Fetch failed.".to_string(),
-        octogit_git::FetchError::Spawn(_) => "Git could not run.".to_string(),
     })?;
     if before.is_some() && before == octogit_git::read_refs(path).ok() {
         return Ok(None);
     }
     repository_view(path)
         .map(Some)
-        .ok_or_else(|| "Could not read the repository.".to_string())
+        .ok_or_else(|| FetchFailureView::from("Could not read the repository.".to_string()))
 }
 
 #[cfg(test)]

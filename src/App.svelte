@@ -418,6 +418,12 @@
   }
   /** Dernier fetch automatique réussi du dépôt ouvert (secondes depuis l'epoch). */
   let lastFetched: number | null = $state(null);
+  /**
+   * Le dernier fetch (automatique ou Fetch All) a échoué faute de réseau : `FetchStatus` dit « offline ». Le fetch
+   * automatique réessaie chaque minute ; au premier succès l'état repasse à « fetched n min ago ». Le dernier âge réussi
+   * est gardé, aucune branche locale ni l'arbre de travail ne change.
+   */
+  let fetchOffline = $state(false);
   /** Incrémenté à chaque ouverture explicite : rouvrir le dépôt déjà ouvert relance son fetch d'ouverture. */
   let openCount = $state(0);
   const openPath = $derived.by(() => {
@@ -431,13 +437,21 @@
     void openCount;
     if (path === null) return;
     lastFetched = null;
+    fetchOffline = false;
+    pushRemotes = null;
     return scheduleFetch({
       path,
       intervalMs: window.__octogitFetchIntervalMs,
       run: async () => {
         const result = await commands.fetchRepository(path);
-        if (result.status !== "ok") return;
         if (screen?.screen !== "history" || screen.repository.path !== path) return;
+        if (result.status !== "ok") {
+          // Réseau coupé : « offline », le dernier âge est gardé ; un autre échec (le réseau répond) revient
+          // à l'affichage normal avec le dernier âge gardé.
+          fetchOffline = result.error.kind === "offline";
+          return;
+        }
+        fetchOffline = false;
         // `null` : les refs n'ont pas changé (cas courant), le graphe n'est pas redessiné.
         // Le fetch ne rattache rien : le profil reste celui de l'ouverture.
         if (result.data !== null)
@@ -825,7 +839,7 @@
   /** Clic sur `SyncButton` : lance l'action par défaut (Fetch All, Pull ff-only ou Pull rebase), une seule à la fois. */
   async function sync() {
     const path = openPath;
-    if (path === null || syncingPath !== null || operationBlocked) return;
+    if (path === null || networkActionRunning() || operationBlocked) return;
     syncNotice = null;
     syncingPath = path;
     try {
@@ -840,22 +854,72 @@
   let pushingPath: string | null = $state(null);
   /** Message d'une ligne du dernier push refusé ou échoué, avec le dépôt concerné ; effacé au prochain lancement. */
   let pushNotice: { path: string; text: string } | null = $state(null);
+  /** Liste des remotes de `PushButton` ouverte (branche « Not published », dépôt sans `origin`), avec son dépôt. */
+  let pushRemotes: { path: string; remotes: string[] } | null = $state(null);
+  /** Lecture des remotes en cours (clic sur `PushButton` pas encore tranché) : un second clic est ignoré. */
+  let listingRemotes = false;
+
+  /**
+   * Une action réseau de `SyncButton` ou de `PushButton` tourne (Fetch All, Pull, Push, publication, Force push,
+   * Fix commit identity) : l'autre bouton n'en lance aucune. Le garde est ici, dans l'interface : `runFetchNow`
+   * sérialise aussi les appels, mais un clic ne doit même pas partir.
+   */
+  function networkActionRunning(): boolean {
+    return (
+      syncingPath !== null ||
+      pushingPath !== null ||
+      fixingCommitsPath !== null ||
+      forceDialog?.busy === true ||
+      listingRemotes
+    );
+  }
 
   /**
    * Clic sur `PushButton` : pousse la branche courante (ou la publie sur `origin`), un seul push à la fois, sous la
    * même garde que le fetch (jamais en même temps qu'un fetch du même dépôt). Le dépôt relu remplace l'affichage
    * (refs, `ahead`, suivi) ; profil et écart sont gardés. Un refus (distante en avance) ou un échec laisse le
-   * dépôt tel quel et affiche son message d'une ligne près du bouton.
+   * dépôt tel quel et affiche son message d'une ligne près du bouton. Une branche « Not published » d'un dépôt sans
+   * `origin` mais avec un remote ouvre d'abord la liste des remotes (rien n'est poussé avant le choix).
    */
   async function push() {
     const path = openPath;
-    if (path === null || pushingPath !== null || fixingCommitsPath !== null || operationBlocked)
+    if (path === null || networkActionRunning() || pushRemotes !== null || operationBlocked) return;
+    pushNotice = null;
+    const published =
+      screen?.screen === "history" &&
+      screen.repository.refs.some((r) => r.kind === "branch" && r.current && r.upstream !== null);
+    if (!published) {
+      listingRemotes = true;
+      let remotes: string[];
+      try {
+        remotes = await commands.listPushRemotes(path);
+      } finally {
+        listingRemotes = false;
+      }
+      if (openPath !== path) return;
+      if (remotes.length > 0) {
+        if (!networkActionRunning()) pushRemotes = { path, remotes };
+        return;
+      }
+    }
+    await runPush(path, () => commands.pushRepository(path));
+  }
+
+  /** Choix d'un remote dans la liste de `PushButton` : la branche y est publiée (même nom, devient suivie). */
+  async function pushToRemote(remote: string) {
+    const choice = pushRemotes;
+    pushRemotes = null;
+    if (choice === null || openPath !== choice.path || networkActionRunning() || operationBlocked)
       return;
     pushNotice = null;
+    await runPush(choice.path, () => commands.pushRepositoryTo(choice.path, remote));
+  }
+
+  async function runPush(path: string, send: () => ReturnType<typeof commands.pushRepository>) {
     pushingPath = path;
     try {
       await runFetchNow(path, async () => {
-        const result = await commands.pushRepository(path);
+        const result = await send();
         if (screen?.screen !== "history" || screen.repository.path !== path) return;
         if (result.status !== "ok") {
           pushNotice = { path, text: result.error };
@@ -892,7 +956,7 @@
    */
   async function openForcePush() {
     const path = openPath;
-    if (path === null || forceDialog !== null || pushingPath !== null || operationBlocked) return;
+    if (path === null || forceDialog !== null || networkActionRunning() || operationBlocked) return;
     const view = await commands.getForcePushCheck(path);
     if (openPath !== path) return;
     rewriteState = { path, view };
@@ -906,14 +970,7 @@
    */
   async function forcePush() {
     const dialog = forceDialog;
-    if (
-      dialog === null ||
-      dialog.busy ||
-      pushingPath !== null ||
-      fixingCommitsPath !== null ||
-      operationBlocked
-    )
-      return;
+    if (dialog === null || dialog.busy || networkActionRunning() || operationBlocked) return;
     const { path } = dialog;
     forceDialog = { ...dialog, busy: true, error: null };
     try {
@@ -958,7 +1015,7 @@
    */
   async function fixCommitIdentity() {
     const path = openPath;
-    if (path === null || fixingCommitsPath !== null || pushingPath !== null) return;
+    if (path === null || networkActionRunning()) return;
     pushNotice = null;
     fixingCommitsPath = path;
     try {
@@ -1013,6 +1070,7 @@
           } satisfies RepositoryView,
         };
         lastFetched = Date.now() / 1000;
+        fetchOffline = false;
         const tree = await commands.getWorkingTree(path);
         if (tree.status === "ok" && openPath === path) workingTree = tree.data;
         // Pull (rebase) arrêté sur un conflit : le rebase reste en cours, `ConflictResolver` s'ouvre.
@@ -1034,11 +1092,14 @@
         const result = await commands.fetchAllRepository(path);
         if (result.status !== "ok") {
           // Échec de Git : message d'une ligne et « Details » près du bouton ; le dernier âge est gardé.
-          if (screen?.screen === "history" && screen.repository.path === path)
-            syncNotice = { path, text: result.error };
+          if (screen?.screen === "history" && screen.repository.path === path) {
+            syncNotice = { path, text: result.error.message };
+            fetchOffline = result.error.kind === "offline";
+          }
           return;
         }
         if (screen?.screen !== "history" || screen.repository.path !== path) return;
+        fetchOffline = false;
         if (result.data !== null)
           screen = {
             screen: "history",
@@ -2133,11 +2194,19 @@
 
   /** Attente de l'installation d'Apple (après « Install Command Line Tools »). */
   let gitWaiting = $state(false);
+  /** Message brut du système quand il refuse d'ouvrir l'installation d'Apple, ou `null` (état « installation impossible »). */
+  let installRefusal: string | null = $state(null);
 
+  /** Chaque clic relance la commande : un succès passe à l'attente, un refus affiche le message brut et la commande. */
   async function installCommandLineTools() {
     const result = await commands.installCommandLineTools();
-    // Refus : le message brut et son état sont ceux de S-55 ; ici l'écran reste inchangé.
-    if (result.status === "ok") gitWaiting = true;
+    if (result.status === "ok") {
+      installRefusal = null;
+      gitWaiting = true;
+    } else {
+      gitWaiting = false;
+      installRefusal = result.error;
+    }
   }
 
   let rechecking = false;
@@ -2149,6 +2218,7 @@
       const next = await commands.recheckGit();
       if (next.screen !== "gitMissing" && screen?.screen === "gitMissing") {
         gitWaiting = false;
+        installRefusal = null;
         screen = next;
       }
     } finally {
@@ -2271,6 +2341,12 @@
       onhalochange={chooseHalo}
       pushing={pushingPath !== null && pushingPath === openPath}
       pushNotice={pushNotice !== null && pushNotice.path === openPath ? pushNotice.text : null}
+      {fetchOffline}
+      pushRemotes={pushRemotes !== null && pushRemotes.path === openPath
+        ? pushRemotes.remotes
+        : null}
+      onpushremote={pushToRemote}
+      oncancelpushremote={() => (pushRemotes = null)}
       onpush={push}
       fixingCommits={fixingCommitsPath !== null && fixingCommitsPath === openPath}
       onfixcommits={fixCommitIdentity}
@@ -2388,7 +2464,9 @@
     error={null}
     onopen={open}
     onchoose={chooseFolder}
-    gitState={gitWaiting ? "waiting" : "missing"}
+    gitState={installRefusal !== null ? "refused" : gitWaiting ? "waiting" : "missing"}
+    installOutput={installRefusal}
+    oncopycommand={() => void commands.copyInstallCommand()}
     oninstall={installCommandLineTools}
     oncheck={recheckGit}
   />

@@ -329,4 +329,53 @@ describe("PushButton", () => {
       unmount();
     }
   });
+
+  it("synchroniser CA-14 (S-55): with remotes to choose from, the list shows and choosing one runs the push to it", async () => {
+    const onchooseremote = vi.fn();
+    const oncancelremote = vi.fn();
+    const onrun = vi.fn();
+    render(PushButton, {
+      ahead: 0,
+      published: false,
+      remotes: ["backup", "mirror"],
+      onrun,
+      onchooseremote,
+      oncancelremote,
+    });
+    const menu = screen.getByRole("menu", { name: "Publish to a remote" });
+    const items = screen.getAllByRole("menuitem");
+    expect(items.map((i) => i.textContent?.trim())).toEqual(["backup", "mirror"]);
+    expect(menu).toContainElement(items[0]);
+    // Le focus est dans la liste dès son ouverture (au clavier).
+    expect(items[0]).toHaveFocus();
+    await fireEvent.click(items[1]);
+    expect(onchooseremote).toHaveBeenCalledWith("mirror");
+    expect(onrun).not.toHaveBeenCalled();
+    expect(oncancelremote).not.toHaveBeenCalled();
+  });
+
+  it("synchroniser CA-14 (S-55): Escape and Cancel close the list without pushing anything", async () => {
+    const onchooseremote = vi.fn();
+    const oncancelremote = vi.fn();
+    const onrun = vi.fn();
+    render(PushButton, {
+      ahead: 0,
+      published: false,
+      remotes: ["backup"],
+      onrun,
+      onchooseremote,
+      oncancelremote,
+    });
+    await fireEvent.keyDown(window, { key: "Escape" });
+    expect(oncancelremote).toHaveBeenCalledTimes(1);
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(oncancelremote).toHaveBeenCalledTimes(2);
+    expect(onchooseremote).not.toHaveBeenCalled();
+    expect(onrun).not.toHaveBeenCalled();
+  });
+
+  it("synchroniser CA-14 (S-55): without a list to choose from, nothing is shown", () => {
+    render(PushButton, { ahead: 0, published: false, remotes: null, onrun: vi.fn() });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
 });

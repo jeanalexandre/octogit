@@ -13,6 +13,8 @@ pub enum PushError {
     NoBranch,
     /// Branche sans suivi et aucun remote `origin` : rien où la publier.
     NoOrigin,
+    /// Le remote choisi n'existe pas dans le dépôt : rien n'est poussé.
+    UnknownRemote(String),
     /// La distante a des commits absents en local : push refusé, rien n'a changé.
     Rejected {
         remote: String,
@@ -32,6 +34,7 @@ impl fmt::Display for PushError {
         match self {
             PushError::NoBranch => write!(f, "No branch to push."),
             PushError::NoOrigin => write!(f, "No origin remote."),
+            PushError::UnknownRemote(remote) => write!(f, "Unknown remote {remote}."),
             PushError::Rejected { remote, .. } => {
                 write!(f, "{remote} has commits you do not have locally.")
             }
@@ -95,12 +98,56 @@ pub fn push(path: &Path, timeout: Duration) -> Result<String, PushError> {
             ("origin".to_string(), format!("{local}:{local}"), true)
         }
     };
+    run_push(path, timeout, remote, &refspec, set_upstream)
+}
+
+/// Noms des remotes de `path` (`git remote`), dans l'ordre de Git.
+pub fn remotes(path: &Path, timeout: Duration) -> Result<Vec<String>, PushError> {
+    let output = fetch_with(path, timeout, &["remote"]).map_err(from_fetch)?;
+    Ok(output
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(str::to_string)
+        .collect())
+}
+
+/// Publie la branche courante de `path` sur le remote choisi `remote` (qui doit exister), sous le même nom, et la
+/// fait suivre (`--set-upstream`). Jamais de force, aucun tag. Remote inconnu : refus, rien n'est écrit.
+pub fn push_to(path: &Path, remote: &str, timeout: Duration) -> Result<String, PushError> {
+    let branch = read_refs(path)
+        .map_err(|e| PushError::Failed {
+            output: format!("{e:?}"),
+        })?
+        .into_iter()
+        .find(|r| r.kind == RefKind::Branch && r.current)
+        .ok_or(PushError::NoBranch)?;
+    if !remotes(path, timeout)?.iter().any(|r| r == remote) {
+        return Err(PushError::UnknownRemote(remote.to_string()));
+    }
+    let local = format!("refs/heads/{}", branch.name);
+    run_push(
+        path,
+        timeout,
+        remote.to_string(),
+        &format!("{local}:{local}"),
+        true,
+    )
+}
+
+fn run_push(
+    path: &Path,
+    timeout: Duration,
+    remote: String,
+    refspec: &str,
+    set_upstream: bool,
+) -> Result<String, PushError> {
     let mut args = vec!["push", "--no-recurse-submodules"];
     if set_upstream {
         args.push("--set-upstream");
     }
     args.push(&remote);
-    args.push(&refspec);
+    args.push(refspec);
     match fetch_with(path, timeout, &args) {
         Ok(output) => Ok(output),
         Err(FetchError::Failed { output }) if output.contains("[rejected]") => {
@@ -160,6 +207,10 @@ mod tests {
         }
         fn git(&self, args: &[&str]) -> String {
             Self::git_in(&self.repo(), args)
+        }
+        /// Bare du remote `backup` du scénario `other-remote`.
+        fn backup(&self) -> PathBuf {
+            self.repo().with_file_name("repo-backup.git")
         }
         fn remote_head(&self, branch: &str) -> String {
             Self::git_in(
@@ -264,6 +315,55 @@ mod tests {
         assert_eq!(error, PushError::NoOrigin);
         assert_eq!(error.to_string(), "No origin remote.");
         assert_eq!(state, fx.local_state());
+    }
+
+    #[test]
+    fn synchroniser_ca_14_remotes_lists_the_remotes_of_a_repository_without_origin() {
+        let fx = Fixture::new("other-remote");
+        assert_eq!(remotes(&fx.repo(), TIMEOUT).unwrap(), vec!["backup"]);
+        let none = Fixture::new("no-origin");
+        assert!(remotes(&none.repo(), TIMEOUT).unwrap().is_empty());
+    }
+
+    #[test]
+    fn synchroniser_ca_14_push_to_creates_the_branch_in_the_chosen_remote_and_tracks_it() {
+        let fx = Fixture::new("other-remote");
+        let head = fx.git(&["rev-parse", "HEAD"]);
+        let backup = fx.backup();
+
+        push_to(&fx.repo(), "backup", TIMEOUT).unwrap();
+
+        assert_eq!(
+            Fixture::git_in(&backup, &["rev-parse", "refs/heads/local-only"]),
+            head
+        );
+        assert_eq!(fx.git(&["config", "branch.local-only.remote"]), "backup");
+        assert_eq!(
+            fx.git(&["config", "branch.local-only.merge"]),
+            "refs/heads/local-only"
+        );
+        assert_eq!(fx.current().upstream.as_deref(), Some("backup/local-only"));
+    }
+
+    #[test]
+    fn synchroniser_ca_14_push_to_an_unknown_remote_is_refused_and_writes_nothing() {
+        let fx = Fixture::new("other-remote");
+        let state = fx.local_state();
+        let config = std::fs::read(fx.repo().join(".git/config")).unwrap();
+        let backup_refs = Fixture::git_in(&fx.backup(), &["for-each-ref"]);
+
+        let error = push_to(&fx.repo(), "nowhere", TIMEOUT).unwrap_err();
+
+        assert_eq!(error, PushError::UnknownRemote("nowhere".to_string()));
+        assert_eq!(state, fx.local_state());
+        assert_eq!(
+            config,
+            std::fs::read(fx.repo().join(".git/config")).unwrap()
+        );
+        assert_eq!(
+            backup_refs,
+            Fixture::git_in(&fx.backup(), &["for-each-ref"])
+        );
     }
 
     #[test]

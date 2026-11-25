@@ -1,7 +1,7 @@
 #!/bin/sh
 # Faux ssh de test, à placer en tête du PATH.
 # Enregistre les options reçues dans $FAKE_SSH_LOG (défaut : ./fake-ssh.log), une ligne par appel.
-# Réponse selon $FAKE_SSH_MODE : ok (défaut), denied (refus), silent (silence au-delà de 10 s).
+# Réponse selon $FAKE_SSH_MODE : ok (défaut), denied (refus), offline (réseau coupé), silent (silence au-delà de 10 s).
 # Mode ok : « Hi $FAKE_SSH_ACCOUNT! » (défaut : octogit). Mode serve : sert un dépôt --bare (voir plus bas).
 # Si $FAKE_SSH_ENV_OUT est posé, y écrit l'environnement reçu ; si $FAKE_SSH_ASKPASS_OUT est posé et que
 # $SSH_ASKPASS l'est aussi, y écrit ce que rend ce programme d'appoint (la passphrase, pour les tests).
@@ -31,5 +31,7 @@ esac
 case "${FAKE_SSH_MODE:-ok}" in
   ok) echo "Hi ${FAKE_SSH_ACCOUNT:-octogit}! You've successfully authenticated, but GitHub does not provide shell access." >&2; exit 1 ;;
   denied) echo "git@github.com: Permission denied (publickey)." >&2; exit 255 ;;
+  # offline : réseau coupé, la machine ne trouve pas l'hôte (ce que `ssh` écrit), code 255.
+  offline) echo "ssh: Could not resolve hostname github.com: nodename nor servname provided, or not known" >&2; exit 255 ;;
   silent) exec sleep 15 ;;
 esac

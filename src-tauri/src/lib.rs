@@ -73,6 +73,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         .commands(collect_commands![
             commands::get_launch_state,
             commands::install_command_line_tools,
+            commands::copy_install_command,
             commands::recheck_git,
             commands::list_recent_repositories,
             commands::open_repository,
@@ -159,6 +160,8 @@ pub fn builder() -> Builder<tauri::Wry> {
             commands::push_tag_repository,
             commands::delete_tag_repository,
             commands::push_repository,
+            commands::list_push_remotes,
+            commands::push_repository_to,
             commands::get_force_push_check,
             commands::force_push_repository,
             commands::fix_commit_identity,

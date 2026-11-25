@@ -7,6 +7,9 @@
 # - unpublished : branche courante `local-only`, sans branche suivie (« Not published »), avec un commit local ;
 # - diverged : refs.sh tel quel : en avance de 2 et en retard de 3, l'origin a reçu des commits d'un autre clone ;
 # - no-origin : comme unpublished, sans aucun remote ;
+# - other-remote : comme no-origin, mais le dépôt a un remote `backup` (bare `<dossier>-backup.git`, qui a déjà
+#   toutes les branches locales d'avant) : la branche `local-only` « Not published » se publie en le choisissant
+#   dans la liste des remotes ; son seul commit à pousser vers `backup` est « Local one » ;
 # - empty-origin : comme unpublished, mais `origin` est un bare vide et le dépôt n'a aucune ref `origin/…`.
 set -e
 . "$(dirname "$0")/lib.sh"
@@ -40,6 +43,14 @@ case "$scenario" in
     git -C "$repo" checkout -q -b local-only
     local_commit local-one "Local one" 2024-01-18T09:00:00Z
     git -C "$repo" remote remove origin
+    ;;
+  other-remote)
+    git -C "$repo" remote remove origin
+    git init -q --bare "$repo-backup.git"
+    git -C "$repo" remote add backup "$repo-backup.git"
+    git -C "$repo" push -q backup --all
+    git -C "$repo" checkout -q -b local-only
+    local_commit local-one "Local one" 2024-01-18T09:00:00Z
     ;;
   empty-origin)
     git -C "$repo" checkout -q -b local-only

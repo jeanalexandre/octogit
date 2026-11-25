@@ -20,6 +20,28 @@ pub enum FetchError {
     TimedOut { output: String },
 }
 
+/// Phrases de `git` ou de `ssh` qui disent que la machine n'atteint pas l'hôte (réseau coupé).
+const OFFLINE_MARKERS: [&str; 6] = [
+    "Could not resolve hostname",
+    "Could not resolve host",
+    "Network is unreachable",
+    "No route to host",
+    "Connection timed out",
+    "Connection refused",
+];
+
+impl FetchError {
+    /// Échec dû au réseau coupé : délai dépassé, ou sortie qui dit que l'hôte n'est pas atteignable. Un refus
+    /// d'authentification (« Permission denied (publickey) ») n'en est pas un : le réseau répond.
+    pub fn is_offline(&self) -> bool {
+        match self {
+            FetchError::TimedOut { .. } => true,
+            FetchError::Failed { output } => OFFLINE_MARKERS.iter().any(|m| output.contains(m)),
+            FetchError::Spawn(_) => false,
+        }
+    }
+}
+
 impl fmt::Display for FetchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -355,6 +377,31 @@ mod tests {
         }
         assert_eq!(config, std::fs::read(repo.join(".git/config")).unwrap());
         assert_eq!(heads, Fixture::git(&repo, &["for-each-ref"]));
+    }
+
+    #[test]
+    fn explorer_l_historique_ca_5_a_failure_is_offline_for_unreachable_hosts_and_timeouts_not_for_a_refused_key(
+    ) {
+        let failed = |output: &str| FetchError::Failed {
+            output: output.to_string(),
+        };
+        for output in [
+            "ssh: Could not resolve hostname github.com: nodename nor servname provided, or not known\nfatal: Could not read from remote repository.",
+            "fatal: unable to access 'https://x/': Could not resolve host: x",
+            "ssh: connect to host x port 22: Network is unreachable",
+            "ssh: connect to host x port 22: No route to host",
+            "ssh: connect to host x port 22: Connection timed out",
+            "ssh: connect to host x port 22: Connection refused",
+        ] {
+            assert!(failed(output).is_offline(), "{output}");
+        }
+        assert!(FetchError::TimedOut {
+            output: String::new()
+        }
+        .is_offline());
+        assert!(!failed("git@github.com: Permission denied (publickey).").is_offline());
+        assert!(!failed("fatal: couldn't find remote ref").is_offline());
+        assert!(!FetchError::Spawn("no git".to_string()).is_offline());
     }
 
     #[test]

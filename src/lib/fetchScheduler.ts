@@ -51,7 +51,8 @@ export function scheduleFetch({
       try {
         await run();
       } catch {
-        // Échec : l'affichage garde le dernier fetch réussi (états d'erreur : S-55).
+        // Échec : l'affichage garde le dernier fetch réussi ; « offline » est posé par `run` (réseau coupé, S-55) et
+        // la planification continue, donc le fetch suivant réessaie. L'état « erreur » : S-53.
       }
     })();
     inFlight.set(path, current);

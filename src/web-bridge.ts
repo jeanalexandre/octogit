@@ -8,7 +8,8 @@
  * Le sélecteur de dossier natif n'existe pas dans le navigateur : `choose_folder` rend le dossier
  * posé par le test dans `window.__octogitChosenFolder` (`null` : sélecteur annulé) ; de même
  * `choose_ssh_key` rend le fichier posé dans `window.__octogitChosenFile`.
- * `copy_public_key` range la clé publique dans `window.__octogitClipboard` au lieu du presse-papiers ;
+ * `copy_public_key` range la clé publique dans `window.__octogitClipboard` au lieu du presse-papiers, comme
+ * `copy_install_command` (`xcode-select --install`) ;
  * `open_file_in_default_app` range le chemin complet demandé dans `window.__octogitOpened` (aucune application ne s'ouvre).
  */
 const params = new URLSearchParams(window.location.search);
@@ -19,7 +20,8 @@ const sshDir = params.get("ssh_dir");
 const fetchInterval = Number(params.get("fetch_interval_ms"));
 
 /**
- * Réglages du faux `ssh` du pont, par l'adresse : `?fake_ssh_mode=ok|denied|silent`,
+ * Réglages du faux `ssh` du pont, par l'adresse : `?fake_ssh_mode=ok|denied|silent|offline` (`offline` : réseau
+ * coupé, « Could not resolve hostname », code 255),
  * `?fake_ssh_account=<compte>` (mode ok), `?ssh_test_timeout_ms=<ms>` (délai du test de connexion, 10 s par défaut).
  */
 const testHeaders = [
@@ -165,6 +167,10 @@ async function call(command: string, args?: unknown): Promise<unknown> {
     if (command === "choose_ssh_key") return window.__octogitChosenFile ?? null;
     if (command === "copy_public_key") {
       window.__octogitClipboard = (await call("read_public_key", args)) as string;
+      return null;
+    }
+    if (command === "copy_install_command") {
+      window.__octogitClipboard = (await call("read_install_command")) as string;
       return null;
     }
     if (command === "open_file_in_default_app") {

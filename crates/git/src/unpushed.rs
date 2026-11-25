@@ -54,6 +54,21 @@ pub fn read_unpushed(path: &Path) -> Result<Vec<UnpushedCommit>, GitError> {
     let Some(remote) = target_remote(path, &branch.name)? else {
         return Ok(Vec::new());
     };
+    unpushed_for(path, &remote)
+}
+
+/// Comme `read_unpushed`, pour un push vers `remote` choisi (une branche « Not published » publiée sur un autre
+/// remote que `origin`) : les commits de la branche courante absents de toute branche distante de ce remote.
+/// Sans branche courante : liste vide.
+pub fn read_unpushed_to(path: &Path, remote: &str) -> Result<Vec<UnpushedCommit>, GitError> {
+    let refs = read_refs(path)?;
+    if !refs.iter().any(|r| r.kind == RefKind::Branch && r.current) {
+        return Ok(Vec::new());
+    }
+    unpushed_for(path, remote)
+}
+
+fn unpushed_for(path: &Path, remote: &str) -> Result<Vec<UnpushedCommit>, GitError> {
     let remotes = format!("--remotes={remote}");
     let output = fetch_with(
         path,

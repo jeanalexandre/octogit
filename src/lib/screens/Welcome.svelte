@@ -18,6 +18,8 @@
     onprofiles,
     noProfile = false,
     gitState = null,
+    installOutput = null,
+    oncopycommand,
     oninstall,
     oncheck,
     notFound = null,
@@ -30,8 +32,16 @@
     onlocate?: () => void;
     /** « Remove from recent » : retire l'entrée de Recent (aucun fichier n'est supprimé). */
     onremove?: (path: string) => void;
-    /** Git absent : « Git not found » (`missing`) ou, après « Install Command Line Tools », l'attente (`waiting`). */
-    gitState?: "missing" | "waiting" | null;
+    /**
+     * Git absent : « Git not found » (`missing`), après « Install Command Line Tools » l'attente (`waiting`), ou
+     * l'installation refusée par le système (`refused` : `installOutput`, la commande et Copy ; la revérification
+     * automatique et « Check again » restent actifs).
+     */
+    gitState?: "missing" | "waiting" | "refused" | null;
+    /** Message brut renvoyé par le système quand l'installation est refusée (`gitState` `refused`). */
+    installOutput?: string | null;
+    /** « Copy » : place `xcode-select --install` dans le presse-papiers (texte fixe côté Rust). */
+    oncopycommand?: () => void;
     /** « Install Command Line Tools » : ouvre l'installation d'Apple (rappelable). */
     oninstall?: () => void;
     /** « Check again » et revérification automatique (toutes les 2 s tant que Git est absent). */
@@ -65,6 +75,22 @@
     <p class="muted">Git is required. It is not installed on this Mac.</p>
     {#if gitState === "waiting"}
       <p class="muted" role="status">Waiting for the Command Line Tools installation…</p>
+      <button type="button" class="open-folder" onclick={() => oncheck?.()}>
+        <RefreshCw size={16} strokeWidth={1.8} aria-hidden="true" /> Check again
+      </button>
+    {:else if gitState === "refused"}
+      <!-- Installation impossible : le message brut du système, puis la commande à lancer au terminal. -->
+      <p class="error" role="alert">
+        <span>The installation could not be started:</span>
+        <span class="raw">{installOutput}</span>
+      </p>
+      <p class="muted">Run this command in Terminal instead:</p>
+      <div class="command">
+        <code>xcode-select --install</code>
+        <button type="button" class="open-folder" onclick={() => oncopycommand?.()}>
+          <Copy size={16} strokeWidth={1.8} aria-hidden="true" /> Copy
+        </button>
+      </div>
       <button type="button" class="open-folder" onclick={() => oncheck?.()}>
         <RefreshCw size={16} strokeWidth={1.8} aria-hidden="true" /> Check again
       </button>
@@ -176,6 +202,27 @@
     border: 1px solid var(--danger);
     border-radius: 6px;
     color: var(--danger);
+  }
+
+  .error .raw {
+    display: block;
+    margin-top: 4px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    white-space: pre-wrap;
+  }
+
+  .command {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .command code {
+    padding: 4px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    background: var(--surface-raised);
+    font-family: ui-monospace, "SF Mono", monospace;
   }
 
   .actions {

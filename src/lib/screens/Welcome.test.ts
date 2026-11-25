@@ -189,6 +189,44 @@ describe("Welcome", () => {
       }
     });
 
+    it("demarrer-un-depot CA-24 : a refused installation shows the raw message, the command, Copy, Check again and Install", async () => {
+      const oncopycommand = vi.fn();
+      const p = gitProps({
+        gitState: "refused",
+        installOutput: "xcode-select: error: command line tools are already installed",
+        oncopycommand,
+      });
+      render(Welcome, p);
+      expect(screen.getByRole("heading", { name: "Git not found" })).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "xcode-select: error: command line tools are already installed",
+      );
+      expect(screen.getByText("xcode-select --install")).toBeVisible();
+      const copy = screen.getByRole("button", { name: "Copy" });
+      expect(copy.firstElementChild?.tagName.toLowerCase()).toBe("svg");
+      await fireEvent.click(copy);
+      expect(oncopycommand).toHaveBeenCalledOnce();
+      await fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+      expect(p.oncheck).toHaveBeenCalledOnce();
+      await fireEvent.click(screen.getByRole("button", { name: "Install Command Line Tools" }));
+      expect(p.oninstall).toHaveBeenCalledOnce();
+      expect(screen.queryByText(/Waiting for the Command Line Tools/)).toBeNull();
+    });
+
+    it("demarrer-un-depot CA-24 : in the refused state the automatic check keeps going", () => {
+      vi.useFakeTimers();
+      try {
+        const p = gitProps({ gitState: "refused", installOutput: "refused" });
+        render(Welcome, p);
+        vi.advanceTimersByTime(2000);
+        expect(p.oncheck).toHaveBeenCalledTimes(1);
+        vi.advanceTimersByTime(4000);
+        expect(p.oncheck).toHaveBeenCalledTimes(3);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("demarrer-un-depot CA-25 : with Git there is no automatic check and no Git state", () => {
       vi.useFakeTimers();
       try {

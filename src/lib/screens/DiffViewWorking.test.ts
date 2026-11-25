@@ -171,6 +171,69 @@ describe("DiffView, working modes", () => {
     expect(screen.queryByRole("button", { name: "Stage selected lines" })).toBeNull();
   });
 
+  /** Diff de `count` lignes ajoutées. */
+  const bigDiff = (count: number): FileDiffView => ({
+    path: "big.txt",
+    status: "added",
+    binary: false,
+    oldSize: null,
+    newSize: null,
+    lines: Array.from({ length: count }, (_, i) => add(i + 1, `row ${i + 1}`)),
+  });
+
+  for (const mode of ["work", "staged"] as const) {
+    it(`preparer-un-commit CA-10: in ${mode} mode a diff of more than 5 000 lines is folded, Show diff reveals it, and Stage file stays available`, async () => {
+      const loadDiff = vi.fn(async () => bigDiff(6214));
+      const apply = vi.fn(async () => {});
+      render(DiffView, {
+        mode,
+        files: [{ path: "big.txt", status: "added" }],
+        start: 0,
+        loadDiff,
+        apply,
+        onclose: vi.fn(),
+      });
+      await screen.findByText("Diff too large to display (6 214 lines).");
+      const verb = mode === "staged" ? "Unstage file" : "Stage file";
+      expect(screen.getByRole("button", { name: verb })).toBeEnabled();
+      expect(document.querySelector("[data-kind]")).toBeNull();
+      expect(screen.queryByText("row 1")).toBeNull();
+
+      await fireEvent.click(screen.getByRole("button", { name: "Show diff" }));
+      await screen.findByText("row 6214");
+      expect(screen.queryByText(/Diff too large/)).toBeNull();
+      expect(screen.getByRole("button", { name: verb })).toBeEnabled();
+      await fireEvent.click(screen.getByRole("button", { name: verb }));
+      expect(apply).toHaveBeenCalledWith({ file: "big.txt", lines: null });
+    });
+  }
+
+  it("preparer-un-commit CA-10: exactly 5 000 lines are displayed directly, 5 001 are folded", async () => {
+    const files1 = [{ path: "big.txt", status: "added" as const }];
+    const { unmount } = render(DiffView, {
+      mode: "work",
+      files: files1,
+      start: 0,
+      loadDiff: async () => bigDiff(5000),
+      apply: vi.fn(async () => {}),
+      onclose: vi.fn(),
+    });
+    await screen.findByText("row 5000");
+    expect(screen.queryByText(/Diff too large/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show diff" })).toBeNull();
+    unmount();
+
+    render(DiffView, {
+      mode: "work",
+      files: files1,
+      start: 0,
+      loadDiff: async () => bigDiff(5001),
+      apply: vi.fn(async () => {}),
+      onclose: vi.fn(),
+    });
+    await screen.findByText("Diff too large to display (5 001 lines).");
+  });
+
   it("preparer-un-commit CA-7: once the last block is moved the view stays open on an empty state", async () => {
     let remaining = lines;
     const loadDiff = vi.fn(async () => remaining);

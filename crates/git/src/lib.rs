@@ -66,7 +66,7 @@ pub use operation::{
     OperationKind, OperationState,
 };
 pub use pull::{pull, PullError, PullMode};
-pub use push::{push, PushError};
+pub use push::{push, push_to, remotes, PushError};
 pub use rebase_plan::{read_rebase_plan, RebasePlan, RebasePlanCommit};
 pub use reset::{reset_branch, reset_hard, reset_hard_loss, LostCommit, ResetLoss, ResetMode};
 pub use rewrite::{rewrite_identity, RewriteError, RewriteTarget};
@@ -77,7 +77,7 @@ pub use stash::{
 pub use tag::{
     check_tag_name, create_tag, delete_tag, push_tag, tag_on_origin, TagError, TagNameCheck,
 };
-pub use unpushed::{read_unpushed, UnpushedCommit};
+pub use unpushed::{read_unpushed, read_unpushed_to, UnpushedCommit};
 pub use working_tree::{
     amend_message, amend_message_with_home, commit, commit_with_home, has_uncommitted_changes,
     read_working_tree, stage_all, unstage_all, WorkingTree, WorkingTreeWatcher,

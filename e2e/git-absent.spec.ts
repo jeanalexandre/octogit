@@ -131,6 +131,45 @@ test("CA-23 : sans dernier dépôt présent, la reprise donne Welcome", async ({
   await expect(page.getByRole("heading", { name: "Git not found" })).toHaveCount(0);
 });
 
+for (const size of [
+  { width: 1500, height: 900 },
+  { width: 1280, height: 720 },
+]) {
+  test(`CA-24 : installation refusée, le message brut et la commande s'affichent, Copy copie exactement la commande, Git installé au terminal reprend le lancement sans clic en moins de 5 s (${size.width}x${size.height})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    ws.rememberLastRepository(ws.repo("simple"));
+    await page.goto(ws.urlWithoutGit({ message: "xcode-select: error: refused by the system" }));
+    await installButton(page).click();
+
+    await expect(page.getByRole("alert")).toContainText(
+      "xcode-select: error: refused by the system",
+    );
+    await expect(page.getByText("xcode-select --install", { exact: true })).toBeVisible();
+    await expect(page.getByRole("status")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Check again" })).toBeVisible();
+    await expect(installButton(page)).toBeVisible();
+    expect(ws.xcodeSelectCalls()).toEqual(["--install"]);
+
+    await page.getByRole("button", { name: "Copy" }).click();
+    await expect
+      .poll(() => page.evaluate(() => window.__octogitClipboard ?? null))
+      .toBe("xcode-select --install");
+
+    // Chaque clic relance la commande ; l'état reste « installation impossible ».
+    await installButton(page).click();
+    await expect.poll(() => ws.xcodeSelectCalls()).toEqual(["--install", "--install"]);
+    await expect(page.getByRole("alert")).toContainText("refused by the system");
+
+    // Git s'installe au terminal : le lancement reprend seul, sans clic ni relance.
+    ws.installFakeGit();
+    await expect(page.getByRole("heading", { name: "my-repo" })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole("heading", { name: "Git not found" })).toHaveCount(0);
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  });
+}
+
 test("CA-25 : avec Git installé, aucun état Git absent ni attente", async ({ page }) => {
   ws.rememberLastRepository(ws.repo("simple"));
   await page.goto(ws.url);

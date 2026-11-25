@@ -247,9 +247,24 @@ fn fault_reason(
 /// retour dans Octogit). `None` : aucun profil rattaché (voir `ensure_conform`), ou commits illisibles.
 /// Lecture seule.
 pub fn push_check(store: &Store, repo: &Path, home: &Path) -> Option<PushCheckView> {
+    push_check_to(store, repo, home, None)
+}
+
+/// Comme `push_check`, pour un push vers `remote` choisi (`Some`) : les commits à pousser sont ceux absents de toute
+/// branche distante de ce remote, pas ceux du remote de suivi ou d'`origin`.
+pub fn push_check_to(
+    store: &Store,
+    repo: &Path,
+    home: &Path,
+    remote: Option<&str>,
+) -> Option<PushCheckView> {
     let profiles = store.profiles();
     let (profile, _) = resolve(store, &profiles, repo, home)?;
-    let unpushed = octogit_git::read_unpushed(repo).ok()?;
+    let unpushed = match remote {
+        Some(remote) => octogit_git::read_unpushed_to(repo, remote),
+        None => octogit_git::read_unpushed(repo),
+    }
+    .ok()?;
     let faults: Vec<_> = unpushed
         .iter()
         .map(|c| {
@@ -292,8 +307,18 @@ pub fn push_check(store: &Store, repo: &Path, home: &Path) -> Option<PushCheckVi
 /// de `PushCheckView`). Refait au moment de l'action, avant tout `git push` ; réutilisable par le Force push.
 /// Des commits illisibles refusent aussi. Rien n'est écrit.
 pub fn ensure_pushable(store: &Store, repo: &Path, home: &Path) -> Result<(), String> {
+    ensure_pushable_to(store, repo, home, None)
+}
+
+/// Garde de Push vers un remote choisi : comme `ensure_pushable`, avec les commits à pousser calculés pour `remote`.
+pub fn ensure_pushable_to(
+    store: &Store,
+    repo: &Path,
+    home: &Path,
+    remote: Option<&str>,
+) -> Result<(), String> {
     ensure_conform(store, repo, home)?;
-    match push_check(store, repo, home) {
+    match push_check_to(store, repo, home, remote) {
         Some(check) => check.reason.map_or(Ok(()), Err),
         None => Err("The commits to push could not be read.".to_string()),
     }

@@ -11,6 +11,8 @@ export const commands = {
 	 *  système (affichée par S-55).
 	 */
 	installCommandLineTools: () => typedError<null, string>(__TAURI_INVOKE("install_command_line_tools")),
+	/**  Copie `xcode-select --install` dans le presse-papiers (« Copy » de l'état « installation impossible »). */
+	copyInstallCommand: () => typedError<null, string>(__TAURI_INVOKE("copy_install_command")),
 	/**
 	 *  Revérifie Git (« Check again » et revérification automatique) : l'état de lancement normal quand Git
 	 *  répond, `GitMissing` sinon.
@@ -247,9 +249,12 @@ export const commands = {
 	 */
 	watchWorkingTree: (path: string) => typedError<null, string>(__TAURI_INVOKE("watch_working_tree", { path })),
 	/**  Fetch automatique de `path` en tâche de fond (sans bloquer l'interface), puis relecture du dépôt s'il a changé. */
-	fetchRepository: (path: string) => typedError<RepositoryView_Serialize | null, string>(__TAURI_INVOKE("fetch_repository", { path })),
-	/**  Fetch All de `SyncButton` (tous les remotes, avec prune) en tâche de fond, puis relecture du dépôt s'il a changé. */
-	fetchAllRepository: (path: string) => typedError<RepositoryView_Serialize | null, string>(__TAURI_INVOKE("fetch_all_repository", { path })),
+	fetchRepository: (path: string) => typedError<RepositoryView_Serialize | null, FetchFailureView>(__TAURI_INVOKE("fetch_repository", { path })),
+	/**
+	 *  Fetch All de `SyncButton` (tous les remotes, avec prune) en tâche de fond, puis relecture du dépôt s'il a changé.
+	 *  L'échec distingue le réseau coupé (`offline`) des autres échecs (`failed`).
+	 */
+	fetchAllRepository: (path: string) => typedError<RepositoryView_Serialize | null, FetchFailureView>(__TAURI_INVOKE("fetch_all_repository", { path })),
 	/**
 	 *  Pull de `SyncButton` (`rebase` : Pull (rebase), sinon Pull (fast-forward only)) en tâche de fond, puis
 	 *  relecture du dépôt, et si le Pull (rebase) est resté en cours sur un conflit. L'erreur est un message d'une
@@ -318,6 +323,16 @@ export const commands = {
 	 *  (distante en avance, pas d'`origin`…).
 	 */
 	pushRepository: (path: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("push_repository", { path })),
+	/**
+	 *  Remotes proposés par `PushButton` pour une branche « Not published » d'un dépôt sans `origin` et avec au moins
+	 *  un remote ; liste vide sinon (le clic garde le comportement de `push_repository`). Lecture seule.
+	 */
+	listPushRemotes: (path: string) => __TAURI_INVOKE<string[]>("list_push_remotes", { path }),
+	/**
+	 *  Push de `PushButton` vers le remote choisi dans la liste (même nom de branche, devient suivie), en tâche de
+	 *  fond, puis relecture du dépôt. Mêmes gardes d'identité que `push_repository`, calculés pour ce remote.
+	 */
+	pushRepositoryTo: (path: string, remote: string) => typedError<RepositoryView_Serialize, string>(__TAURI_INVOKE("push_repository_to", { path, remote })),
 	/**
 	 *  Réécriture locale de commits déjà poussés sur la branche courante de `path` (`PushButton` « Force push »,
 	 *  liste de `ForcePushDialog`), ou `None`. Relue à chaque appel, rien n'est écrit.
@@ -663,6 +678,16 @@ export type EdgeView = {
 	to: number,
 	color: number,
 };
+
+/**
+ *  Échec d'un fetch : le réseau coupé (`FetchStatus` « offline ») se distingue des autres échecs, qui gardent leur
+ *  message d'une ligne. Dans les deux cas rien n'a changé (ni branche locale, ni arbre de travail).
+ */
+export type FetchFailureView = 
+/**  La machine n'atteint pas l'hôte (hôte introuvable, connexion refusée ou sans route, délai dépassé). */
+{ kind: "offline"; message: string } | 
+/**  Un autre échec (refus d'authentification, dépôt illisible…). */
+{ kind: "failed"; message: string };
 
 export type FileChangeView = {
 	path: string,

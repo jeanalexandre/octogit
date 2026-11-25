@@ -333,7 +333,10 @@ fn synchroniser_ca_20_fetch_pull_and_push_denied_give_the_reason_and_the_raw_out
     let repo = denied_origin(&sb);
     let before = snapshot(&repo);
 
-    let fetch = fetch_all_repository(&repo).map(|_| ()).unwrap_err();
+    let fetch = fetch_all_repository(&repo)
+        .map(|_| ())
+        .unwrap_err()
+        .message();
     let pull_ff = pull_repository(&repo, false).map(|_| ()).unwrap_err();
     let pull_rebase = pull_repository(&repo, true).map(|_| ()).unwrap_err();
     let push = push_repository(&sb.store, &sb.home, &repo)

@@ -37,6 +37,16 @@ pub fn install_command_line_tools() -> Result<(), String> {
     octogit_platform::open_command_line_tools_install().map_err(|refused| refused.output)
 }
 
+/// Commande à copier quand l'installation d'Apple est refusée (texte fixe, jamais un texte venu de l'interface).
+pub const INSTALL_COMMAND: &str = "xcode-select --install";
+
+/// Copie `xcode-select --install` dans le presse-papiers (« Copy » de l'état « installation impossible »).
+#[tauri::command]
+#[specta::specta]
+pub fn copy_install_command(app: tauri::AppHandle) -> Result<(), String> {
+    octogit_platform::write_clipboard(&app, INSTALL_COMMAND)
+}
+
 /// Revérifie Git (« Check again » et revérification automatique) : l'état de lancement normal quand Git
 /// répond, `GitMissing` sinon.
 #[tauri::command]
@@ -991,19 +1001,24 @@ pub async fn watch_working_tree(app: tauri::AppHandle, path: String) -> Result<(
 /// Fetch automatique de `path` en tâche de fond (sans bloquer l'interface), puis relecture du dépôt s'il a changé.
 #[tauri::command]
 #[specta::specta]
-pub async fn fetch_repository(path: String) -> Result<Option<RepositoryView>, String> {
+pub async fn fetch_repository(
+    path: String,
+) -> Result<Option<RepositoryView>, fetch::FetchFailureView> {
     tauri::async_runtime::spawn_blocking(move || fetch::fetch_repository(Path::new(&path)))
         .await
-        .map_err(|_| "Fetch was interrupted.".to_string())?
+        .map_err(|_| fetch::FetchFailureView::from("Fetch was interrupted.".to_string()))?
 }
 
 /// Fetch All de `SyncButton` (tous les remotes, avec prune) en tâche de fond, puis relecture du dépôt s'il a changé.
+/// L'échec distingue le réseau coupé (`offline`) des autres échecs (`failed`).
 #[tauri::command]
 #[specta::specta]
-pub async fn fetch_all_repository(path: String) -> Result<Option<RepositoryView>, String> {
+pub async fn fetch_all_repository(
+    path: String,
+) -> Result<Option<RepositoryView>, fetch::FetchFailureView> {
     tauri::async_runtime::spawn_blocking(move || fetch::fetch_all_repository(Path::new(&path)))
         .await
-        .map_err(|_| "Fetch was interrupted.".to_string())?
+        .map_err(|_| fetch::FetchFailureView::from("Fetch was interrupted.".to_string()))?
 }
 
 /// Pull de `SyncButton` (`rebase` : Pull (rebase), sinon Pull (fast-forward only)) en tâche de fond, puis
@@ -1220,6 +1235,33 @@ pub async fn push_repository(path: String) -> Result<RepositoryView, String> {
             &Store::new(data_dir()),
             &crate::home_dir(),
             Path::new(&path),
+        )
+    })
+    .await
+    .map_err(|_| "Push was interrupted.".to_string())?
+}
+
+/// Remotes proposés par `PushButton` pour une branche « Not published » d'un dépôt sans `origin` et avec au moins
+/// un remote ; liste vide sinon (le clic garde le comportement de `push_repository`). Lecture seule.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_push_remotes(path: String) -> Vec<String> {
+    tauri::async_runtime::spawn_blocking(move || fetch::push_remote_choices(Path::new(&path)))
+        .await
+        .unwrap_or_default()
+}
+
+/// Push de `PushButton` vers le remote choisi dans la liste (même nom de branche, devient suivie), en tâche de
+/// fond, puis relecture du dépôt. Mêmes gardes d'identité que `push_repository`, calculés pour ce remote.
+#[tauri::command]
+#[specta::specta]
+pub async fn push_repository_to(path: String, remote: String) -> Result<RepositoryView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        fetch::push_repository_to(
+            &Store::new(data_dir()),
+            &crate::home_dir(),
+            Path::new(&path),
+            &remote,
         )
     })
     .await

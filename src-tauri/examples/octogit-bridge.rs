@@ -119,6 +119,12 @@ struct RenameBranchArgs {
 }
 
 #[derive(Deserialize)]
+struct PushToArgs {
+    path: String,
+    remote: String,
+}
+
+#[derive(Deserialize)]
 struct ForcePushArgs {
     path: String,
     expected: String,
@@ -1178,6 +1184,33 @@ fn main() {
                 Err(error) => (serde_json::to_string(&error), 3),
             }
         }
+        "list_push_remotes" => {
+            let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
+            (
+                serde_json::to_string(&octogit_app::fetch::push_remote_choices(
+                    std::path::Path::new(&args.path),
+                )),
+                0,
+            )
+        }
+        "push_repository_to" => {
+            let args: PushToArgs =
+                serde_json::from_str(&input).expect("arguments { path, remote }");
+            match octogit_app::fetch::push_repository_to(
+                &octogit_store::Store::new(octogit_app::data_dir()),
+                &octogit_app::home_dir(),
+                std::path::Path::new(&args.path),
+                &args.remote,
+            ) {
+                Ok(view) => (serde_json::to_string(&view), 0),
+                Err(error) => (serde_json::to_string(&error), 3),
+            }
+        }
+        // Le presse-papiers n'existe pas dans le navigateur : l'interface de test lit la commande ici et la garde.
+        "read_install_command" => (
+            serde_json::to_string(octogit_app::commands::INSTALL_COMMAND),
+            0,
+        ),
         "get_force_push_check" => {
             let args: OpenArgs = serde_json::from_str(&input).expect("arguments { path }");
             (

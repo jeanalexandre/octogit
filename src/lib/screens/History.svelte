@@ -43,6 +43,10 @@
     error,
     hiddenColumns,
     lastFetched = null,
+    fetchOffline = false,
+    pushRemotes = null,
+    onpushremote,
+    oncancelpushremote,
     collapsedFolders = [],
     sectionHeights = {},
     collapsedSections = [],
@@ -251,6 +255,14 @@
     hiddenColumns: Column[];
     /** Secondes depuis l'epoch du dernier fetch réussi, ou `null`. */
     lastFetched?: number | null;
+    /** Le dernier fetch a échoué faute de réseau : `FetchStatus` dit « offline » (le dernier âge est gardé). */
+    fetchOffline?: boolean;
+    /** Remotes proposés par `PushButton` (branche « Not published », dépôt sans `origin`), ou `null` : pas de liste. */
+    pushRemotes?: string[] | null;
+    /** Un remote de la liste de `PushButton` est choisi : la branche y est publiée. */
+    onpushremote?: (remote: string) => void;
+    /** La liste des remotes de `PushButton` est fermée sans rien pousser. */
+    oncancelpushremote?: () => void;
     onopen: (path: string) => void;
     onchoose: () => void;
     /** « Clone… » du `RepoPicker` : ouvre `CloneDialog`. */
@@ -794,7 +806,7 @@
         onedit={oneditprofiles}
         onfix={async () => onfixidentity?.()}
       />
-      <FetchStatus {lastFetched} />
+      <FetchStatus {lastFetched} offline={fetchOffline} />
       <SyncButton
         action={syncAction}
         busy={syncing}
@@ -817,6 +829,9 @@
         {rewrite}
         onforce={() => onforcepush?.()}
         onrun={() => onpush?.()}
+        remotes={pushRemotes}
+        onchooseremote={(remote) => onpushremote?.(remote)}
+        oncancelremote={() => oncancelpushremote?.()}
         onfix={() => onfixcommits?.()}
       />
       {#if tracking}

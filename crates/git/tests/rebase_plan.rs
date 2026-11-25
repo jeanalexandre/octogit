@@ -162,3 +162,77 @@ fn nettoyer_une_branche_ca_1_a_detached_head_has_no_plan() {
         Err(GitError::Read(_))
     ));
 }
+
+impl Fixture {
+    /// `side` part de B (`main~3`) avec un commit, puis `main` le fusionne (`--no-ff`). Rend l'identifiant du merge.
+    fn merge_branch(&self, name: &str, from: &str) -> String {
+        self.git(&["checkout", "-q", "-b", name, from], "Alice Martin");
+        self.commit_file(&format!("{name}.txt"));
+        self.git(&["checkout", "-q", "main"], "Alice Martin");
+        self.git(
+            &[
+                "merge",
+                "-q",
+                "--no-ff",
+                "-m",
+                &format!("Merge {name}"),
+                name,
+            ],
+            "Alice Martin",
+        );
+        self.rev("HEAD")
+    }
+
+    fn commit_file(&self, file: &str) {
+        std::fs::write(self.root.join(file), "y\n").unwrap();
+        self.git(&["add", "."], "Alice Martin");
+        self.git(&["commit", "-q", "-m", file], "Alice Martin");
+    }
+}
+
+#[test]
+fn nettoyer_une_branche_ca_3_a_range_with_a_merge_names_the_one_nearest_the_tip() {
+    let fx = Fixture::new();
+    let first = fx.merge_branch("side", "main~3");
+    fx.commit_file("after.txt");
+    let second = fx.merge_branch("other", "main~1");
+    fx.commit_file("tip.txt");
+    let plan = read_rebase_plan(&fx.root, &fx.rev("main~5")).unwrap();
+    assert_eq!(plan.merge.as_deref(), Some(&second[..7]));
+    assert_ne!(first[..7], second[..7]);
+    // Le commit choisi lui-même est un merge : il est nommé.
+    let plan = read_rebase_plan(&fx.root, &second).unwrap();
+    assert_eq!(plan.merge.as_deref(), Some(&second[..7]));
+}
+
+#[test]
+fn nettoyer_une_branche_ca_3_a_range_above_a_merge_is_accepted_and_one_below_it_names_it() {
+    let fx = Fixture::new();
+    let merge = fx.merge_branch("side", "main~3");
+    fx.commit_file("after.txt");
+    fx.commit_file("tip.txt");
+    let plan = read_rebase_plan(&fx.root, &fx.rev("main~1")).unwrap();
+    assert_eq!(plan.merge, None);
+    assert_eq!(plan.commits.len(), 2);
+    let plan = read_rebase_plan(&fx.root, &fx.rev("main~3")).unwrap();
+    assert_eq!(plan.merge.as_deref(), Some(&merge[..7]));
+}
+
+#[test]
+fn nettoyer_une_branche_ca_2_each_refusal_has_its_exact_reason() {
+    let fx = Fixture::new();
+    fx.git(&["checkout", "-q", "-b", "other", "main~3"], "Alice Martin");
+    fx.commit_file("other.txt");
+    fx.git(&["checkout", "-q", "main"], "Alice Martin");
+    let reason = |commit: &str| match read_rebase_plan(&fx.root, commit) {
+        Err(GitError::Read(text)) => text,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(
+        reason(&fx.rev("other")),
+        "The commit is not on the current branch."
+    );
+    assert_eq!(reason(&fx.rev("main~4")), "Root commit cannot be rebased.");
+    fx.git(&["checkout", "-q", "--detach", "main"], "Alice Martin");
+    assert_eq!(reason(&fx.rev("main~1")), "No current branch.");
+}

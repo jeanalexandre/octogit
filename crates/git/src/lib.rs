@@ -33,7 +33,10 @@ pub use branch::{
 pub use checkout::{
     checkout, plan_checkout, CheckoutChoice, CheckoutError, CheckoutPlan, LocalCommit,
 };
-pub use cherry_pick::{cherry_pick, cherry_pick_with_home, revert, revert_with_home};
+pub use cherry_pick::{
+    cherry_pick, cherry_pick_with_home, current_branch, refuse_merge_commit, revert,
+    revert_with_home,
+};
 pub use clone::{
     clone, clone_with, github_ssh_url, parse_progress, CloneError, CloneProgress, CLONE_TIMEOUT,
 };
@@ -53,7 +56,7 @@ pub use integrate::{
     rebase_with_home, MergeOutcome, OperationOutcome,
 };
 pub use interactive_rebase::{
-    read_pushed_range, read_range_length, start_interactive_rebase,
+    read_pushed_range, read_range_length, refuse_inapplicable_rebase, start_interactive_rebase,
     start_interactive_rebase_with_home, PushedRange, TodoAction, TodoEntry,
 };
 pub use operation::{

@@ -83,7 +83,7 @@ for (const size of sizes) {
     );
   });
 
-  test(`nettoyer-une-branche CA-1 : un commit hors de la branche courante n'a pas l'entrée (${size.width}x${size.height})`, async ({
+  test(`nettoyer-une-branche CA-1 : un commit hors de la branche courante a l'entrée désactivée (${size.width}x${size.height})`, async ({
     page,
   }) => {
     await page.setViewportSize(size);
@@ -94,9 +94,10 @@ for (const size of sizes) {
     await expect(graphRow(page, "Add profile list")).toBeVisible();
     await graphRow(page, "wip ssh").click({ button: "right" });
     await expect(page.getByRole("menuitem", { name: "Create branch here" })).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: "Interactive rebase from here" })).toHaveCount(
-      0,
-    );
+    // S-52 : l'entrée reste affichée, désactivée sans raison (la spec n'en fixe pas).
+    const entry = page.getByRole("menuitem", { name: "Interactive rebase from here" });
+    await expect(entry).toHaveAttribute("aria-disabled", "true");
+    await expect(entry.locator(".reason")).toHaveCount(0);
   });
 
   test(`nettoyer-une-branche CA-4, CA-5, CA-6 et CA-8 : actions, messages, déplacements et aperçu suivent chaque geste (${size.width}x${size.height})`, async ({

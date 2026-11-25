@@ -105,7 +105,13 @@
     pushTagBlocked = null,
     operationBlocked = false,
     identityBlocked = null,
+    mergeTarget = false,
+    rootCommit = false,
   }: {
+    /** Le commit visé par le menu (le commit lui-même, ou celui vers lequel pointe l'`origin/…`) est un commit de merge. */
+    mergeTarget?: boolean;
+    /** Le commit du menu est le commit racine (sans parent) : « Interactive rebase from here » désactivée avec sa raison. */
+    rootCommit?: boolean;
     /** Un merge, un rebase, un cherry-pick ou un revert est en cours : les gestes qui le gêneraient sont désactivés. */
     operationBlocked?: boolean;
     /** Raison d'identité (« Identity does not match profile X. », « No profile. ») de merge, rebase, cherry-pick, revert, rebase interactif, ou `null`. */
@@ -193,8 +199,37 @@
   const shownReason = $derived(
     operationBlocked ? OPERATION_REASON : (identityBlocked ?? undefined),
   );
-  /** Cherry-pick, revert, rebase interactif : sans raison affichée pendant une opération, sinon la raison d'identité. */
-  const silentReason = $derived(operationBlocked ? "" : (identityBlocked ?? undefined));
+  const NO_BRANCH_REASON = "No current branch.";
+  const MERGE_REASON = "Merge commits cannot be cherry-picked or reverted.";
+  const ROOT_REASON = "Root commit cannot be rebased.";
+  /**
+   * Cherry-pick et Revert : sans raison affichée pendant une opération (S-50), sinon la raison de S-52 (HEAD détachée,
+   * commit de merge), puis la raison d'identité.
+   */
+  const pickReason = $derived(
+    operationBlocked
+      ? ""
+      : currentBranch === null
+        ? NO_BRANCH_REASON
+        : mergeTarget
+          ? MERGE_REASON
+          : (identityBlocked ?? undefined),
+  );
+  /**
+   * Rebase interactif : sans raison pendant une opération, « No current branch. », « Root commit cannot be rebased. »,
+   * sans raison pour un commit hors de la branche courante (la spec n'en fixe pas), sinon la raison d'identité.
+   */
+  const rebaseReason = $derived(
+    operationBlocked
+      ? ""
+      : currentBranch === null
+        ? NO_BRANCH_REASON
+        : rootCommit
+          ? ROOT_REASON
+          : !onCurrentBranch
+            ? ""
+            : (identityBlocked ?? undefined),
+  );
 
   /** Le nom de la ref est figé avec l'entrée : le menu se ferme (`menu` repasse à `null`) avant qu'elle ne s'exécute. */
   const entries: Entry[] = $derived.by(() => {
@@ -205,9 +240,9 @@
         id: "cherry-pick",
         label: "Cherry-pick",
         run: () => oncherrypick?.(target),
-        disabled: silentReason,
+        disabled: pickReason,
       },
-      { id: "revert", label: "Revert", run: () => onrevert?.(target), disabled: silentReason },
+      { id: "revert", label: "Revert", run: () => onrevert?.(target), disabled: pickReason },
     ];
     const into = receiving !== null && receiving.kind === "branch" ? receiving.name : null;
     if (menu.kind === "commit") {
@@ -326,19 +361,15 @@
   let menuEl: HTMLElement | undefined = $state();
   let dialog: HTMLElement | undefined = $state();
 
-  /** Commit, branche locale et `origin/…` ont « Reset <courante> to here › » (si une branche est courante). */
+  /** Commit, branche locale et `origin/…` ont « Reset <courante> to here › » ; sans branche courante il est désactivé. */
   const hasReset = $derived(
-    menu !== null &&
-      currentBranch !== null &&
-      (menu.kind === "commit" || menu.kind === "branch" || menu.kind === "remote"),
+    menu !== null && (menu.kind === "commit" || menu.kind === "branch" || menu.kind === "remote"),
   );
-  /** Un commit de la branche courante (ancêtre ou sommet) a « Interactive rebase from here », après Reset. */
+  /** HEAD détachée : le sous-menu Reset reste affiché, désactivé avec « No current branch. », et ne s'ouvre jamais. */
+  const resetOff = $derived(currentBranch === null);
+  /** Un commit a « Interactive rebase from here », après Reset ; désactivée quand la plage ne se lit pas (`rebaseReason`). */
   const hasInteractiveRebase = $derived(
-    menu !== null &&
-      menu.kind === "commit" &&
-      currentBranch !== null &&
-      onCurrentBranch &&
-      oninteractiverebase !== undefined,
+    menu !== null && menu.kind === "commit" && oninteractiverebase !== undefined,
   );
   let resetOpen = $state(false);
   let resetTrigger: HTMLElement | undefined = $state();
@@ -357,7 +388,7 @@
 
   function runReset(mode: "soft" | "mixed" | "hard") {
     const target = menu;
-    if (target === null || operationBlocked) return;
+    if (target === null || operationBlocked || resetOff) return;
     onclose();
     onresetbranch?.(target, mode);
   }
@@ -365,7 +396,7 @@
   /** Le commit est lu avant la fermeture du menu (`menu` repasse alors à `null`). */
   function runInteractiveRebase() {
     const target = menu;
-    if (target === null || target.kind !== "commit" || silentReason !== undefined) return;
+    if (target === null || target.kind !== "commit" || rebaseReason !== undefined) return;
     onclose();
     oninteractiverebase?.(target.commit);
   }
@@ -379,6 +410,7 @@
   }
 
   function openReset() {
+    if (resetOff) return;
     resetOpen = true;
     queueMicrotask(() => menuEl?.querySelector<HTMLElement>(".submenu [role='menuitem']")?.focus());
   }
@@ -429,6 +461,7 @@
       } else if (
         event.key === "ArrowRight" &&
         hasReset &&
+        !resetOff &&
         document.activeElement === resetTrigger
       ) {
         event.preventDefault();
@@ -486,11 +519,17 @@
         type="button"
         role="menuitem"
         class="entry"
+        class:disabled={resetOff}
+        aria-disabled={resetOff ? "true" : undefined}
         aria-haspopup="menu"
         aria-expanded={resetOpen}
         bind:this={resetTrigger}
         onclick={() => (resetOpen ? (resetOpen = false) : openReset())}
-        >Reset {currentBranch} to here ›</button
+        >{currentBranch === null
+          ? "Reset to here ›"
+          : `Reset ${currentBranch} to here ›`}{#if resetOff}<span class="reason"
+            >{NO_BRANCH_REASON}</span
+          >{/if}</button
       >
       {#if resetOpen}
         <div class="submenu" role="menu" aria-label="Reset {currentBranch} to here">
@@ -515,12 +554,12 @@
         type="button"
         role="menuitem"
         class="entry with-icon"
-        class:disabled={silentReason !== undefined}
-        aria-disabled={silentReason !== undefined ? "true" : undefined}
+        class:disabled={rebaseReason !== undefined}
+        aria-disabled={rebaseReason !== undefined ? "true" : undefined}
         onclick={runInteractiveRebase}
       >
-        <ListOrdered size={16} strokeWidth={1.8} aria-hidden="true" />Interactive rebase from here{#if silentReason}<span
-            class="reason">{silentReason}</span
+        <ListOrdered size={16} strokeWidth={1.8} aria-hidden="true" />Interactive rebase from here{#if rebaseReason}<span
+            class="reason">{rebaseReason}</span
           >{/if}
       </button>
     {/if}
@@ -684,7 +723,13 @@
   .entry.with-icon {
     display: flex;
     align-items: center;
-    gap: 6px;
+    flex-wrap: wrap;
+    gap: 0 6px;
+  }
+
+  /* La raison passe sous le libellé, comme sur les autres entrées. */
+  .entry.with-icon .reason {
+    flex-basis: 100%;
   }
 
   .entry:hover,

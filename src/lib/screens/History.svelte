@@ -951,6 +951,7 @@
             refs={detailRefs}
             {operationBlocked}
             {identityReason}
+            noBranch={current === undefined}
             oncheckout={(name) => oncheckout?.(name)}
             oncreatebranch={(commit) => startBranch(commit, "detail")}
             {oncherrypick}

@@ -25,6 +25,8 @@ pub struct RebasePlan {
     pub base: String,
     pub base_short: String,
     pub commits: Vec<RebasePlanCommit>,
+    /// SHA abrégé du commit de merge de la plage le plus proche du sommet (le choisi compris), ou `None`.
+    pub merge: Option<String>,
 }
 
 fn initials(name: &str) -> String {
@@ -49,6 +51,7 @@ pub fn read_rebase_plan(path: &Path, commit: &str) -> Result<RebasePlan, GitErro
     let wanted = gix::ObjectId::from_hex(commit.as_bytes()).map_err(|e| read_error(&e))?;
     let mut id = repo.head_id().map_err(|e| read_error(&e))?.detach();
     let mut newest_first = Vec::new();
+    let mut merge: Option<String> = None;
     let base = loop {
         let found = repo.find_commit(id).map_err(|e| read_error(&e))?;
         let message = found.message_raw().map_err(|e| read_error(&e))?.to_string();
@@ -67,7 +70,12 @@ pub fn read_rebase_plan(path: &Path, commit: &str) -> Result<RebasePlan, GitErro
             initials: initials(&author),
             author,
         });
-        let parent = found.parent_ids().next().map(|p| p.detach());
+        let mut parents = found.parent_ids();
+        let parent = parents.next().map(|p| p.detach());
+        // Du sommet vers le choisi : le premier merge rencontré est le plus proche du sommet.
+        if merge.is_none() && parents.next().is_some() {
+            merge = Some(id.to_string()[..7].to_string());
+        }
         if id == wanted {
             break parent.ok_or_else(|| GitError::Read("Root commit cannot be rebased.".into()))?;
         }
@@ -81,5 +89,6 @@ pub fn read_rebase_plan(path: &Path, commit: &str) -> Result<RebasePlan, GitErro
         base_short: base_text[..7].to_string(),
         base: base_text,
         commits: newest_first,
+        merge,
     })
 }

@@ -566,3 +566,87 @@ fn nettoyer_une_branche_ca_15_rewriting_pushed_commits_leaves_the_remote_branch_
     // La branche locale a divergé de sa distante : le Force push de S-24 la lira du reflog.
     assert_ne!(fx.rev("HEAD"), fx.rev("origin/feature"));
 }
+
+/// Les cinq commits de `feature` en pick.
+fn all_picks(fx: &Fixture) -> Vec<TodoEntry> {
+    fx.entries(&[
+        (1, PICK, None),
+        (2, PICK, None),
+        (3, PICK, None),
+        (4, PICK, None),
+        (5, PICK, None),
+    ])
+}
+
+fn refusal(fx: &Fixture, base: &str, entries: &[TodoEntry]) -> String {
+    let head = fx.rev("HEAD");
+    let refs = fx.git(&["for-each-ref", "--format=%(refname) %(objectname)"]);
+    let error = start_interactive_rebase_with_home(fx.path(), base, "feature", entries, &fx.home)
+        .unwrap_err()
+        .to_string();
+    assert_eq!(fx.rev("HEAD"), head);
+    assert_eq!(
+        fx.git(&["for-each-ref", "--format=%(refname) %(objectname)"]),
+        refs
+    );
+    assert_eq!(fx.git(&["status", "--porcelain"]), "");
+    fx.no_rebase_left();
+    error
+}
+
+#[test]
+fn nettoyer_une_branche_ca_2_a_detached_head_is_refused_with_no_current_branch() {
+    let fx = Fixture::new();
+    fx.git(&["checkout", "-q", "--detach"]);
+    assert_eq!(
+        refusal(&fx, &fx.base, &all_picks(&fx)),
+        "No current branch."
+    );
+}
+
+#[test]
+fn nettoyer_une_branche_ca_2_a_plan_that_starts_at_the_root_commit_is_refused() {
+    let fx = Fixture::new();
+    let mut entries = all_picks(&fx);
+    entries.insert(
+        0,
+        TodoEntry {
+            id: fx.base.clone(),
+            action: PICK,
+            message: None,
+        },
+    );
+    assert_eq!(
+        refusal(&fx, &fx.base, &entries),
+        "Root commit cannot be rebased."
+    );
+}
+
+#[test]
+fn nettoyer_une_branche_ca_3_a_range_with_a_merge_is_refused_naming_the_one_nearest_the_tip() {
+    let fx = Fixture::new();
+    fx.git(&["checkout", "-q", "-b", "side", &fx.base]);
+    fx.commit(
+        "side.txt",
+        "s\n",
+        "Side",
+        ("Bob Durand", "bob@example.com"),
+        20,
+    );
+    fx.git(&["checkout", "-q", "feature"]);
+    fx.git(&["merge", "-q", "--no-ff", "-m", "Merge side", "side"]);
+    let merge = fx.rev("HEAD");
+    let mut entries = all_picks(&fx);
+    entries.push(TodoEntry {
+        id: merge.clone(),
+        action: PICK,
+        message: None,
+    });
+    assert_eq!(
+        refusal(&fx, &fx.base, &entries),
+        format!(
+            "Range contains a merge commit ({}). Choose a later starting commit.",
+            &merge[..7]
+        )
+    );
+}

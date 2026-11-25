@@ -58,6 +58,48 @@ describe("CommitDetail pendant une opération ou avec une identité bloquée", (
     expect(p.onrevert).not.toHaveBeenCalled();
   });
 
+  it("revenir-en-arriere CA-9: without a current branch Cherry-pick and Revert are disabled with « No current branch. », Checkout stays", async () => {
+    const p = {
+      detail,
+      refs: [branchRef],
+      noBranch: true,
+      oncheckout: vi.fn(),
+      oncherrypick: vi.fn(),
+      onrevert: vi.fn(),
+    };
+    render(CommitDetail, p);
+    for (const name of ["Cherry-pick", "Revert"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("title", "No current branch.");
+      await fireEvent.click(button);
+    }
+    expect(screen.getByRole("button", { name: "Checkout" })).toBeEnabled();
+    expect(p.oncherrypick).not.toHaveBeenCalled();
+    expect(p.onrevert).not.toHaveBeenCalled();
+  });
+
+  it("revenir-en-arriere CA-20: a merge commit disables Cherry-pick and Revert with the merge reason, the other buttons stay", async () => {
+    const p = {
+      detail: { ...detail, parents: ["b".repeat(40), "c".repeat(40)] },
+      refs: [branchRef],
+      identityReason: "No profile.",
+      oncreatebranch: vi.fn(),
+      oncherrypick: vi.fn(),
+      onrevert: vi.fn(),
+    };
+    render(CommitDetail, p);
+    for (const name of ["Cherry-pick", "Revert"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("title", "Merge commits cannot be cherry-picked or reverted.");
+      await fireEvent.click(button);
+    }
+    expect(screen.getByRole("button", { name: "Create branch here" })).toBeEnabled();
+    expect(p.oncherrypick).not.toHaveBeenCalled();
+    expect(p.onrevert).not.toHaveBeenCalled();
+  });
+
   it("proteger-l-identite CA-16: a blocked identity disables Cherry-pick and Revert with the reason, Checkout and Create branch here stay", async () => {
     for (const reason of ["Identity does not match profile Work.", "No profile."]) {
       const p = {

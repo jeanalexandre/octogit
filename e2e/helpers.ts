@@ -52,6 +52,7 @@ export class Workspace {
       | "conflict-rebase"
       | "conflict-pick"
       | "rebase-interactive"
+      | "inapplicable"
       | "identity"
       | "wide"
       | "large"

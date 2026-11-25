@@ -133,7 +133,8 @@ fn decision_1_cherry_pick_and_revert_are_refused_when_the_identity_does_not_matc
     let log = git(&repo, &["log", "--format=%H"]);
 
     let picked = cherry_pick_checked(&sb.store, &sb.home, &repo, &side).unwrap_err();
-    let reverted = revert_checked(&sb.store, &sb.home, &repo, "HEAD").unwrap_err();
+    // « Main work » : HEAD est un commit de merge (S-52 : refusé avant l'identité), pas son premier parent.
+    let reverted = revert_checked(&sb.store, &sb.home, &repo, "HEAD^1").unwrap_err();
 
     assert_eq!(picked, "Identity does not match profile Work.");
     assert_eq!(reverted, "Identity does not match profile Work.");

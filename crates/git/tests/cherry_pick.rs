@@ -288,13 +288,91 @@ fn decision_2_an_empty_cherry_pick_is_aborted_too() {
     let before = fx.head();
     // Le même changement une seconde fois : rien à appliquer.
     let error = cherry_pick(fx.path(), &fx.picked).unwrap_err().to_string();
-    assert!(error
-        .lines()
-        .next()
-        .unwrap()
-        .contains("Nothing was changed"));
+    assert_eq!(
+        error,
+        format!("{} brings no changes to main.", &fx.picked[..7])
+    );
     assert_eq!(fx.head(), before);
     assert!(!fx.root.join(".git/CHERRY_PICK_HEAD").exists());
+}
+
+#[test]
+fn revenir_en_arriere_ca_6_a_cherry_pick_without_changes_says_so_and_changes_nothing() {
+    let fx = Fixture::new();
+    cherry_pick(fx.path(), &fx.picked).unwrap();
+    let before = (
+        fx.head(),
+        fx.other_refs(),
+        fx.git(&["status", "--porcelain"]),
+        fx.git(&["rev-parse", "HEAD^{tree}"]),
+        fx.git(&["write-tree"]),
+    );
+    // Par le nom d'une ref, le message garde le SHA abrégé du commit résolu.
+    let error = cherry_pick(fx.path(), "feature").unwrap_err().to_string();
+    assert_eq!(
+        error,
+        format!("{} brings no changes to main.", &fx.picked[..7])
+    );
+    assert!(!fx.root.join(".git/CHERRY_PICK_HEAD").exists());
+    assert!(!fx.root.join(".git/sequencer").exists());
+    let after = (
+        fx.head(),
+        fx.other_refs(),
+        fx.git(&["status", "--porcelain"]),
+        fx.git(&["rev-parse", "HEAD^{tree}"]),
+        fx.git(&["write-tree"]),
+    );
+    assert_eq!(after, before);
+}
+
+#[test]
+fn revenir_en_arriere_ca_20_a_merge_commit_is_refused_by_cherry_pick_and_revert_before_git_runs() {
+    let fx = Fixture::new();
+    fx.git(&["merge", "-q", "--no-ff", "-m", "Merge feature", "feature"]);
+    let merge = fx.head();
+    let before = (
+        fx.head(),
+        fx.other_refs(),
+        fx.git(&["status", "--porcelain"]),
+    );
+    for target in [merge.as_str(), "HEAD"] {
+        assert_eq!(
+            cherry_pick(fx.path(), target).unwrap_err().to_string(),
+            "Merge commits cannot be cherry-picked or reverted."
+        );
+        assert_eq!(
+            revert(fx.path(), target).unwrap_err().to_string(),
+            "Merge commits cannot be cherry-picked or reverted."
+        );
+    }
+    assert_eq!(
+        (
+            fx.head(),
+            fx.other_refs(),
+            fx.git(&["status", "--porcelain"])
+        ),
+        before
+    );
+    assert!(!fx.root.join(".git/CHERRY_PICK_HEAD").exists());
+    assert!(!fx.root.join(".git/REVERT_HEAD").exists());
+}
+
+#[test]
+fn revenir_en_arriere_ca_9_a_detached_head_is_refused_by_cherry_pick_and_revert() {
+    let fx = Fixture::new();
+    fx.git(&["checkout", "-q", "--detach"]);
+    let before = (fx.head(), fx.other_refs());
+    assert_eq!(
+        cherry_pick(fx.path(), &fx.picked).unwrap_err().to_string(),
+        "No current branch."
+    );
+    assert_eq!(
+        revert(fx.path(), &fx.tip).unwrap_err().to_string(),
+        "No current branch."
+    );
+    assert_eq!((fx.head(), fx.other_refs()), before);
+    assert!(!fx.root.join(".git/CHERRY_PICK_HEAD").exists());
+    assert_eq!(octogit_git::current_branch(fx.path()).unwrap(), None);
 }
 
 #[test]

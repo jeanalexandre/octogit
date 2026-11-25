@@ -67,8 +67,18 @@ Sur un dépôt en HEAD détachée, un commit racine, un commit de merge ou une p
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `878a3c3`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : tests, lint, build, 69 e2e liés verts ; écarts : champ `merge` dans `RebasePlanView` (permis par la fiche), parents lus des tronçons `out` de `edges`, pas de test Vitest d'`App` (couvert par e2e) ; `refs.spec.ts` CA-24 en échec préexistant | — |
+| 1 | reviewer | validé, 1 mineur (présentation de `.reason`), 1 point pour information | validé |
+| 2 | dev | terminé : mineur traité en CSS (`flex-wrap`), clippy `cmp_owned` corrigé dans `interactive_rebase.rs` ; tests, lint, build, 28 e2e liés verts | — |
+| 2 | reviewer | mineur levé, aucun problème | validé |
+| fin | story-runner | run de fin : `pnpm e2e` 500 verts, 1 rouge (`dirty-refusal.spec.ts` CA-12, course avec le watcher, passe 8/8 et 24/24 en répétition, identique base 878a3c3, hors diff : instable préexistant, pour information) ; `pnpm audit:deps` non lancé (aucun verrou changé) | — |
+
+## Décisions de l'humain
+### Après la revue 1
+- Mineur 1 (`.reason` de « Interactive rebase from here » sur la même ligne, ailleurs sous le libellé) : traiter, aligner la présentation sur les autres entrées (d'office).
+- Pour information : « Rebase <branche> onto <sha racine> » activé sur le commit racine, préexistant, hors story : pris en compte (pour information).

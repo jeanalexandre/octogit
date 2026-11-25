@@ -9,7 +9,7 @@ use std::process::{Command, Stdio};
 
 use crate::integrate::OperationOutcome;
 use crate::working_tree::{read_working_tree, remember};
-use crate::GitError;
+use crate::{read_error, GitError};
 
 /// Lance `git` dans `path` ; rend si elle a réussi et sa sortie brute (standard puis erreur).
 fn run(path: &Path, args: &[&str], home: Option<&Path>) -> Result<(bool, String), GitError> {
@@ -74,6 +74,36 @@ pub fn revert_with_home(
     apply(path, commit, "revert", Some(home))
 }
 
+/// Nom court de la branche courante de `path`, ou `None` en HEAD détachée. Lecture seule (`gix`).
+pub fn current_branch(path: &Path) -> Result<Option<String>, GitError> {
+    let repo = gix::open(path).map_err(|_| GitError::NotARepository)?;
+    let name = repo.head_name().map_err(|e| read_error(&e))?;
+    Ok(name.map(|name| name.shorten().to_string()))
+}
+
+/// Le commit désigné par `commit` (SHA, branche, `origin/…`) : son SHA abrégé (7 caractères) et s'il a plusieurs
+/// parents. `None` si `commit` ne se résout pas : Git dira son refus.
+fn resolve(path: &Path, commit: &str) -> Option<(String, bool)> {
+    let repo = gix::open(path).ok()?;
+    let id = repo.rev_parse_single(commit).ok()?;
+    let found = id.object().ok()?.peel_to_commit().ok()?;
+    Some((
+        found.id.to_string()[..7].to_string(),
+        found.parent_ids().count() > 1,
+    ))
+}
+
+/// Refuse un commit de merge (plusieurs parents) : Cherry-pick et Revert ne le reprennent pas. Lecture seule ; un
+/// commit qui ne se résout pas n'est pas refusé ici (Git dira pourquoi).
+pub fn refuse_merge_commit(path: &Path, commit: &str) -> Result<(), GitError> {
+    match resolve(path, commit) {
+        Some((_, true)) => Err(GitError::Read(
+            "Merge commits cannot be cherry-picked or reverted.".to_string(),
+        )),
+        _ => Ok(()),
+    }
+}
+
 fn apply(
     path: &Path,
     commit: &str,
@@ -81,6 +111,11 @@ fn apply(
     home: Option<&Path>,
 ) -> Result<OperationOutcome, GitError> {
     check_commit(commit)?;
+    // Refus avant tout sous-processus Git : HEAD détachée, commit de merge. Rien ne change.
+    let branch =
+        current_branch(path)?.ok_or_else(|| GitError::Read("No current branch.".to_string()))?;
+    refuse_merge_commit(path, commit)?;
+    let resolved = resolve(path, commit);
     let state_ref = if verb == "revert" {
         "REVERT_HEAD"
     } else {
@@ -113,7 +148,14 @@ fn apply(
             run(path, &[verb, "--abort"], home)?;
         }
         if started || raw.contains("nothing to commit") {
-            let short: String = commit.chars().take(7).collect();
+            let short =
+                resolved.map_or_else(|| commit.chars().take(7).collect(), |(short, _)| short);
+            // Cherry-pick : la raison de la spec, sur une ligne. Revert vide : le message d'origine, inchangé.
+            if verb == "cherry-pick" {
+                return Err(GitError::Read(format!(
+                    "{short} brings no changes to {branch}."
+                )));
+            }
             return Err(GitError::Read(format!(
                 "{short} conflicts or brings no changes. Nothing was changed.\n{raw}"
             )));

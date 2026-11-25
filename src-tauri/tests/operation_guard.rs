@@ -281,7 +281,8 @@ fn proteger_l_identite_ca_16_interactive_rebase_is_refused_on_a_non_conform_repo
 ) {
     let sb = Sandbox::new("interactive-identity");
     let repo = sb.conform_repo();
-    let head = git(&repo, &["rev-parse", "HEAD"]);
+    // HEAD est un commit de merge (plage refusée avant l'identité, S-52) : la composition porte son premier parent.
+    let head = git(&repo, &["rev-parse", "HEAD^1"]);
     git(
         &repo,
         &["config", "--local", "user.email", "perso@example.org"],

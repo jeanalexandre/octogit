@@ -260,7 +260,8 @@ fn revenir_en_arriere_ca_7_cherry_pick_and_revert_are_refused_with_staged_or_uns
     for staged in [false, true] {
         let sb = Sandbox::new("pick");
         let repo = sb.conform_repo();
-        let head = git(&repo, &["rev-parse", "HEAD"]);
+        // HEAD est un commit de merge (refusé avant tout autre garde, S-52) : le revert vise son premier parent.
+        let head = git(&repo, &["rev-parse", "HEAD^1"]);
         dirty(&repo, staged);
         let before = sb.snapshot(&repo);
 
@@ -311,7 +312,8 @@ fn nettoyer_une_branche_ca_11_start_rebase_is_refused_without_launching_git() {
     for staged in [false, true] {
         let sb = Sandbox::new("interactive");
         let repo = sb.conform_repo();
-        let head = git(&repo, &["rev-parse", "HEAD"]);
+        // HEAD est un commit de merge (plage refusée avant, S-52) : la composition porte son premier parent.
+        let head = git(&repo, &["rev-parse", "HEAD^1"]);
         dirty(&repo, staged);
         let before = sb.snapshot(&repo);
         let log = git(&repo, &["log", "--format=%H", "--all"]);

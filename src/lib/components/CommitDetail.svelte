@@ -24,7 +24,10 @@
     onfix,
     operationBlocked = false,
     identityReason = null,
+    noBranch = false,
   }: {
+    /** HEAD détachée (aucune branche courante) : Cherry-pick et Revert désactivés avec « No current branch. ». */
+    noBranch?: boolean;
     /** Un merge, un rebase, un cherry-pick ou un revert est en cours : Checkout et « Create branch here » désactivés avec la raison, Cherry-pick et Revert sans raison affichée. */
     operationBlocked?: boolean;
     /** Raison d'identité (« Identity does not match profile X. », « No profile. ») de Cherry-pick et Revert, ou `null`. */
@@ -67,9 +70,21 @@
   let chooser: HTMLElement | undefined = $state();
 
   const OPERATION_REASON = "Operation in progress.";
-  /** Cherry-pick et Revert : désactivés pendant une opération (sans raison affichée), sinon par l'identité (avec sa raison). */
-  const pickOff = $derived(operationBlocked || identityReason !== null);
-  const pickTitle = $derived(operationBlocked ? undefined : (identityReason ?? undefined));
+  /**
+   * Cherry-pick et Revert : désactivés pendant une opération (sans raison affichée), sinon avec leur raison : HEAD
+   * détachée, commit de merge, puis l'identité.
+   */
+  const pickReason = $derived(
+    operationBlocked
+      ? undefined
+      : noBranch
+        ? "No current branch."
+        : detail.parents.length > 1
+          ? "Merge commits cannot be cherry-picked or reverted."
+          : (identityReason ?? undefined),
+  );
+  const pickOff = $derived(operationBlocked || pickReason !== undefined);
+  const pickTitle = $derived(pickReason);
 
   function checkout() {
     if (operationBlocked) return;

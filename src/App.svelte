@@ -32,6 +32,7 @@
   import type { BranchInput, BranchNameVerdict, TagNameVerdict } from "./lib/branchInput";
   import { runFetchNow, scheduleFetch } from "./lib/fetchScheduler";
   import { sshApi } from "./lib/sshKeys";
+  import { parentCount } from "./lib/graphParents";
   import CloneDialog from "./lib/components/CloneDialog.svelte";
   import DiscardDialog from "./lib/components/DiscardDialog.svelte";
   import ResetHardDialog from "./lib/components/ResetHardDialog.svelte";
@@ -1078,6 +1079,23 @@
     );
   });
 
+  /**
+   * Nombre de parents du commit visé par le menu (le commit, ou celui vers lequel pointe l'`origin/…`), lu des lignes
+   * du graphe sans nouvelle lecture ; `null` : menu d'une autre sorte, ou commit hors du graphe lu.
+   */
+  const menuParentCount = $derived.by(() => {
+    if (screen?.screen !== "history" || refMenu === null) return null;
+    let id: string | undefined;
+    if (refMenu.kind === "commit") id = refMenu.commit;
+    else if (refMenu.kind === "remote") {
+      const name = refMenu.name;
+      id = screen.repository.refs.find((r) => r.name === name)?.target;
+    }
+    if (id === undefined) return null;
+    const row = screen.repository.commits.find((c) => c.id === id);
+    return row === undefined ? null : parentCount(row);
+  });
+
   const currentBranchName = () =>
     screen?.screen === "history"
       ? (screen.repository.refs.find((r) => r.kind === "branch" && r.current)?.name ?? null)
@@ -1433,6 +1451,14 @@
     if (operationBlocked) return;
     if (menuPlan !== null && menuPlan.commit === commit && menuPlan.path === openPath) {
       const { path, plan } = menuPlan;
+      // Une plage avec un merge est refusée au choix, `InteractiveRebase` ne s'ouvre pas (le cœur refuse aussi).
+      if (plan.merge) {
+        checkoutNotice = {
+          path,
+          text: `Range contains a merge commit (${plan.merge}). Choose a later starting commit.`,
+        };
+        return;
+      }
       rebase = { path, plan, pushed: null };
       void readPushed(path, plan);
     }
@@ -2394,6 +2420,8 @@
       null}
     onresetbranch={resetFromMenu}
     onCurrentBranch={menuOnCurrentBranch}
+    mergeTarget={menuParentCount !== null && menuParentCount > 1}
+    rootCommit={refMenu?.kind === "commit" && menuParentCount === 0}
     oninteractiverebase={openInteractiveRebase}
     {receiving}
     carriesBranch={menuCommitCarriesBranch}

@@ -150,6 +150,64 @@ pub fn start_interactive_rebase_with_home(
     start(path, base, branch, entries, Some(home))
 }
 
+/// Refus d'une composition inapplicable, par lecture seule (`gix`), avant tout sous-processus Git : HEAD détachée,
+/// plage qui commence au commit racine, plage qui contient un commit de merge (le plus proche du sommet est nommé).
+/// Ne dépend jamais de l'interface. Une composition illisible n'est pas refusée ici : `start` dit pourquoi.
+pub fn refuse_inapplicable_rebase(
+    path: &Path,
+    base: &str,
+    entries: &[TodoEntry],
+) -> Result<(), GitError> {
+    let repo = gix::open(path).map_err(|_| GitError::NotARepository)?;
+    let detached = repo
+        .head_name()
+        .map_err(|e| GitError::Read(e.to_string()))?
+        .is_none();
+    if detached {
+        return Err(GitError::Read("No current branch.".into()));
+    }
+    let mut merges: HashSet<gix::ObjectId> = HashSet::new();
+    for entry in entries {
+        let Ok(id) = gix::ObjectId::from_hex(entry.id.as_bytes()) else {
+            continue;
+        };
+        let Ok(found) = repo.find_commit(id) else {
+            continue;
+        };
+        match found.parent_ids().count() {
+            0 => return Err(GitError::Read("Root commit cannot be rebased.".into())),
+            1 => {}
+            _ => {
+                merges.insert(id);
+            }
+        }
+    }
+    if merges.is_empty() {
+        return Ok(());
+    }
+    // Du sommet vers la base, en suivant le premier parent : le premier merge de la composition est le plus proche.
+    let mut named = merges.iter().next().copied();
+    let mut cursor = repo.head_id().ok().map(|id| id.detach());
+    while let Some(id) = cursor {
+        if gix::ObjectId::from_hex(base.as_bytes()).is_ok_and(|b| b == id) {
+            break;
+        }
+        if merges.contains(&id) {
+            named = Some(id);
+            break;
+        }
+        cursor = repo
+            .find_commit(id)
+            .ok()
+            .and_then(|c| c.parent_ids().next().map(|p| p.detach()));
+    }
+    let merge = named.map(|id| id.to_string()).unwrap_or_default();
+    Err(GitError::Read(format!(
+        "Range contains a merge commit ({}). Choose a later starting commit.",
+        &merge[..7]
+    )))
+}
+
 fn start(
     path: &Path,
     base: &str,
@@ -160,6 +218,7 @@ fn start(
     if entries.is_empty() || !is_sha(base) || entries.iter().any(|e| !is_sha(&e.id)) {
         return Err(GitError::Read("The rebase plan is not valid.".into()));
     }
+    refuse_inapplicable_rebase(path, base, entries)?;
     let todo = todo_text(entries)?;
     let (_, current) = run(path, &["symbolic-ref", "--short", "-q", "HEAD"], None, home)?;
     if current != branch {

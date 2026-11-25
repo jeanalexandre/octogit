@@ -31,6 +31,7 @@ describe("RefContextMenu merge and rebase", () => {
     screen.getAllByRole("menuitem").map((i) => i.textContent?.replace(/\s+/g, " ").trim());
   const sha = "c41d8e0".padEnd(40, "0");
   const commitMenu = { kind: "commit" as const, name: "c41d8e0", commit: sha, x: 40, y: 60 };
+  const RESET_OFF = "Reset to here ›No current branch.";
 
   it("integrer-une-branche CA-1: a source branch offers Merge and Rebase naming both branches, never the other way", async () => {
     const p = { ...props({ menu: develop, receiving: recv }), onmerge: vi.fn(), onrebase: vi.fn() };
@@ -60,10 +61,11 @@ describe("RefContextMenu merge and rebase", () => {
       RefContextMenu,
       props({ menu: { ...develop, name: "feature/profiles" }, receiving: recv }),
     );
-    expect(labels()).toEqual(["Checkout", "Rename", "Delete local"]);
+    // Sans branche courante, « Reset to here › » reste affiché, désactivé (S-52).
+    expect(labels()).toEqual(["Checkout", "Rename", "Delete local", RESET_OFF]);
     unmount();
     render(RefContextMenu, props({ menu: develop, receiving: null }));
-    expect(labels()).toEqual(["Checkout", "Rename", "Delete local"]);
+    expect(labels()).toEqual(["Checkout", "Rename", "Delete local", RESET_OFF]);
   });
 
   it("integrer-une-branche CA-3: an origin/… source is named in full, before Cherry-pick, and nothing moves a remote", () => {
@@ -79,9 +81,10 @@ describe("RefContextMenu merge and rebase", () => {
       "Checkout",
       "Merge origin/develop into feature/profiles",
       "Rebase feature/profiles onto origin/develop",
-      "Cherry-pick",
-      "Revert",
+      "Cherry-pickNo current branch.",
+      "RevertNo current branch.",
       "Delete from origin",
+      RESET_OFF,
     ]);
   });
 
@@ -90,7 +93,7 @@ describe("RefContextMenu merge and rebase", () => {
       RefContextMenu,
       props({ menu: develop, receiving: { name: "origin/main", kind: "remote" as const } }),
     );
-    expect(labels()).toEqual(["Checkout", "Rename", "Delete local"]);
+    expect(labels()).toEqual(["Checkout", "Rename", "Delete local", RESET_OFF]);
   });
 
   it("integrer-une-branche CA-4: a commit without branch offers only Rebase onto its short SHA, after Create branch here", async () => {
@@ -232,13 +235,18 @@ describe("RefContextMenu reset", () => {
     expect(p.onclose).toHaveBeenCalled();
   });
 
-  it("revenir-en-arriere CA-10: no current branch, no Reset entry", () => {
+  it("revenir-en-arriere CA-9: no current branch, Reset stays, disabled with its reason (the entries are checked in RefContextMenuInapplicable)", () => {
     render(RefContextMenu, props({ menu: commitMenu, currentBranch: null }));
     expect(
       within(screen.getByRole("menu"))
         .getAllByRole("menuitem")
         .map((i) => i.textContent?.trim()),
-    ).toEqual(["Create branch here", "Cherry-pick", "Revert"]);
+    ).toEqual([
+      "Create branch here",
+      "Cherry-pickNo current branch.",
+      "RevertNo current branch.",
+      "Reset to here ›No current branch.",
+    ]);
   });
 });
 
@@ -328,8 +336,14 @@ describe("RefContextMenu menu", () => {
       const items = within(menu).getAllByRole("menuitem");
       expect(items.map((i) => i.textContent?.trim())).toEqual(
         target === remote
-          ? ["Checkout", "Cherry-pick", "Revert", "Delete from origin"]
-          : ["Checkout", "Rename", "Delete local"],
+          ? [
+              "Checkout",
+              "Cherry-pickNo current branch.",
+              "RevertNo current branch.",
+              "Delete from origin",
+              "Reset to here ›No current branch.",
+            ]
+          : ["Checkout", "Rename", "Delete local", "Reset to here ›No current branch."],
       );
       await fireEvent.click(items[0]);
       expect(p.oncheckout).toHaveBeenCalledTimes(1);
@@ -377,8 +391,9 @@ describe("RefContextMenu menu", () => {
     const items = within(screen.getByRole("menu")).getAllByRole("menuitem");
     expect(items.map((i) => i.textContent?.trim())).toEqual([
       "Create branch here",
-      "Cherry-pick",
-      "Revert",
+      "Cherry-pickNo current branch.",
+      "RevertNo current branch.",
+      "Reset to here ›No current branch.",
     ]);
     expect(items[0]).toHaveFocus();
     await fireEvent.click(items[0]);

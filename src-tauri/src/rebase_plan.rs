@@ -63,8 +63,6 @@ pub fn start_rebase(
     entries: &[TodoEntryView],
 ) -> Result<OperationOutcomeView, String> {
     crate::working_tree::ensure_no_operation(path)?;
-    crate::attach::ensure_conform(store, path, home)?;
-    crate::working_tree::ensure_clean(path, crate::working_tree::DIRTY_REBASING)?;
     let todo: Vec<octogit_git::TodoEntry> = entries
         .iter()
         .map(|e| octogit_git::TodoEntry {
@@ -79,6 +77,10 @@ pub fn start_rebase(
             message: e.message.clone(),
         })
         .collect();
+    // HEAD détachée, commit racine, plage avec merge : refus avant l'identité et avant tout sous-processus Git.
+    octogit_git::refuse_inapplicable_rebase(path, base, &todo).map_err(|e| e.to_string())?;
+    crate::attach::ensure_conform(store, path, home)?;
+    crate::working_tree::ensure_clean(path, crate::working_tree::DIRTY_REBASING)?;
     let outcome = octogit_git::start_interactive_rebase(path, base, branch, &todo)
         .map_err(|e| e.to_string())?;
     outcome_view(path, outcome)
@@ -106,6 +108,9 @@ pub struct RebasePlanView {
     pub base_short: String,
     /// Du commit choisi au sommet, du plus ancien au plus récent.
     pub commits: Vec<RebaseCommitView>,
+    /// SHA abrégé du commit de merge de la plage le plus proche du sommet (le choisi compris), ou `None`. Avec un
+    /// merge, le choix de « Interactive rebase from here » est refusé : `InteractiveRebase` ne s'ouvre pas.
+    pub merge: Option<String>,
 }
 
 /// Plage du commit `commit` jusqu'au sommet de la branche courante du dépôt `path`.
@@ -115,6 +120,7 @@ pub fn rebase_plan(path: &Path, commit: &str) -> Result<RebasePlanView, String> 
         branch: plan.branch,
         base: plan.base,
         base_short: plan.base_short,
+        merge: plan.merge,
         commits: plan
             .commits
             .into_iter()

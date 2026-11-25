@@ -145,6 +145,16 @@ pub fn ensure_no_operation(path: &Path) -> Result<(), String> {
     }
 }
 
+/// Garde « HEAD détachée » : refuse avec « No current branch. » sans branche courante. Refait par le cœur avant tout
+/// sous-processus Git de Cherry-pick, Revert, Reset et du rebase interactif, après « Operation in progress. » et avant
+/// l'identité. Une lecture impossible ne refuse pas : le geste échoue de lui-même.
+pub fn ensure_on_branch(path: &Path) -> Result<(), String> {
+    match octogit_git::current_branch(path) {
+        Ok(None) => Err("No current branch.".to_string()),
+        _ => Ok(()),
+    }
+}
+
 /// Garde « modifications non commitées » : refuse avec `reason` (texte exact de la spec) tant que des fichiers
 /// suivis ont des modifications, indexées ou non (les fichiers non suivis ne comptent pas). Refait par le cœur
 /// avant tout sous-processus Git qui écrit. Une lecture impossible ne refuse pas : le geste échoue de lui-même.
@@ -214,6 +224,7 @@ pub fn reset_branch(
     mode: ResetModeView,
 ) -> Result<CommittedView, String> {
     ensure_no_operation(path)?;
+    ensure_on_branch(path)?;
     let mode = match mode {
         ResetModeView::Soft => octogit_git::ResetMode::Soft,
         ResetModeView::Mixed => octogit_git::ResetMode::Mixed,
@@ -259,6 +270,7 @@ pub fn reset_hard_preview(path: &Path, target: &str) -> Result<ResetLossView, St
 /// pas de contrôle d'identité.
 pub fn reset_hard(path: &Path, target: &str) -> Result<CommittedView, String> {
     ensure_no_operation(path)?;
+    ensure_on_branch(path)?;
     let tree = octogit_git::reset_hard(path, target).map_err(|e| e.to_string())?;
     committed(path, tree)
 }
@@ -294,6 +306,8 @@ pub fn cherry_pick_checked(
     commit: &str,
 ) -> Result<OperationOutcomeView, String> {
     ensure_no_operation(path)?;
+    ensure_on_branch(path)?;
+    octogit_git::refuse_merge_commit(path, commit).map_err(|e| e.to_string())?;
     crate::attach::ensure_conform(store, path, home)?;
     ensure_clean(path, DIRTY_CHERRY_PICKING)?;
     let outcome = octogit_git::cherry_pick(path, commit).map_err(|e| e.to_string())?;
@@ -308,6 +322,8 @@ pub fn revert_checked(
     commit: &str,
 ) -> Result<OperationOutcomeView, String> {
     ensure_no_operation(path)?;
+    ensure_on_branch(path)?;
+    octogit_git::refuse_merge_commit(path, commit).map_err(|e| e.to_string())?;
     crate::attach::ensure_conform(store, path, home)?;
     ensure_clean(path, DIRTY_REVERTING)?;
     let outcome = octogit_git::revert(path, commit).map_err(|e| e.to_string())?;

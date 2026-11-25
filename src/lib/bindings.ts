@@ -74,7 +74,7 @@ export const commands = {
 	 *  Plage d'un rebase interactif : base (parent de `commit`) et commits de `commit` au sommet de la branche
 	 *  courante, du plus ancien au plus récent. Lecture seule : rien n'est lancé ni écrit.
 	 */
-	readRebasePlan: (path: string, commit: string) => typedError<RebasePlanView, string>(__TAURI_INVOKE("read_rebase_plan", { path, commit })),
+	readRebasePlan: (path: string, commit: string) => typedError<RebasePlanView_Serialize, string>(__TAURI_INVOKE("read_rebase_plan", { path, commit })),
 	/**
 	 *  Commits de la plage de `base` au sommet de la branche courante déjà présents sur la branche distante suivie
 	 *  (alerte « déjà poussé » de `InteractiveRebase`). Lecture seule.
@@ -976,7 +976,9 @@ export type RebaseCommitView = {
 	initials: string,
 };
 
-export type RebasePlanView = {
+export type RebasePlanView = RebasePlanView_Serialize | RebasePlanView_Deserialize;
+
+export type RebasePlanView_Deserialize = {
 	/**  Branche courante. */
 	branch: string,
 	/**  Base : parent du commit choisi (identifiant complet et SHA abrégé). */
@@ -984,6 +986,26 @@ export type RebasePlanView = {
 	baseShort: string,
 	/**  Du commit choisi au sommet, du plus ancien au plus récent. */
 	commits: RebaseCommitView[],
+	/**
+	 *  SHA abrégé du commit de merge de la plage le plus proche du sommet (le choisi compris), ou `None`. Avec un
+	 *  merge, le choix de « Interactive rebase from here » est refusé : `InteractiveRebase` ne s'ouvre pas.
+	 */
+	merge?: string | null,
+};
+
+export type RebasePlanView_Serialize = {
+	/**  Branche courante. */
+	branch: string,
+	/**  Base : parent du commit choisi (identifiant complet et SHA abrégé). */
+	base: string,
+	baseShort: string,
+	/**  Du commit choisi au sommet, du plus ancien au plus récent. */
+	commits: RebaseCommitView[],
+	/**
+	 *  SHA abrégé du commit de merge de la plage le plus proche du sommet (le choisi compris), ou `None`. Avec un
+	 *  merge, le choix de « Interactive rebase from here » est refusé : `InteractiveRebase` ne s'ouvre pas.
+	 */
+	merge: string | null,
 };
 
 export type RecentView = RecentView_Serialize | RecentView_Deserialize;

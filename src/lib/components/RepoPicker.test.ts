@@ -203,6 +203,56 @@ describe("RepoPicker", () => {
     });
   });
 
+  describe("changer-de-compte CA-10 : opération en cours", () => {
+    const perso = { id: "p1", name: "Perso", color: 0, conform: true };
+    const repos: RecentView[] = [
+      { name: "repo-b", path: "/work/repo-b", lastOpened: 1_700_000_000, profile: perso },
+      { name: "repo-a", path: "/work/repo-a", lastOpened: 1_690_000_000, profile: perso },
+    ];
+    const profiles = [
+      { id: "p1", name: "Perso" },
+      { id: "p2", name: "Pro" },
+    ];
+    const blocked = (overrides = {}) => ({
+      ...props({ recent: repos, currentProfile: perso, profiles, ...overrides }),
+      onswitchprofile: vi.fn(),
+    });
+    const openMenu = () => fireEvent.click(document.querySelector<HTMLElement>(".trigger")!);
+
+    it("disables the selector and the list with « Operation in progress. », emits nothing", async () => {
+      const p = blocked({ operationBlocked: true });
+      render(RepoPicker, p);
+      await openMenu();
+      expect(screen.getByText("Operation in progress.")).toBeInTheDocument();
+      for (const option of screen.getAllByRole("option")) {
+        expect(option).toHaveAttribute("aria-disabled", "true");
+      }
+      const repoItem = screen.getByRole("menuitem", { name: /repo-a/ });
+      expect(repoItem).toBeDisabled();
+      await fireEvent.click(screen.getByRole("option", { name: "Pro" }));
+      await fireEvent.keyDown(screen.getByRole("option", { name: "Pro" }), { key: "Enter" });
+      await fireEvent.click(repoItem);
+      expect(p.onswitchprofile).not.toHaveBeenCalled();
+      expect(p.onopen).not.toHaveBeenCalled();
+      expect(screen.getByRole("option", { name: /Perso/, selected: true })).toBeInTheDocument();
+    });
+
+    it("is active again without the prop", async () => {
+      const p = blocked({ operationBlocked: true });
+      const view = render(RepoPicker, p);
+      await openMenu();
+      expect(screen.getByRole("menuitem", { name: /repo-a/ })).toBeDisabled();
+      await view.rerender({ ...p, operationBlocked: false });
+      expect(screen.queryByText("Operation in progress.")).toBeNull();
+      for (const option of screen.getAllByRole("option")) {
+        expect(option).not.toHaveAttribute("aria-disabled", "true");
+      }
+      expect(screen.getByRole("menuitem", { name: /repo-a/ })).toBeEnabled();
+      await fireEvent.click(screen.getByRole("option", { name: "Pro" }));
+      expect(p.onswitchprofile).toHaveBeenCalledWith("p2");
+    });
+  });
+
   it("shows an empty state when there is no recent repository", async () => {
     render(RepoPicker, props({ recent: [] }));
     await fireEvent.click(screen.getByRole("button", { name: /repo-b/ }));

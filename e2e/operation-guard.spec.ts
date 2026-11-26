@@ -177,6 +177,40 @@ test("gerer-les-branches CA-20 : un merge lancé au terminal désactive les gest
   await expectHeaderActive(page);
 });
 
+test("changer-de-compte CA-10 : un merge lancé au terminal désactive le sélecteur de profil et la liste de RepoPicker avec la raison, l'abandon les réactive", async ({
+  page,
+}) => {
+  const repo = await open(page);
+  const picker = page.locator(".picker .trigger");
+  const options = page.getByRole("option");
+  const recent = page.getByRole("menu", { name: "Recent repositories" });
+
+  ws.terminal(repo, "merge", "develop");
+  await backInOctogit(page);
+  await expect(banner(page)).toBeVisible();
+  await picker.click();
+  await expect(page.getByRole("status").filter({ hasText: REASON })).toBeVisible();
+  for (const option of await options.all()) {
+    await expect(option).toHaveAttribute("aria-disabled", "true");
+  }
+  await expect(recent.getByRole("menuitem").first()).toBeDisabled();
+  await options.first().click({ force: true });
+  await recent.getByRole("menuitem").first().click({ force: true });
+  await expect(picker).toBeVisible();
+  expect(ws.git(repo, "rev-parse", "--abbrev-ref", "HEAD")).toBe("feature/profiles");
+  await page.keyboard.press("Escape");
+
+  ws.terminal(repo, "merge", "--abort");
+  await backInOctogit(page);
+  await expect(banner(page)).toHaveCount(0);
+  await picker.click();
+  await expect(page.getByRole("status").filter({ hasText: REASON })).toHaveCount(0);
+  for (const option of await options.all()) {
+    await expect(option).not.toHaveAttribute("aria-disabled", "true");
+  }
+  await expect(recent.getByRole("menuitem").first()).toBeEnabled();
+});
+
 test("gerer-les-branches CA-20 : un rebase, un cherry-pick et un revert lancés au terminal désactivent aussi les gestes", async ({
   page,
 }) => {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const commandMock = vi.hoisted(() => {
@@ -83,6 +83,37 @@ describe("App, sélecteur de profil", () => {
     commandMock.defaults.listProfiles = [];
     commandMock.defaults.listRecentRepositories = [];
     delete commandMock.defaults.openRepository;
+  });
+
+  it("changer-de-compte CA-8 CA-9 CA-15 : a profile without repository shows its state, Clone… preselects it, No profile has no Clone…", async () => {
+    const pro = { id: "p2", name: "Pro", color: 1, conform: true };
+    commandMock.defaults.getLaunchState = { screen: "welcome" };
+    commandMock.defaults.listProfiles = [
+      { id: "p1", name: "Perso" },
+      { id: "p2", name: "Pro" },
+    ];
+    commandMock.defaults.listRecentRepositories = [
+      { name: "pro-a", path: "/w/pro-a", lastOpened: 200, profile: pro },
+    ];
+    render(App);
+    await screen.findByRole("heading", { name: "Welcome to Octogit" });
+    await fireEvent.click(screen.getByRole("button", { name: "Recent" }));
+    await fireEvent.click(screen.getByRole("option", { name: "Perso" }));
+    await screen.findByText("No repositories for Perso");
+    expect(commandMock.commands.openRepository).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole("button", { name: /^Clone…/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("radio", { name: /Perso/ })).toBeChecked();
+    expect(within(dialog).getByRole("radio", { name: /Pro/ })).not.toBeChecked();
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    await fireEvent.click(screen.getByRole("button", { name: "Recent" }));
+    await fireEvent.click(screen.getByRole("option", { name: "No profile" }));
+    await screen.findByText("No repositories without a profile.");
+    expect(screen.queryByRole("button", { name: /^Clone…/ })).toBeNull();
+
+    commandMock.defaults.listProfiles = [];
+    commandMock.defaults.listRecentRepositories = [];
   });
 });
 

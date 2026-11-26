@@ -28,7 +28,13 @@
     onremove,
     profiles = [],
     onswitchprofile,
+    emptyProfile = null,
   }: {
+    /**
+     * Profil choisi dans `RepoPicker` sans dépôt ouvrable : `id` `null` pour « No profile » (Open folder… seul, aucun
+     * clone sans profil). Remplace la liste Recent.
+     */
+    emptyProfile?: { id: string | null; name: string } | null;
     /** Profils dans l'ordre de `ProfileSettings`, pour le sélecteur de `RepoPicker`. */
     profiles?: { id: string; name: string }[];
     /** Choix d'un profil dans `RepoPicker` : ouvre son dernier dépôt présent (`null` : « No profile »). */
@@ -55,8 +61,8 @@
     oncheck?: () => void;
     /** Aucun profil enregistré : « Create a first profile » ouvre `ProfileSettings` sur son formulaire de création. */
     noProfile?: boolean;
-    /** « Clone… » (⌘⇧C) : ouvre `CloneDialog`. */
-    onclone?: () => void;
+    /** « Clone… » (⌘⇧C) : ouvre `CloneDialog` ; `profileId` est celui de l'état « profil sans dépôt », sinon absent. */
+    onclone?: (profileId?: string) => void;
     /** « Profiles » (⌘,) : ouvre `ProfileSettings`. */
     onprofiles?: () => void;
     recent: RecentView[];
@@ -124,7 +130,27 @@
       <p class="error" role="alert">{error}</p>
     {/if}
 
-    {#if recent.length > 0}
+    {#if emptyProfile !== null}
+      <section class="empty">
+        {#if recent.length > 0}
+          <RepoPicker
+            {recent}
+            current={null}
+            {profiles}
+            {onopen}
+            {onchoose}
+            onclone={() => onclone?.()}
+            {onswitchprofile}
+          />
+        {/if}
+        {#if emptyProfile.id === null}
+          <h2>No repositories without a profile.</h2>
+        {:else}
+          <h2>No repositories for {emptyProfile.name}</h2>
+          <p class="muted">Open a folder or clone one with this profile.</p>
+        {/if}
+      </section>
+    {:else if recent.length > 0}
       <section>
         <h2>Recent</h2>
         <!-- Sans dépôt ouvert : le sélecteur de profil s'ouvre sur « All profiles ». -->
@@ -169,9 +195,15 @@
     <button type="button" class="open-folder" onclick={onchoose}>
       <Folder size={16} strokeWidth={1.8} aria-hidden="true" /> Open folder… <kbd>⌘O</kbd>
     </button>
-    <button type="button" class="open-folder" onclick={() => onclone?.()}>
-      <Copy size={16} strokeWidth={1.8} aria-hidden="true" /> Clone… <kbd>⌘⇧C</kbd>
-    </button>
+    {#if emptyProfile?.id !== null}
+      <button
+        type="button"
+        class="open-folder"
+        onclick={() => (emptyProfile ? onclone?.(emptyProfile.id!) : onclone?.())}
+      >
+        <Copy size={16} strokeWidth={1.8} aria-hidden="true" /> Clone… <kbd>⌘⇧C</kbd>
+      </button>
+    {/if}
     <button type="button" class="open-folder" onclick={() => onprofiles?.()}>
       <User size={16} strokeWidth={1.8} aria-hidden="true" /> Profiles <kbd>⌘,</kbd>
     </button>

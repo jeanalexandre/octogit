@@ -16,7 +16,10 @@
     onchoose,
     onclone,
     onswitchprofile,
+    operationBlocked = false,
   }: {
+    /** Merge, rebase, cherry-pick ou revert en cours : sélecteur et liste désactivés, « Operation in progress. » affiché. */
+    operationBlocked?: boolean;
     /** « Clone… » : ouvre `CloneDialog`. */
     onclone?: () => void;
     recent: RecentView[];
@@ -65,6 +68,7 @@
   }
 
   function choose(value: string) {
+    if (operationBlocked) return;
     filter = value;
     if (value === ALL || value === initialFilter) return;
     open = false;
@@ -101,11 +105,16 @@
   </button>
   {#if open}
     <div class="menu">
+      {#if operationBlocked}
+        <p class="reason" role="status">Operation in progress.</p>
+      {/if}
       <div class="selector" role="listbox" aria-label="Profile filter" bind:this={listbox}>
         {#each options as option (option.value)}
           <div
             role="option"
             class="option"
+            class:disabled={operationBlocked}
+            aria-disabled={operationBlocked}
             aria-selected={filter === option.value}
             tabindex={filter === option.value ? 0 : -1}
             onclick={() => choose(option.value)}
@@ -120,7 +129,13 @@
           <p class="empty">No recent repositories.</p>
         {/if}
         {#each shown as repo (repo.path)}
-          <button type="button" role="menuitem" onclick={() => pick(() => onopen(repo.path))}>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={operationBlocked}
+            title={operationBlocked ? "Operation in progress." : undefined}
+            onclick={() => !operationBlocked && pick(() => onopen(repo.path))}
+          >
             <strong class="name">{repo.name}</strong>
             <span class="path">{repo.path}</span>
             {#if filter === ALL}
@@ -208,8 +223,21 @@
     font-weight: 600;
   }
 
-  .menu button:hover {
+  .menu button:hover:not(:disabled) {
     background: var(--selection);
+  }
+
+  .menu button:disabled,
+  .option.disabled {
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  .reason {
+    margin: 0;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
   }
 
   .name {

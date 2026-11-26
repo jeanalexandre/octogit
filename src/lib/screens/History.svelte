@@ -792,6 +792,7 @@
       {onchoose}
       {onclone}
       {onswitchprofile}
+      {operationBlocked}
     />
     <Toolbar
       refs={repository.refs}

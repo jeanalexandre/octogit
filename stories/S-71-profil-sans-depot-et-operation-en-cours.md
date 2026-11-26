@@ -63,8 +63,16 @@ Choisir un profil sans dépôt récent affiche dans `Welcome` « No repositories
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `5e39abd`
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : tests, lint, format, audit, build, e2e (602/604 ; échec propre corrigé, `badge-menu.spec.ts:152` instable préexistant, passe en relance) | — |
+| 1 | reviewer | 1 mineur (options désactivées focusables) | validé |
+
+## Décisions de l'humain
+
+### Après la revue 1
+- Mineur « options désactivées restent focusables » : conservé (d'office) ; le focus visible permet de lire la raison « Operation in progress. », `choose()` refuse l'action, aucun effet fonctionnel. Pris en compte (pour information).
+- Captures d'écran non prises : pris en compte (pour information).

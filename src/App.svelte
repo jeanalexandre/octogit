@@ -2052,6 +2052,7 @@
     importDraft = null;
     mismatchHidden = false;
     openCount++;
+    emptyProfile = null;
     screen = { screen: "history", repository: repository satisfies RepositoryView };
     recent = await commands.listRecentRepositories();
   }
@@ -2068,6 +2069,7 @@
   }
 
   async function open(path: string) {
+    if (operationBlocked) return;
     const result = await commands.openRepository(path);
     if (result.status === "ok") {
       await show(result.data);
@@ -2081,6 +2083,7 @@
    * sans profil), un dépôt introuvable est sauté sans message ; s'ils manquent tous, retour à `Welcome`.
    */
   async function switchProfile(profileId: string | null) {
+    if (operationBlocked) return;
     const candidates = recent.filter((r) => (r.profile?.id ?? null) === profileId);
     for (const candidate of candidates) {
       const result = await commands.openRepository(candidate.path);
@@ -2095,8 +2098,15 @@
     }
     error = null;
     settingsOpen = false;
+    emptyProfile = {
+      id: profileId,
+      name: profiles.find((p) => p.id === profileId)?.name ?? candidates[0]?.profile?.name ?? "",
+    };
     screen = { screen: "welcome" };
   }
+
+  /** Profil choisi sans dépôt ouvrable : `Welcome` affiche « No repositories for <profil> » (`id` `null` : sans profil). */
+  let emptyProfile: { id: string | null; name: string } | null = $state(null);
 
   /** Locate… : le dossier où le dépôt a été déplacé ; le rattachement manuel et les états suivent le dépôt. */
   async function locate(old: string) {
@@ -2119,6 +2129,7 @@
     if (result.status !== "ok") return;
     error = null;
     recent = await commands.listRecentRepositories();
+    emptyProfile = null;
     screen = { screen: "welcome" };
   }
 
@@ -2135,7 +2146,8 @@
     draft: { profileId?: string; url?: string; folder?: string } | null;
   } | null = $state(null);
 
-  async function openClone() {
+  /** `profileId` : profil pré-choisi de l'état « profil sans dépôt » de `Welcome` ; sinon aucun profil sélectionné. */
+  async function openClone(profileId?: string) {
     if (cloneDialog !== null || settingsOpen) return;
     profiles = await commands.listProfiles();
     cloneDialog = {
@@ -2144,7 +2156,7 @@
       error: null,
       refusal: null,
       progress: null,
-      draft: null,
+      draft: typeof profileId === "string" ? { profileId } : null,
     };
   }
 
@@ -2504,7 +2516,8 @@
     onswitchprofile={switchProfile}
     onopen={open}
     onchoose={chooseFolder}
-    onclone={openClone}
+    onclone={(profileId) => void openClone(profileId)}
+    emptyProfile={screen.screen === "welcome" ? emptyProfile : null}
     onprofiles={() => (settingsOpen = true)}
     noProfile={profiles.length === 0}
   />

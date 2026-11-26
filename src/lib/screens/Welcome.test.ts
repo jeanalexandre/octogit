@@ -14,6 +14,30 @@ function props(overrides = {}) {
 }
 
 describe("Welcome", () => {
+  it("changer-de-compte CA-8 CA-9 : a profile without repository shows the help text, Open folder… and Clone… with that profile", async () => {
+    const onclone = vi.fn();
+    render(Welcome, props({ emptyProfile: { id: "p1", name: "Perso" }, onclone }));
+    expect(screen.getByText("No repositories for Perso")).toBeInTheDocument();
+    expect(screen.getByText("Open a folder or clone one with this profile.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open folder…/ })).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole("button", { name: /Clone…/ }));
+    expect(onclone).toHaveBeenCalledWith("p1");
+  });
+
+  it("changer-de-compte CA-9 : an ordinary Clone… preselects no profile", async () => {
+    const onclone = vi.fn();
+    render(Welcome, props({ onclone }));
+    await fireEvent.click(screen.getByRole("button", { name: /Clone…/ }));
+    expect(onclone).toHaveBeenCalledWith();
+  });
+
+  it("changer-de-compte CA-15 : No profile without repository shows Open folder… only, no Clone…", () => {
+    render(Welcome, props({ emptyProfile: { id: null, name: "" } }));
+    expect(screen.getByText("No repositories without a profile.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open folder…/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Clone…/ })).toBeNull();
+  });
+
   it("shows its title", () => {
     render(Welcome, props({ recent: [] }));
     expect(screen.getByRole("heading", { name: "Welcome to Octogit" })).toBeInTheDocument();

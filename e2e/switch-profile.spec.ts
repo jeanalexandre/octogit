@@ -295,6 +295,47 @@ test("changer-de-compte CA-13 CA-14 : tous les dépôts Perso introuvables : Wel
   await expect(picked(page).filter({ hasText: "perso-a" })).toHaveCount(1);
 });
 
+test("changer-de-compte CA-8 CA-9 : Perso sans dépôt récent mène à Welcome, Clone… ouvre CloneDialog avec Perso choisi et un autre profil reste choisissable", async ({
+  page,
+}) => {
+  setup([["pro-a", "p2"]]);
+  await page.goto(ws.url);
+  await trigger(page, "pro-a").click();
+  await option(page, "Perso").click();
+
+  await expect(page.getByRole("heading", { name: "Welcome to Octogit" })).toBeVisible();
+  await expect(page.getByText("No repositories for Perso")).toBeVisible();
+  await expect(page.getByText("Open a folder or clone one with this profile.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Open folder…/ })).toBeVisible();
+  await expect(page.locator(".graph, [role=list]")).toHaveCount(0);
+
+  await page.getByRole("button", { name: /^Clone…/ }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("radio", { name: /Perso/ })).toBeChecked();
+  await dialog.getByRole("radio", { name: /Pro/ }).check();
+  await expect(dialog.getByRole("radio", { name: /Pro/ })).toBeChecked();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+
+  // Clone… de RepoPicker (All profiles) : aucun profil sélectionné.
+  await trigger(page, "Recent").click();
+  await expect(option(page, "All profiles")).toHaveAttribute("aria-selected", "true");
+  await picked(page).filter({ hasText: "Clone…" }).click();
+  await expect(page.getByRole("dialog").getByRole("radio", { checked: true })).toHaveCount(0);
+});
+
+test("changer-de-compte CA-15 : No profile sans dépôt récent sans profil affiche Open folder… seulement, sans Clone…", async ({
+  page,
+}) => {
+  setup([["pro-a", "p2"]]);
+  await page.goto(ws.url);
+  await trigger(page, "pro-a").click();
+  await option(page, "No profile").click();
+
+  await expect(page.getByText("No repositories without a profile.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Open folder…/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Clone…/ })).toHaveCount(0);
+});
+
 test.describe("dépôt de 10 000 commits", () => {
   test.setTimeout(120_000);
 

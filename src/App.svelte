@@ -2076,6 +2076,28 @@
     }
   }
 
+  /**
+   * Sélecteur de profil de `RepoPicker` : ouvre sans confirmation le dernier dépôt présent du profil (`null` :
+   * sans profil), un dépôt introuvable est sauté sans message ; s'ils manquent tous, retour à `Welcome`.
+   */
+  async function switchProfile(profileId: string | null) {
+    const candidates = recent.filter((r) => (r.profile?.id ?? null) === profileId);
+    for (const candidate of candidates) {
+      const result = await commands.openRepository(candidate.path);
+      if (result.status === "ok") {
+        await show(result.data);
+        return;
+      }
+      if (result.error.kind !== "repositoryNotFound") {
+        refuse(result.error);
+        return;
+      }
+    }
+    error = null;
+    settingsOpen = false;
+    screen = { screen: "welcome" };
+  }
+
   /** Locate… : le dossier où le dépôt a été déplacé ; le rattachement manuel et les états suivent le dépôt. */
   async function locate(old: string) {
     const picked = await commands.chooseFolder();
@@ -2307,6 +2329,7 @@
       onsectionheight={setSectionHeight}
       onsectiontoggle={toggleSection}
       onopen={open}
+      onswitchprofile={switchProfile}
       onchoose={chooseFolder}
       onclone={openClone}
       onhidecolumns={hideColumns}
@@ -2477,6 +2500,8 @@
     notFound={screen.screen === "repositoryNotFound" ? screen.path : null}
     onlocate={() => screen?.screen === "repositoryNotFound" && void locate(screen.path)}
     onremove={removeRecent}
+    {profiles}
+    onswitchprofile={switchProfile}
     onopen={open}
     onchoose={chooseFolder}
     onclone={openClone}

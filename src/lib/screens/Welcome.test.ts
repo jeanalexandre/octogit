@@ -49,6 +49,37 @@ describe("Welcome", () => {
     expect(badges).toEqual(["Work", "⚠ Perso · identity mismatch", "No profile"]);
   });
 
+  it("changer-de-compte CA-14 : RepoPicker opens on All profiles with every recent repository", async () => {
+    const withProfiles: RecentView[] = [
+      { ...recent[0], profile: { id: "p1", name: "Work", color: 0, conform: true } },
+      { ...recent[1], profile: null },
+      { ...recent[2], profile: { id: "p2", name: "Perso", color: 1, conform: true } },
+    ];
+    render(
+      Welcome,
+      props({
+        recent: withProfiles,
+        profiles: [
+          { id: "p1", name: "Work" },
+          { id: "p2", name: "Perso" },
+        ],
+      }),
+    );
+    await fireEvent.click(screen.getByRole("button", { name: "Recent" }));
+    expect(screen.getByRole("option", { selected: true })).toHaveTextContent("All profiles");
+    const menu = screen.getByRole("menu", { name: "Recent repositories" });
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .slice(0, 3)
+        .map((i) => i.textContent),
+    ).toEqual([
+      expect.stringContaining("repo-c"),
+      expect.stringContaining("repo-b"),
+      expect.stringContaining("repo-a"),
+    ]);
+  });
+
   it("opens the clicked recent repository", async () => {
     const p = props();
     render(Welcome, p);

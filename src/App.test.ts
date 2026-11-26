@@ -55,6 +55,37 @@ beforeEach(() => {
   commandMock.defaults.installCommandLineTools = { status: "ok", data: null };
 });
 
+describe("App, sélecteur de profil", () => {
+  it("changer-de-compte CA-13 : choosing a profile skips the missing repositories without a message, then falls back to Welcome when all are missing", async () => {
+    const perso = { id: "p1", name: "Perso", color: 0, conform: true };
+    commandMock.defaults.getLaunchState = { screen: "welcome" };
+    commandMock.defaults.listProfiles = [{ id: "p1", name: "Perso" }];
+    commandMock.defaults.listRecentRepositories = [
+      { name: "perso-a", path: "/w/perso-a", lastOpened: 200, profile: perso },
+      { name: "perso-b", path: "/w/perso-b", lastOpened: 100, profile: perso },
+      { name: "other", path: "/w/other", lastOpened: 50, profile: null },
+    ];
+    commandMock.defaults.openRepository = {
+      status: "error",
+      error: { kind: "repositoryNotFound", path: "/w/gone" },
+    };
+    render(App);
+    await screen.findByRole("heading", { name: "Welcome to Octogit" });
+    await fireEvent.click(screen.getByRole("button", { name: "Recent" }));
+    await fireEvent.click(screen.getByRole("option", { name: "Perso" }));
+    await waitFor(() => expect(commandMock.commands.openRepository).toHaveBeenCalledTimes(2));
+    expect(commandMock.commands.openRepository.mock.calls.map((c) => c[0])).toEqual([
+      "/w/perso-a",
+      "/w/perso-b",
+    ]);
+    expect(screen.queryByText(/Repository not found/)).toBeNull();
+    expect(screen.getByRole("heading", { name: "Welcome to Octogit" })).toBeInTheDocument();
+    commandMock.defaults.listProfiles = [];
+    commandMock.defaults.listRecentRepositories = [];
+    delete commandMock.defaults.openRepository;
+  });
+});
+
 describe("App, Git absent", () => {
   it("demarrer-un-depot CA-20 : ⌘O, ⌘⇧C and ⌘, do nothing while Git is missing", async () => {
     render(App);

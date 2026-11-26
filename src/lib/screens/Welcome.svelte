@@ -7,6 +7,7 @@
   import User from "@lucide/svelte/icons/user";
   import type { RecentView } from "../bindings";
   import ProfileBadge from "../components/ProfileBadge.svelte";
+  import RepoPicker from "../components/RepoPicker.svelte";
   import { formatRelative } from "../relativeTime";
 
   let {
@@ -25,7 +26,13 @@
     notFound = null,
     onlocate,
     onremove,
+    profiles = [],
+    onswitchprofile,
   }: {
+    /** Profils dans l'ordre de `ProfileSettings`, pour le sélecteur de `RepoPicker`. */
+    profiles?: { id: string; name: string }[];
+    /** Choix d'un profil dans `RepoPicker` : ouvre son dernier dépôt présent (`null` : « No profile »). */
+    onswitchprofile?: (profileId: string | null) => void;
     /** Chemin du dépôt introuvable (dernier dépôt ou récent cliqué) : « Repository not found: <chemin> ». */
     notFound?: string | null;
     /** « Locate… » : choisir le dossier où le dépôt a été déplacé. */
@@ -120,6 +127,16 @@
     {#if recent.length > 0}
       <section>
         <h2>Recent</h2>
+        <!-- Sans dépôt ouvert : le sélecteur de profil s'ouvre sur « All profiles ». -->
+        <RepoPicker
+          {recent}
+          current={null}
+          {profiles}
+          {onopen}
+          {onchoose}
+          {onclone}
+          {onswitchprofile}
+        />
         <ul class="recent">
           {#each recent as repo (repo.path)}
             <li>

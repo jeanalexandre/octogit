@@ -84,7 +84,11 @@ Un sélecteur de profil en tête de `RepoPicker` (profils dans l'ordre de `Profi
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`
+- Référence : `7e0431c`
 
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé ; tests, lint, build, e2e verts ; écarts : sélecteur en listbox visible, `appearance.spec.ts` CA-12 adapté ; pas de changement de contrat | — |
+| 2 | reviewer | CA-11 non prouvé (aucun test du menu `ProfileBadge` contre le filtre) | à corriger (`stories/S-70-revue-1.md`) |
+| 3 | dev | terminé ; e2e CA-11 ajouté (menu `ProfileBadge` contre filtre) ; tests, lint, build, e2e verts | — |
+| 4 | reviewer | bloquant levé, aucun problème | validé (`stories/S-70-revue-2.md`) |

@@ -93,6 +93,7 @@
     profiles = [],
     manualProfile = false,
     onchooseprofile,
+    onswitchprofile,
     onresetprofile,
     oneditprofiles,
     syncAction = "fetchAll",
@@ -204,6 +205,8 @@
     manualProfile?: boolean;
     /** Menu de `ProfileBadge` : choisit ce profil à la main ; rejette avec un message si l'action échoue. */
     onchooseprofile?: (id: string) => Promise<void>;
+    /** Sélecteur de profil de `RepoPicker` : ouvre le dernier dépôt présent du profil choisi (`null` : « No profile »). */
+    onswitchprofile?: (profileId: string | null) => void;
     /** Menu de `ProfileBadge` : « Reset to rules » ; rejette avec un message si l'action échoue. */
     onresetprofile?: () => Promise<void>;
     /** Menu de `ProfileBadge` : « Edit profiles… » ouvre `ProfileSettings`. */
@@ -780,7 +783,16 @@
 <main class="history">
   <header>
     <h1 class="visually-hidden">{repository.name}</h1>
-    <RepoPicker {recent} current={repository.path} {onopen} {onchoose} {onclone} />
+    <RepoPicker
+      {recent}
+      current={repository.path}
+      currentProfile={repository.profile ?? null}
+      {profiles}
+      {onopen}
+      {onchoose}
+      {onclone}
+      {onswitchprofile}
+    />
     <Toolbar
       refs={repository.refs}
       onselect={(name) => oncheckout?.(name)}

@@ -1,31 +1,88 @@
 <script lang="ts">
-  import type { RecentView } from "../bindings";
+  import type { ProfileBadgeView, RecentView } from "../bindings";
+  import { formatRelative } from "../relativeTime";
+  import ProfileBadge from "./ProfileBadge.svelte";
+
+  /** Valeurs du filtre qui ne sont pas un identifiant de profil. */
+  const ALL = "@all";
+  const NONE = "@none";
 
   let {
     recent,
     current,
+    currentProfile = null,
+    profiles = [],
     onopen,
     onchoose,
     onclone,
+    onswitchprofile,
   }: {
     /** « Clone… » : ouvre `CloneDialog`. */
     onclone?: () => void;
     recent: RecentView[];
-    /** Chemin du dépôt affiché. */
-    current: string;
+    /** Chemin du dépôt affiché, ou `null` sans dépôt ouvert (`Welcome`) : le filtre s'ouvre sur « All profiles ». */
+    current: string | null;
+    /** Profil du dépôt affiché (`null` : « No profile »). */
+    currentProfile?: ProfileBadgeView | null;
+    /** Profils dans l'ordre de `ProfileSettings`. */
+    profiles?: { id: string; name: string }[];
     onopen: (path: string) => void;
     onchoose: () => void;
+    /**
+     * Choix d'un profil autre que celui du dépôt affiché : ouvre son dernier dépôt présent. `profileId` est `null`
+     * pour « No profile ». « All profiles » et le profil du dépôt affiché ne l'appellent pas.
+     */
+    onswitchprofile?: (profileId: string | null) => void;
   } = $props();
 
   let open = $state(false);
   let root: HTMLDivElement | undefined = $state();
+  let listbox: HTMLDivElement | undefined = $state();
+
+  const initialFilter = $derived(current === null ? ALL : (currentProfile?.id ?? NONE));
+  /** État d'interface du seul `RepoPicker` : `ProfileBadge` ne le lit ni ne l'écrit. */
+  let filter = $derived(initialFilter);
+
+  const options = $derived([
+    ...profiles.map((p) => ({ value: p.id, label: p.name })),
+    { value: NONE, label: "No profile" },
+    { value: ALL, label: "All profiles" },
+  ]);
+  const shown = $derived(
+    recent.filter((r) =>
+      filter === ALL ? true : filter === NONE ? !r.profile : r.profile?.id === filter,
+    ),
+  );
   const currentName = $derived(
-    recent.find((r) => r.path === current)?.name ?? current.split("/").filter(Boolean).at(-1),
+    current === null
+      ? "Recent"
+      : (recent.find((r) => r.path === current)?.name ?? current.split("/").filter(Boolean).at(-1)),
   );
 
   function pick(action: () => void) {
     open = false;
     action();
+  }
+
+  function choose(value: string) {
+    filter = value;
+    if (value === ALL || value === initialFilter) return;
+    open = false;
+    onswitchprofile?.(value === NONE ? null : value);
+  }
+
+  /** ↑ / ↓ déplacent le focus entre les options, Entrée (ou Espace) choisit. */
+  function optionKey(e: KeyboardEvent, value: string) {
+    const items = Array.from(listbox?.querySelectorAll<HTMLElement>('[role="option"]') ?? []);
+    const index = items.findIndex((el) => el === e.currentTarget);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = e.key === "ArrowDown" ? index + 1 : index - 1;
+      items[(next + items.length) % items.length]?.focus();
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      choose(value);
+    }
   }
 </script>
 
@@ -43,22 +100,44 @@
     {currentName}
   </button>
   {#if open}
-    <div class="menu" role="menu">
-      {#if recent.length === 0}
-        <p class="empty">No recent repositories.</p>
-      {/if}
-      {#each recent as repo (repo.path)}
-        <button type="button" role="menuitem" onclick={() => pick(() => onopen(repo.path))}>
-          <strong class="name">{repo.name}</strong>
-          <span class="path">{repo.path}</span>
+    <div class="menu">
+      <div class="selector" role="listbox" aria-label="Profile filter" bind:this={listbox}>
+        {#each options as option (option.value)}
+          <div
+            role="option"
+            class="option"
+            aria-selected={filter === option.value}
+            tabindex={filter === option.value ? 0 : -1}
+            onclick={() => choose(option.value)}
+            onkeydown={(e) => optionKey(e, option.value)}
+          >
+            {#if filter === option.value}<span aria-hidden="true">✓ </span>{/if}{option.label}
+          </div>
+        {/each}
+      </div>
+      <div role="menu" aria-label="Recent repositories">
+        {#if shown.length === 0}
+          <p class="empty">No recent repositories.</p>
+        {/if}
+        {#each shown as repo (repo.path)}
+          <button type="button" role="menuitem" onclick={() => pick(() => onopen(repo.path))}>
+            <strong class="name">{repo.name}</strong>
+            <span class="path">{repo.path}</span>
+            {#if filter === ALL}
+              <ProfileBadge profile={repo.profile ?? null} />
+            {/if}
+            <span class="date"
+              >{repo.lastOpened === null ? "" : formatRelative(repo.lastOpened)}</span
+            >
+          </button>
+        {/each}
+        <button type="button" role="menuitem" class="open-folder" onclick={() => pick(onchoose)}>
+          Open folder…
         </button>
-      {/each}
-      <button type="button" role="menuitem" class="open-folder" onclick={() => pick(onchoose)}>
-        Open folder…
-      </button>
-      <button type="button" role="menuitem" onclick={() => pick(() => onclone?.())}>
-        Clone…
-      </button>
+        <button type="button" role="menuitem" onclick={() => pick(() => onclone?.())}>
+          Clone…
+        </button>
+      </div>
     </div>
   {/if}
 </div>
@@ -108,6 +187,27 @@
     border-radius: 6px;
   }
 
+  .selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px 12px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .option {
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .option[aria-selected="true"] {
+    border-color: var(--border-strong);
+    background: var(--selection);
+    font-weight: 600;
+  }
+
   .menu button:hover {
     background: var(--selection);
   }
@@ -124,6 +224,13 @@
     white-space: nowrap;
     color: var(--muted);
     font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 12px;
+  }
+
+  .date {
+    margin-left: auto;
+    flex-shrink: 0;
+    color: var(--muted);
     font-size: 12px;
   }
 

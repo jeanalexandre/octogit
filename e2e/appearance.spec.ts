@@ -204,6 +204,8 @@ test("choisir-l-apparence CA-12 : changer de dépôt par RepoPicker ou ouvrir un
   await expect.poll(() => surface(page)).toBe(SURFACE.dark);
 
   await page.getByRole("button", { name: /app/ }).first().click();
+  // Le sélecteur s'ouvre sur le profil du dépôt (Perso) : « All profiles » montre aussi second-repo (Work).
+  await page.getByRole("option", { name: "All profiles", exact: true }).click();
   await page.getByRole("menuitem", { name: /second-repo/ }).click();
   await expect(page.getByRole("heading", { name: "second-repo", includeHidden: true })).toHaveCount(
     1,
@@ -216,6 +218,7 @@ test("choisir-l-apparence CA-12 : changer de dépôt par RepoPicker ou ouvrir un
     .getByRole("button", { name: /second-repo/ })
     .first()
     .click();
+  await page.getByRole("option", { name: "All profiles", exact: true }).click();
   await page.getByRole("menuitem", { name: /app/ }).click();
   await expect(page.getByRole("heading", { name: "app", includeHidden: true })).toHaveCount(1);
   await expect(choice(page, "Dark")).toHaveAttribute("aria-checked", "true");

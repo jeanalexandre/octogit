@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import { restoreFocus } from "../restoreFocus";
   import Copy from "@lucide/svelte/icons/copy";
   import FolderOpen from "@lucide/svelte/icons/folder-open";
   import Clipboard from "@lucide/svelte/icons/clipboard-copy";
@@ -128,7 +129,7 @@
 
 <svelte:window {onkeydown} />
 
-<div class="backdrop">
+<div class="backdrop" use:restoreFocus>
   <div
     class="dialog"
     bind:this={dialog}

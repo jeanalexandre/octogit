@@ -7,14 +7,14 @@
 | `surface` | `#141518` | `#ffffff` | `#12151c` | `#fbfcfe` | fond du graphe, champs |
 | `surface-raised` | `#1b1c20` | `#f7f8fa` | `#1a1f29` | `#f1f3f8` | barre d'outils, barre latérale, panneau, cartes |
 | `border` | `#2a2c31` | `#e3e6eb` | `#2a3140` | `#dde1ea` | séparateurs décoratifs |
-| `border-strong` | `#6e727b` | `#848a95` | `#6b7588` | `#7a8494` | champs, cases, étiquettes de tag |
+| `border-strong` | `#7a7e88` | `#7b818c` | `#7c8699` | `#707a8a` | champs, cases, étiquettes de tag |
 | `ink` | `#e8e9ec` | `#1f2328` | `#e6e9ef` | `#161a22` | texte principal |
 | `muted` | `#a2a5ad` | `#5c6370` | `#9aa3b2` | `#566070` | texte secondaire (dates, chemins, compteurs) |
 | `brand` | `#2563eb` | `#2563eb` | `#2dd4bf` | `#0f766e` | action principale, segment actif, compteur de Push |
 | `on-brand` | `#ffffff` | `#ffffff` | `#062b27` | `#ffffff` | texte sur `brand` |
 | `link` | `#6ea0ff` | `#1d5bd8` | `#5eead4` | `#0f6b64` | actions texte (Stage all, Details) |
 | `selection` | `#1f2b45` | `#e6eeff` | `#25324a` | `#dbe4f7` | élément sélectionné |
-| `focus` | `#5b8def` | `#2563eb` | `#5eead4` | `#0d9488` | focus clavier, volet actif |
+| `focus` | `#5b8def` | `#2563eb` | `#5eead4` | `#0b8479` | focus clavier, volet actif |
 | `success` | `#4ade80` | `#126b31` | `#4ade80` | `#11692f` | identité conforme, statut A |
 | `warning` | `#f5a524` | `#9a4708` | `#fbbf24` | `#8a5300` | statut M, opération en cours |
 | `danger` | `#f87171` | `#c81e1e` | `#f87171` | `#b91c1c` | identité non conforme, perte, erreur |
@@ -22,5 +22,5 @@
 | `on-label` | `#111316` | `#ffffff` | `#0b0e14` | `#ffffff` | texte sur étiquette pleine et pastille de statut |
 | `node-ink` | `#111316` | `#111827` | `#0b0e14` | `#111827` | initiales dans un nœud |
 
-- **Dérivés** : teinte de ligne et d'étiquette distante = lane à 10 % (clair) ou 14 % (sombre) sur `surface` ; remplissage de nœud = lane à 40 % sur blanc ; bandeau conforme = `success` à 12 % sur `surface-raised`. Toutes les paires vérifiées en AA, teintes comprises.
+- **Dérivés** : teinte de ligne et d'étiquette distante = lane à 10 % (clair) ou 14 % (sombre) sur `surface` ; remplissage de nœud = lane à 40 % sur blanc ; bandeau conforme = `success` à 12 % sur `surface-raised`. Toutes les paires vérifiées en AA, teintes comprises. `border-strong` et `focus` atteignent 3:1 sur `surface`, `surface-raised` et `selection` ; `ink`, `muted` et `link` atteignent 4,5:1 sur `selection` (révision du 26/11/2026).
 - **Couleurs de profil** : les 6 couleurs de lanes (`lane-1`…`lane-6`) de la palette active, au choix ; la pastille du profil (liste de `ProfileSettings`, `ProfileBadge`) suit le thème et la palette.

@@ -3,6 +3,7 @@
   import Minus from "@lucide/svelte/icons/minus";
   import Plus from "@lucide/svelte/icons/plus";
   import Wrench from "@lucide/svelte/icons/wrench";
+  import { isMenuKey, menuEventAt } from "../menuKey";
   import type {
     ChangeStatusView,
     FileChangeView,
@@ -250,6 +251,12 @@
           oncontextmenu={(event) => {
             // Discard changes : seulement un fichier non indexé ou non suivi.
             if (id === "unstaged") onfilecontextmenu?.(file, event);
+          }}
+          onkeydown={(event) => {
+            // Touche menu ou Maj+F10 : le même menu, au coin bas gauche de la ligne.
+            if (id !== "unstaged" || !isMenuKey(event)) return;
+            event.preventDefault();
+            onfilecontextmenu?.(file, menuEventAt(event.currentTarget));
           }}
         >
           <span class="status {file.status}" aria-label={file.status}>{LETTERS[file.status]}</span>

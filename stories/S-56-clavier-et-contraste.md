@@ -27,6 +27,13 @@ Report de S-48 (revue 1, mineur 1) : sur un bouton plein (`.primary`, `button.da
 ## Décisions de l'humain
 Aucune question à confirmer.
 
+### Après la revue 1
+- S-56.1 (focus et `border-strong` sur `--selection` sous 3:1, Kraken clair) : décidé par l'humain le 26/11/2026, option (a) : ajuster `focus` et `border-strong`, ou `selection`, dans `ux/tokens.md`. `dev` ne touche pas aux valeurs : amendement de `ux.md` par `/ksm:ux` d'abord, puis reprise de S-56. Amendement validé le 26/11/2026 : `ux/tokens.md` porte les nouvelles valeurs (`border-strong` ×4, `focus` Kraken clair `#0b8479`). `dev` les reporte dans le code au passage 2, avec les problèmes 2 et 3.
+- Revue 1, pour information : la date absolue affichée au focus recouvre une partie du nom d'auteur (1 920×1 080) ; même infobulle qu'au survol : pris en compte (pour information).
+
+### Après la revue 2
+- Revue validée sans mineur ni point « à décider » ; « Pour l'humain » : RAS.
+
 ## Outillage
 - Tests ciblés : Vitest `pnpm test:js <fichier> [-t <nom>]` (= `vitest run --reporter=dot`) ; Rust `pnpm test:rs -p <crate> [<filtre>]` (= `cargo test -q`) ; Playwright `pnpm e2e <fichier> [-g <nom>]` (lit `.env.local`)
 - Environnement local : `pnpm dev:web` (interface sur `http://localhost:1420` dans le navigateur, pont de test aux vraies commandes du crate `app`, jeu de dépôts d'exemple : branches, conflit en cours, identité non conforme ; port et données par `.env.local` en worktree) ; `pnpm tauri dev` n'est pas isolé (port 1420, un seul à la fois)
@@ -85,8 +92,12 @@ Aucune question à confirmer.
 - [ ] Verdict du reviewer : **validé**
 
 ## Journal
-- Référence : `<commit>`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
+- Référence : `2f4c284`   <!-- Noté par /story avant le premier passage. En parallèle, sans objet : l'agent calcule git merge-base dans le worktree. -->
 
 <!-- Rempli par l'agent story-runner : une ligne par passage dev ou reviewer. -->
 | # | Agent | Résultat | Verdict |
 |---|---|---|---|
+| 1 | dev | terminé : 19 fichiers, keyboard/contrast e2e, contrast.test.ts, CommitGraph.test.ts, restoreFocus.ts ; qualité verte, 336 e2e ; écarts mineurs consignés (Maj+F10 sur WorkingChanges, choix de branche réceptrice au clavier inchangé) | — |
+| 2 | reviewer | `stories/S-56-revue-1.md` : paire focus/border-strong sur `--selection` sous 3:1 (tokens, décision humaine) ; test `.primary` n'exerce que `danger` | bloqué |
+| 3 | dev | passage 2 : tokens.css aligné sur `ux/tokens.md` amendé, paires `selection` (unitaire + e2e 8 apparences), vrai `.primary` (Force push) ; qualité verte, format:check revérifié | — |
+| 4 | reviewer | `stories/S-56-revue-2.md` : problèmes 1, 2, 3 levés, aucun problème | validé |

@@ -93,6 +93,44 @@ describe("ThemeSwitch", () => {
     expect(onhalochange).toHaveBeenCalledWith(false);
   });
 
+  it("choisir-l-apparence CA-14: the arrow, the arrow keys and Escape reach every choice of the menu and give the focus back to the arrow", async () => {
+    render(ThemeSwitch, { theme: "dark", palette: "neon", halo: true });
+    const arrow = screen.getByRole("button", { name: "Appearance" });
+    // Les segments et la flèche sont de vrais boutons : Tab les atteint, Entrée et Espace les activent.
+    for (const button of [...screen.getAllByRole("radio"), arrow]) {
+      expect((button as HTMLButtonElement).tabIndex).toBe(0);
+    }
+    await fireEvent.click(arrow);
+    const entries = [
+      ...screen.getAllByRole("menuitemradio"),
+      screen.getByRole("menuitemcheckbox"),
+    ].map((el) => el.textContent?.trim());
+    expect(entries).toEqual([
+      "Dark",
+      "Light",
+      "System",
+      "Neon",
+      "Kraken",
+      "✓ Halo (dark theme only)",
+    ]);
+    // Le focus va à l'entrée cochée, les flèches font le tour des cinq choix et de la case.
+    const menu = screen.getByRole("menu");
+    await vi.waitFor(() => expect(document.activeElement?.textContent?.trim()).toBe("Dark"));
+    const seen: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      seen.push(document.activeElement?.textContent?.trim() ?? "");
+      await fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    }
+    expect(seen).toEqual(entries);
+    expect(menu.contains(document.activeElement)).toBe(true);
+    await fireEvent.keyDown(document.activeElement!, { key: "ArrowUp" });
+    expect(document.activeElement?.textContent?.trim()).toBe("✓ Halo (dark theme only)");
+
+    await fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(arrow);
+  });
+
   it("choisir-l-apparence CA-9: the Halo box stays enabled with a light theme", async () => {
     render(ThemeSwitch, { theme: "light", palette: "neon", halo: true });
     await fireEvent.click(screen.getByRole("button", { name: "Appearance" }));

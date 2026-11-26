@@ -40,3 +40,12 @@ button > svg.lucide-icon {
 button.danger:not(:disabled):not([aria-disabled="true"]) {
   box-shadow: var(--halo-danger);
 }
+
+/* Au focus clavier, la lueur de focus s'ajoute à celle du bouton au lieu de la remplacer. */
+.primary:not(:disabled):not([aria-disabled="true"]):focus-visible {
+  box-shadow: var(--halo-brand), var(--halo-focus);
+}
+
+button.danger:not(:disabled):not([aria-disabled="true"]):focus-visible {
+  box-shadow: var(--halo-danger), var(--halo-focus);
+}

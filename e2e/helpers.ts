@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import type { Locator } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 /** Règle de rattachement telle que `profiles.json` la stocke. */
 export type StoredRule = { kind: "path" | "remote_owner"; pattern: string };
@@ -22,6 +22,32 @@ export async function isOnTop(locator: Locator): Promise<boolean> {
     const box = el.getBoundingClientRect();
     const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
     return hit !== null && el.contains(hit);
+  });
+}
+
+/**
+ * Anneau de focus de l'élément qui a le focus : contour visible (`outline-style` non `none`, largeur non nulle) de
+ * la couleur de `--focus`. Rend un message d'erreur lisible, ou `null` si l'anneau est conforme.
+ */
+export async function focusRingProblem(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    const el = document.activeElement;
+    if (!el || el === document.body) return "aucun élément n'a le focus";
+    const probe = document.createElement("span");
+    probe.style.color = "var(--focus)";
+    document.body.append(probe);
+    const focus = getComputedStyle(probe).color;
+    probe.remove();
+    const style = getComputedStyle(el);
+    const label = `${el.tagName.toLowerCase()} « ${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 40)} »`;
+    if (!el.matches(":focus-visible")) return `${label} : :focus-visible faux`;
+    if (style.outlineStyle === "none" || parseFloat(style.outlineWidth) === 0) {
+      return `${label} : pas de contour (${style.outlineStyle} ${style.outlineWidth})`;
+    }
+    if (style.outlineColor !== focus) {
+      return `${label} : contour ${style.outlineColor}, --focus vaut ${focus}`;
+    }
+    return null;
   });
 }
 
@@ -445,6 +471,18 @@ export class Workspace {
     writeFileSync(
       join(this.dataDir, "preferences.json"),
       JSON.stringify({ version: 4, sync_action: action }),
+    );
+  }
+
+  /** Mémorise le thème, la palette et le Halo, comme le ferait une session précédente (`preferences.json`). */
+  rememberAppearance(appearance: {
+    theme: "dark" | "light";
+    palette: "neon" | "kraken";
+    halo: boolean;
+  }): void {
+    writeFileSync(
+      join(this.dataDir, "preferences.json"),
+      JSON.stringify({ version: 6, ...appearance }),
     );
   }
 

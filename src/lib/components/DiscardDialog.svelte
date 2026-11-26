@@ -1,5 +1,6 @@
 <script lang="ts">
   import Trash2 from "@lucide/svelte/icons/trash-2";
+  import { restoreFocus } from "../restoreFocus";
   import X from "@lucide/svelte/icons/x";
 
   /**
@@ -58,7 +59,7 @@
 
 <svelte:window {onkeydown} />
 
-<div class="backdrop">
+<div class="backdrop" use:restoreFocus>
   <div
     class="dialog"
     bind:this={dialog}

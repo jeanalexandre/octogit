@@ -1,5 +1,6 @@
 <script lang="ts">
   import ArrowUpFromLine from "@lucide/svelte/icons/arrow-up-from-line";
+  import { restoreFocus } from "../restoreFocus";
   import X from "@lucide/svelte/icons/x";
   import type { ForcePushView } from "../bindings";
 
@@ -61,7 +62,7 @@
 
 <svelte:window {onkeydown} />
 
-<div class="backdrop">
+<div class="backdrop" use:restoreFocus>
   <div
     class="dialog"
     class:refused={refused !== null}

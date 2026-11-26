@@ -100,6 +100,8 @@
   let scrollTop = $state(0);
   let viewport = $state(0);
   let hovered: string | null = $state(null);
+  /** Commit dont le bouton `.summary` a le focus clavier : sa date absolue s'affiche comme au survol. */
+  let focusedDate: string | null = $state(null);
   /** Nom d'auteur survolé ou focalisé (infobulle avec l'adresse), par commit. */
   let hoveredAuthor: string | null = $state(null);
   let focusedAuthor: string | null = $state(null);
@@ -519,7 +521,16 @@
                 data-commit={commit.id}
                 data-matched={highlighted.has(commit.id) ? "" : undefined}
                 aria-current={selected === commit.id ? "true" : undefined}
+                aria-describedby={focusedDate === commit.id &&
+                shown("date") &&
+                commit.timestamp !== null
+                  ? `date-tip-${commit.id}`
+                  : undefined}
                 onclick={() => onselect(commit.id)}
+                onfocus={() => (focusedDate = commit.id)}
+                onblur={() => {
+                  if (focusedDate === commit.id) focusedDate = null;
+                }}
                 onkeydown={(e) => {
                   if (!isMenuKey(e) || !oncommitcontextmenu) return;
                   e.preventDefault();
@@ -559,8 +570,10 @@
                   >
                     {formatRelativeShort(commit.timestamp)}
                   </time>
-                  {#if hovered === commit.id}
-                    <span role="tooltip" class="tooltip">{formatAbsolute(commit.timestamp)}</span>
+                  {#if hovered === commit.id || focusedDate === commit.id}
+                    <span role="tooltip" class="tooltip" id="date-tip-{commit.id}"
+                      >{formatAbsolute(commit.timestamp)}</span
+                    >
                   {/if}
                 </span>
               {:else if shown("date")}

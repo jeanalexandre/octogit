@@ -5,6 +5,7 @@
    * (Échap) ne change rien. Le parent garde l'état et fait l'action.
    */
   import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
+  import { restoreFocus } from "../restoreFocus";
   import X from "@lucide/svelte/icons/x";
   import type { ChangeStatusView, FileChangeView, LostCommitView } from "../bindings";
 
@@ -79,7 +80,7 @@
 
 <svelte:window {onkeydown} />
 
-<div class="backdrop">
+<div class="backdrop" use:restoreFocus>
   <div
     class="dialog"
     bind:this={dialog}

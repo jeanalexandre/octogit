@@ -53,6 +53,7 @@
 
 <script lang="ts">
   import Check from "@lucide/svelte/icons/check";
+  import { restoreFocus } from "../restoreFocus";
   import ListOrdered from "@lucide/svelte/icons/list-ordered";
   import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
   import Trash2 from "@lucide/svelte/icons/trash-2";
@@ -499,6 +500,7 @@
     class="menu"
     role="menu"
     aria-label={menu.name}
+    use:restoreFocus
     bind:this={menuEl}
     style="left: {menu.x}px; top: {menu.y}px"
   >
@@ -570,7 +572,7 @@
 {/if}
 
 {#if tagDeleteConfirm}
-  <div class="backdrop">
+  <div class="backdrop" use:restoreFocus>
     <div
       class="dialog"
       bind:this={dialog}
@@ -597,7 +599,7 @@
 {/if}
 
 {#if deleteConfirm}
-  <div class="backdrop">
+  <div class="backdrop" use:restoreFocus>
     <div
       class="dialog"
       bind:this={dialog}
@@ -619,7 +621,7 @@
 {/if}
 
 {#if remoteDeleteConfirm}
-  <div class="backdrop">
+  <div class="backdrop" use:restoreFocus>
     <div
       class="dialog"
       bind:this={dialog}
@@ -644,7 +646,7 @@
 {/if}
 
 {#if confirm}
-  <div class="backdrop">
+  <div class="backdrop" use:restoreFocus>
     <div
       class="dialog"
       bind:this={dialog}

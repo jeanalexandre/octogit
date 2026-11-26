@@ -4,6 +4,7 @@
    * Échap) ne change rien. Le parent garde l'état et fait l'action.
    */
   import X from "@lucide/svelte/icons/x";
+  import { restoreFocus } from "../restoreFocus";
   import { OPERATION_NAME, type OperationKind } from "../operation";
 
   let {
@@ -52,7 +53,7 @@
   }
 </script>
 
-<div class="backdrop" role="presentation" {onkeydown}>
+<div class="backdrop" role="presentation" use:restoreFocus {onkeydown}>
   <div
     class="dialog"
     bind:this={dialog}

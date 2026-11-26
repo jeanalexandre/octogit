@@ -1,5 +1,6 @@
 <script lang="ts">
   import Download from "@lucide/svelte/icons/download";
+  import { restoreFocus } from "../restoreFocus";
   import PencilLine from "@lucide/svelte/icons/pencil-line";
   import X from "@lucide/svelte/icons/x";
   import type { MismatchView } from "../bindings";
@@ -60,7 +61,7 @@
 
 <svelte:window {onkeydown} />
 
-<div class="backdrop">
+<div class="backdrop" use:restoreFocus>
   <div
     class="dialog"
     bind:this={dialog}
